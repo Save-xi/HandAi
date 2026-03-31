@@ -21,6 +21,11 @@ class MediaPipeHandDetector:
         min_detection_confidence: float = 0.5,
         min_tracking_confidence: float = 0.5,
     ) -> None:
+        if not hasattr(mp, "solutions") or not hasattr(mp.solutions, "hands"):
+            raise RuntimeError(
+                "Unsupported mediapipe package detected. "
+                "Install mediapipe==0.10.14 for this baseline."
+            )
         self.mp_hands = mp.solutions.hands
         self.hands = self.mp_hands.Hands(
             static_image_mode=False,
