@@ -14,18 +14,30 @@ class HandDetection:
     confidence: float
 
 
+def normalize_handedness(label: str, input_mirrored: bool) -> str:
+    if input_mirrored:
+        return label
+    if label == "Left":
+        return "Right"
+    if label == "Right":
+        return "Left"
+    return label
+
+
 class MediaPipeHandDetector:
     def __init__(
         self,
         max_num_hands: int = 2,
         min_detection_confidence: float = 0.5,
         min_tracking_confidence: float = 0.5,
+        input_mirrored: bool = False,
     ) -> None:
         if not hasattr(mp, "solutions") or not hasattr(mp.solutions, "hands"):
             raise RuntimeError(
                 "Unsupported mediapipe package detected. "
                 "Install mediapipe==0.10.14 for this baseline."
             )
+        self.input_mirrored = input_mirrored
         self.mp_hands = mp.solutions.hands
         self.hands = self.mp_hands.Hands(
             static_image_mode=False,
@@ -42,7 +54,8 @@ class MediaPipeHandDetector:
             return detections
 
         for lm, handness in zip(results.multi_hand_landmarks, results.multi_handedness):
-            label = handness.classification[0].label
+            raw_label = handness.classification[0].label
+            label = normalize_handedness(raw_label, self.input_mirrored)
             score = float(handness.classification[0].score)
             points = [(float(p.x), float(p.y)) for p in lm.landmark]
             detections.append(HandDetection(landmarks_2d=points, handedness=label, confidence=score))

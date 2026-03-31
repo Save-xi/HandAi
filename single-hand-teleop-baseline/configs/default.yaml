@@ -1,6 +1,7 @@
 camera_index: 0
 input_source_type: webcam  # webcam | video_file (reserved)
 video_file_path: ""
+input_mirrored: false  # set true only if your input feed is already mirrored/selfie-style
 display_width: 1280
 display_height: 720
 draw_landmarks: true

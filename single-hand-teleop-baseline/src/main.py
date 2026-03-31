@@ -42,6 +42,7 @@ def main() -> None:
         max_num_hands=int(cfg.get("max_num_hands", 2)),
         min_detection_confidence=float(cfg.get("min_detection_confidence", 0.5)),
         min_tracking_confidence=float(cfg.get("min_tracking_confidence", 0.5)),
+        input_mirrored=bool(cfg.get("input_mirrored", False)),
     )
     exporter = JsonExporter(
         output_path=str(cfg.get("output_json_path", "examples/sample_output.json")),
