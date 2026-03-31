@@ -1,0 +1,12 @@
+name: single-right-hand-baseline
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+      - mediapipe>=0.10.14
+      - opencv-python>=4.9.0
+      - numpy>=1.24
+      - PyYAML>=6.0
+      - pytest>=8.0

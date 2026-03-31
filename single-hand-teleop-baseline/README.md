@@ -13,12 +13,30 @@
 - 每帧统一 JSON 输出
 
 本阶段不做：
-- 双手、Unity、实体机械手控制、5G、深度相机复杂适配、时序模型训练、复杂前端、数据库、云部署、多进程分布式。
+- 双手
+- Unity
+- 实体机械手控制
+- 5G
+- 时序模型训练
+- 深度相机复杂适配
+- 复杂前端
+- 数据库
+- 云部署
+- 多进程分布式
 
-> **明确声明：当前仅支持 single right hand baseline，不包含 Unity 和实体机械手。**
+> **明确声明：当前仅支持 single right hand baseline，不包含 Unity、双手、实体机械手、5G 和时序模型训练。**
 
-## 3) 环境安装方法（Python 3.10+ / conda）
+## 3) 环境安装（推荐与备选）
+### 方案 1（推荐）：使用 `environment.yml`
 ```bash
+cd single-hand-teleop-baseline
+conda env create -f environment.yml
+conda activate single-right-hand-baseline
+```
+
+### 方案 2（备选）：使用 `requirements.txt`
+```bash
+cd single-hand-teleop-baseline
 conda create -n single-right-hand-baseline python=3.10 -y
 conda activate single-right-hand-baseline
 pip install -r requirements.txt
@@ -45,6 +63,7 @@ python src/main.py --config configs/default.yaml
 
 ## 6) JSON 输出格式说明
 每帧统一对象（字段稳定）：
+
 ```json
 {
   "timestamp": 1710000000.123,
@@ -61,17 +80,19 @@ python src/main.py --config configs/default.yaml
     "ring": 0.79,
     "little": 0.75
   },
-  "landmarks_2d": [[0.11, 0.22], [0.12, 0.25]],
+  "landmarks_2d": [[0.50, 0.82], [0.47, 0.74], [0.45, 0.67], "... 共 21 个 [x, y] 点 ..."],
   "fps": 29.5,
   "latency_ms": 12.4
 }
 ```
 
+> `landmarks_2d` 在真实输出中固定为 21 个二维点。完整示例请参考 `examples/sample_output.json`。
+
 ## 7) 如何验证 demo 成功
 1. 启动 `python src/main.py --config configs/default.yaml` 后，能打开摄像头窗口。
-2. 右手进入画面，左侧显示 21 关键点和骨架。
-3. 右侧状态区会更新：`detected / handedness / gesture / pinch_distance / hand_open_ratio / finger_curl / FPS / latency_ms`。
-4. 在 `configs/default.yaml` 的 `output_json_path` 指定路径，看到最后一帧 JSON 被刷新。
+2. 检测到右手时，画面能绘制关键点与骨架。
+3. 状态面板会显示并刷新：`gesture / fps / latency_ms`（以及 detected/handedness 等字段）。
+4. 在 `configs/default.yaml` 的 `output_json_path` 指定路径，能看到 JSON 输出被刷新。
 5. 按 `q` 安全退出，摄像头和窗口资源被释放。
 
 ## 8) 测试
@@ -79,6 +100,8 @@ python src/main.py --config configs/default.yaml
 cd single-hand-teleop-baseline
 pytest -q
 ```
+
+> 已通过 `pytest.ini` 配置测试路径，不需要手动设置 `PYTHONPATH`。
 
 ## 9) 后续扩展方向（当前不实现）
 - 时序预测模型（如 TCN/Transformer/LSTM）
