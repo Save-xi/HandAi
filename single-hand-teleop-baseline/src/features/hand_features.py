@@ -1,19 +1,30 @@
 from __future__ import annotations
 
-from typing import Dict, List, Tuple
+import math
+from typing import Dict, List, Sequence, Tuple
 
-from features.geometry_utils import clamp01, euclidean
+from features.geometry_utils import clamp01, euclidean, joint_angle, polyline_length
 
 WRIST = 0
+THUMB_CMC = 1
 THUMB_MCP = 2
+THUMB_IP = 3
 THUMB_TIP = 4
 INDEX_MCP = 5
+INDEX_PIP = 6
+INDEX_DIP = 7
 INDEX_TIP = 8
 MIDDLE_MCP = 9
+MIDDLE_PIP = 10
+MIDDLE_DIP = 11
 MIDDLE_TIP = 12
 RING_MCP = 13
+RING_PIP = 14
+RING_DIP = 15
 RING_TIP = 16
 LITTLE_MCP = 17
+LITTLE_PIP = 18
+LITTLE_DIP = 19
 LITTLE_TIP = 20
 PALM_CENTER_POINTS = [WRIST, INDEX_MCP, MIDDLE_MCP, RING_MCP, LITTLE_MCP]
 EMPTY_FINGER_CURL = {"thumb": None, "index": None, "middle": None, "ring": None, "little": None}
@@ -32,6 +43,12 @@ def _mean_point(points: List[Tuple[float, float]]) -> Tuple[float, float]:
     )
 
 
+def _as_xyz(landmarks_2d: List[Tuple[float, float]], landmarks_xyz: List[Tuple[float, float, float]] | None) -> List[Tuple[float, float, float]]:
+    if landmarks_xyz and len(landmarks_xyz) == len(landmarks_2d):
+        return landmarks_xyz
+    return [(x, y, 0.0) for x, y in landmarks_2d]
+
+
 def _palm_size(landmarks: List[Tuple[float, float]]) -> float:
     # Wrist->middle MCP is a stable longitudinal palm scale and is less affected
     # by finger spread than the index-to-little MCP width.
@@ -41,20 +58,54 @@ def _palm_size(landmarks: List[Tuple[float, float]]) -> float:
     return euclidean(landmarks[INDEX_MCP], landmarks[LITTLE_MCP])
 
 
-def _finger_curl(landmarks: List[Tuple[float, float]], tip: int, mcp: int) -> float:
-    # Curl uses the tip->wrist distance relative to the finger base->wrist distance.
-    # Extended fingers produce a ratio >= 1 and map near 0 curl; curled fingers
-    # shorten the tip distance and push the estimate toward 1.
-    d_tip_wrist = euclidean(landmarks[tip], landmarks[WRIST])
-    d_mcp_wrist = euclidean(landmarks[mcp], landmarks[WRIST])
-    straightness = _safe_ratio(d_tip_wrist, d_mcp_wrist, default=1.0)
-    curl = 1.0 - clamp01(straightness)
-    return clamp01(curl)
+def _bend_from_angle(angle: float) -> float:
+    # Straight joints are near pi radians; tighter bends move toward 0.
+    return clamp01((math.pi - angle) / math.pi)
+
+
+def _chain_compression(landmarks_xyz: Sequence[Sequence[float]], joint_indices: Sequence[int]) -> float:
+    chain_points = [landmarks_xyz[idx] for idx in joint_indices]
+    chain_len = polyline_length(chain_points)
+    if chain_len <= 1e-6:
+        return 0.0
+    direct = euclidean(chain_points[0], chain_points[-1])
+    return clamp01(1.0 - clamp01(direct / chain_len))
+
+
+def _long_finger_curl(
+    landmarks_xyz: List[Tuple[float, float, float]],
+    *,
+    mcp: int,
+    pip: int,
+    dip: int,
+    tip: int,
+) -> float:
+    # Hybrid curl: PIP/DIP bend capture finger folding, while chain compression
+    # adds robustness when the projected angle looks deceptively straight in 2D.
+    pip_bend = _bend_from_angle(joint_angle(landmarks_xyz[mcp], landmarks_xyz[pip], landmarks_xyz[dip]))
+    dip_bend = _bend_from_angle(joint_angle(landmarks_xyz[pip], landmarks_xyz[dip], landmarks_xyz[tip]))
+    compression = _chain_compression(landmarks_xyz, [mcp, pip, dip, tip])
+    return clamp01(0.45 * pip_bend + 0.35 * dip_bend + 0.20 * compression)
+
+
+def _thumb_curl(landmarks_xyz: List[Tuple[float, float, float]]) -> float:
+    # Thumb kinematics differ from the long fingers, so we use its own chain:
+    # CMC->MCP->IP->TIP. The weights slightly favor the two bend angles and use
+    # compression as a stabilizer for partial opposition/flexion poses.
+    mcp_bend = _bend_from_angle(joint_angle(landmarks_xyz[THUMB_CMC], landmarks_xyz[THUMB_MCP], landmarks_xyz[THUMB_IP]))
+    ip_bend = _bend_from_angle(joint_angle(landmarks_xyz[THUMB_MCP], landmarks_xyz[THUMB_IP], landmarks_xyz[THUMB_TIP]))
+    compression = _chain_compression(landmarks_xyz, [THUMB_CMC, THUMB_MCP, THUMB_IP, THUMB_TIP])
+    return clamp01(0.40 * mcp_bend + 0.40 * ip_bend + 0.20 * compression)
 
 
 def extract_hand_features(
-    landmarks_2d: List[Tuple[float, float]], handedness: str, confidence: float | None, timestamp: float
+    landmarks_2d: List[Tuple[float, float]],
+    handedness: str,
+    confidence: float | None,
+    timestamp: float,
+    landmarks_xyz: List[Tuple[float, float, float]] | None = None,
 ) -> Dict:
+    landmarks_xyz = _as_xyz(landmarks_2d, landmarks_xyz)
     palm_size = _palm_size(landmarks_2d)
     palm_center = _mean_point([landmarks_2d[idx] for idx in PALM_CENTER_POINTS])
     pinch_distance_raw = euclidean(landmarks_2d[THUMB_TIP], landmarks_2d[INDEX_TIP])
@@ -76,11 +127,11 @@ def extract_hand_features(
     )
 
     finger_curl = {
-        "thumb": _finger_curl(landmarks_2d, tip=THUMB_TIP, mcp=THUMB_MCP),
-        "index": _finger_curl(landmarks_2d, tip=INDEX_TIP, mcp=INDEX_MCP),
-        "middle": _finger_curl(landmarks_2d, tip=MIDDLE_TIP, mcp=MIDDLE_MCP),
-        "ring": _finger_curl(landmarks_2d, tip=RING_TIP, mcp=RING_MCP),
-        "little": _finger_curl(landmarks_2d, tip=LITTLE_TIP, mcp=LITTLE_MCP),
+        "thumb": _thumb_curl(landmarks_xyz),
+        "index": _long_finger_curl(landmarks_xyz, mcp=INDEX_MCP, pip=INDEX_PIP, dip=INDEX_DIP, tip=INDEX_TIP),
+        "middle": _long_finger_curl(landmarks_xyz, mcp=MIDDLE_MCP, pip=MIDDLE_PIP, dip=MIDDLE_DIP, tip=MIDDLE_TIP),
+        "ring": _long_finger_curl(landmarks_xyz, mcp=RING_MCP, pip=RING_PIP, dip=RING_DIP, tip=RING_TIP),
+        "little": _long_finger_curl(landmarks_xyz, mcp=LITTLE_MCP, pip=LITTLE_PIP, dip=LITTLE_DIP, tip=LITTLE_TIP),
     }
 
     return {
@@ -95,6 +146,17 @@ def extract_hand_features(
         "finger_curl": finger_curl,
         "landmarks_2d": [[float(x), float(y)] for x, y in landmarks_2d],
     }
+
+
+def invalidate_control_features(features: Dict) -> Dict:
+    """Keep detection info/landmarks, but clear control-facing geometry for low-quality frames."""
+    degraded = dict(features)
+    degraded["gesture_raw"] = None
+    degraded["gesture"] = None
+    degraded["pinch_distance_norm"] = None
+    degraded["hand_open_ratio"] = None
+    degraded["finger_curl"] = dict(EMPTY_FINGER_CURL)
+    return degraded
 
 
 def empty_features(timestamp: float) -> Dict:

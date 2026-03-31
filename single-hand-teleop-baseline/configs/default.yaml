@@ -12,6 +12,9 @@ save_jsonl: false
 jsonl_output_dir: "outputs"
 output_json_path: "examples/sample_output.json"
 recent_frames_buffer_size: 10
+control_ready_min_in_bounds_ratio: 0.90  # require most landmarks to stay inside the image
+control_ready_palm_center_margin: 0.08  # reject control updates when the palm center hugs the border
+control_ready_palm_core_oob_tolerance: 0.02  # allow tiny MediaPipe overshoot on palm landmarks
 pinch_distance_norm_threshold: 0.45
 pinch_open_ratio_min: 0.75
 pinch_support_curl_max: 0.65

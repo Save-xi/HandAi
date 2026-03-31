@@ -88,6 +88,28 @@ def test_fist_can_use_compact_hand_fallback_when_curl_is_unstable():
     assert infer_gesture_raw(fist_features, cfg) == "fist"
 
 
+def test_infer_gesture_raw_returns_unknown_when_control_features_are_cleared():
+    cfg = {
+        "pinch_distance_norm_threshold": 0.45,
+        "pinch_open_ratio_min": 0.75,
+        "pinch_support_curl_max": 0.65,
+        "open_ratio_threshold": 0.85,
+        "open_mean_curl_max": 0.45,
+        "fist_ratio_threshold": 0.85,
+        "fist_mean_curl_min": 0.45,
+        "fist_compact_ratio_threshold": 0.65,
+    }
+
+    degraded_features = {
+        "detected": True,
+        "pinch_distance_norm": None,
+        "hand_open_ratio": None,
+        "finger_curl": {"thumb": None, "index": None, "middle": None, "ring": None, "little": None},
+    }
+
+    assert infer_gesture_raw(degraded_features, cfg) == "unknown"
+
+
 def test_infer_stable_gesture_uses_majority_and_unknown_on_missing_hand():
     cfg = {
         "stable_gesture_window": 5,

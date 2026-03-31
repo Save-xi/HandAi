@@ -10,6 +10,7 @@ import mediapipe as mp
 @dataclass
 class HandDetection:
     landmarks_2d: List[Tuple[float, float]]
+    landmarks_xyz: List[Tuple[float, float, float]]
     handedness: str
     confidence: float
 
@@ -57,8 +58,16 @@ class MediaPipeHandDetector:
             raw_label = handness.classification[0].label
             label = normalize_handedness(raw_label, self.input_mirrored)
             score = float(handness.classification[0].score)
-            points = [(float(p.x), float(p.y)) for p in lm.landmark]
-            detections.append(HandDetection(landmarks_2d=points, handedness=label, confidence=score))
+            points_xyz = [(float(p.x), float(p.y), float(p.z)) for p in lm.landmark]
+            points_2d = [(x, y) for x, y, _ in points_xyz]
+            detections.append(
+                HandDetection(
+                    landmarks_2d=points_2d,
+                    landmarks_xyz=points_xyz,
+                    handedness=label,
+                    confidence=score,
+                )
+            )
         return detections
 
     def draw_landmarks(self, frame, landmarks_2d: List[Tuple[float, float]]) -> None:

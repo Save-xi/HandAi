@@ -8,10 +8,11 @@ from pathlib import Path
 import cv2
 
 from capture.webcam import WebcamSource
-from features.hand_features import empty_features, extract_hand_features
+from features.hand_features import empty_features, extract_hand_features, invalidate_control_features
 from gesture.rule_based_gesture import GestureStabilizer, infer_gesture_raw
 from output.json_exporter import JsonExporter
 from perception.hand_filter import select_right_hand
+from perception.landmark_quality import assess_control_readiness
 from perception.mediapipe_hand import MediaPipeHandDetector
 from utils.config import load_config
 from utils.logger import get_logger
@@ -88,7 +89,16 @@ def main() -> None:
             if right is None:
                 payload = empty_features(ts)
             else:
-                payload = extract_hand_features(right.landmarks_2d, right.handedness, right.confidence, ts)
+                payload = extract_hand_features(
+                    right.landmarks_2d,
+                    right.handedness,
+                    right.confidence,
+                    ts,
+                    landmarks_xyz=right.landmarks_xyz,
+                )
+                quality = assess_control_readiness(right.landmarks_2d, cfg)
+                if not bool(quality["control_ready"]):
+                    payload = invalidate_control_features(payload)
                 if bool(cfg.get("draw_landmarks", True)):
                     detector.draw_landmarks(frame, right.landmarks_2d)
 
