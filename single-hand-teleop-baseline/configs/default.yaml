@@ -1,20 +1,31 @@
 camera_index: 0
 input_source_type: webcam  # webcam | video_file (reserved)
 video_file_path: ""
+input_mirrored: false  # set true only if your input feed is already mirrored/selfie-style
 display_width: 1280
 display_height: 720
 draw_landmarks: true
+console_print_every_n_frames: 5
+console_landmarks_preview_count: 3
 save_last_json: true
+save_jsonl: false
+jsonl_output_dir: "outputs"
 output_json_path: "examples/sample_output.json"
-pinch_threshold: 0.12
-open_ratio_threshold: 0.55
-fist_ratio_threshold: 0.32
-finger_curl_thresholds:
-  thumb: 0.6
-  index: 0.62
-  middle: 0.62
-  ring: 0.62
-  little: 0.62
+recent_frames_buffer_size: 10
+control_ready_min_in_bounds_ratio: 0.90  # require most landmarks to stay inside the image
+control_ready_palm_center_margin: 0.08  # reject control updates when the palm center hugs the border
+control_ready_palm_core_oob_tolerance: 0.02  # allow tiny MediaPipe overshoot on palm landmarks
+pinch_distance_norm_threshold: 0.45
+pinch_open_ratio_min: 0.75
+pinch_support_curl_max: 0.65
+open_ratio_threshold: 0.85
+open_mean_curl_max: 0.45
+fist_ratio_threshold: 0.85
+fist_mean_curl_min: 0.45
+fist_compact_ratio_threshold: 0.65
+stable_gesture_window: 5
+stable_gesture_min_consecutive: 2
+stable_unknown_consecutive: 1
 min_detection_confidence: 0.5
 min_tracking_confidence: 0.5
 max_num_hands: 2

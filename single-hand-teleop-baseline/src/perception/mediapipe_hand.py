@@ -10,8 +10,19 @@ import mediapipe as mp
 @dataclass
 class HandDetection:
     landmarks_2d: List[Tuple[float, float]]
+    landmarks_xyz: List[Tuple[float, float, float]]
     handedness: str
     confidence: float
+
+
+def normalize_handedness(label: str, input_mirrored: bool) -> str:
+    if input_mirrored:
+        return label
+    if label == "Left":
+        return "Right"
+    if label == "Right":
+        return "Left"
+    return label
 
 
 class MediaPipeHandDetector:
@@ -20,12 +31,14 @@ class MediaPipeHandDetector:
         max_num_hands: int = 2,
         min_detection_confidence: float = 0.5,
         min_tracking_confidence: float = 0.5,
+        input_mirrored: bool = False,
     ) -> None:
         if not hasattr(mp, "solutions") or not hasattr(mp.solutions, "hands"):
             raise RuntimeError(
                 "Unsupported mediapipe package detected. "
                 "Install mediapipe==0.10.14 for this baseline."
             )
+        self.input_mirrored = input_mirrored
         self.mp_hands = mp.solutions.hands
         self.hands = self.mp_hands.Hands(
             static_image_mode=False,
@@ -42,10 +55,19 @@ class MediaPipeHandDetector:
             return detections
 
         for lm, handness in zip(results.multi_hand_landmarks, results.multi_handedness):
-            label = handness.classification[0].label
+            raw_label = handness.classification[0].label
+            label = normalize_handedness(raw_label, self.input_mirrored)
             score = float(handness.classification[0].score)
-            points = [(float(p.x), float(p.y)) for p in lm.landmark]
-            detections.append(HandDetection(landmarks_2d=points, handedness=label, confidence=score))
+            points_xyz = [(float(p.x), float(p.y), float(p.z)) for p in lm.landmark]
+            points_2d = [(x, y) for x, y, _ in points_xyz]
+            detections.append(
+                HandDetection(
+                    landmarks_2d=points_2d,
+                    landmarks_xyz=points_xyz,
+                    handedness=label,
+                    confidence=score,
+                )
+            )
         return detections
 
     def draw_landmarks(self, frame, landmarks_2d: List[Tuple[float, float]]) -> None:

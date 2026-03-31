@@ -1,17 +1,33 @@
 from __future__ import annotations
 
-from typing import Dict, List, Tuple
+import math
+from typing import Dict, List, Sequence, Tuple
 
-from features.geometry_utils import clamp01, euclidean
+from features.geometry_utils import clamp01, euclidean, joint_angle, polyline_length
 
 WRIST = 0
+THUMB_CMC = 1
+THUMB_MCP = 2
+THUMB_IP = 3
 THUMB_TIP = 4
-INDEX_TIP = 8
-MIDDLE_TIP = 12
-RING_TIP = 16
-LITTLE_TIP = 20
 INDEX_MCP = 5
-PINKY_MCP = 17
+INDEX_PIP = 6
+INDEX_DIP = 7
+INDEX_TIP = 8
+MIDDLE_MCP = 9
+MIDDLE_PIP = 10
+MIDDLE_DIP = 11
+MIDDLE_TIP = 12
+RING_MCP = 13
+RING_PIP = 14
+RING_DIP = 15
+RING_TIP = 16
+LITTLE_MCP = 17
+LITTLE_PIP = 18
+LITTLE_DIP = 19
+LITTLE_TIP = 20
+PALM_CENTER_POINTS = [WRIST, INDEX_MCP, MIDDLE_MCP, RING_MCP, LITTLE_MCP]
+EMPTY_FINGER_CURL = {"thumb": None, "index": None, "middle": None, "ring": None, "little": None}
 
 
 def _safe_ratio(num: float, den: float, default: float = 0.0) -> float:
@@ -20,60 +36,139 @@ def _safe_ratio(num: float, den: float, default: float = 0.0) -> float:
     return num / den
 
 
-def _finger_curl(landmarks: List[Tuple[float, float]], tip: int, mcp: int) -> float:
-    # Curl estimate: shorter tip->wrist distance means more curled.
-    d_tip_wrist = euclidean(landmarks[tip], landmarks[WRIST])
-    d_mcp_wrist = euclidean(landmarks[mcp], landmarks[WRIST])
-    straightness = _safe_ratio(d_tip_wrist, d_mcp_wrist, default=1.0)
-    curl = 1.0 - clamp01(straightness)
-    return clamp01(curl)
+def _mean_point(points: List[Tuple[float, float]]) -> Tuple[float, float]:
+    return (
+        sum(p[0] for p in points) / len(points),
+        sum(p[1] for p in points) / len(points),
+    )
+
+
+def _as_xyz(landmarks_2d: List[Tuple[float, float]], landmarks_xyz: List[Tuple[float, float, float]] | None) -> List[Tuple[float, float, float]]:
+    if landmarks_xyz and len(landmarks_xyz) == len(landmarks_2d):
+        return landmarks_xyz
+    return [(x, y, 0.0) for x, y in landmarks_2d]
+
+
+def _palm_size(landmarks: List[Tuple[float, float]]) -> float:
+    # Wrist->middle MCP is a stable longitudinal palm scale and is less affected
+    # by finger spread than the index-to-little MCP width.
+    primary = euclidean(landmarks[WRIST], landmarks[MIDDLE_MCP])
+    if primary > 1e-6:
+        return primary
+    return euclidean(landmarks[INDEX_MCP], landmarks[LITTLE_MCP])
+
+
+def _bend_from_angle(angle: float) -> float:
+    # Straight joints are near pi radians; tighter bends move toward 0.
+    return clamp01((math.pi - angle) / math.pi)
+
+
+def _chain_compression(landmarks_xyz: Sequence[Sequence[float]], joint_indices: Sequence[int]) -> float:
+    chain_points = [landmarks_xyz[idx] for idx in joint_indices]
+    chain_len = polyline_length(chain_points)
+    if chain_len <= 1e-6:
+        return 0.0
+    direct = euclidean(chain_points[0], chain_points[-1])
+    return clamp01(1.0 - clamp01(direct / chain_len))
+
+
+def _long_finger_curl(
+    landmarks_xyz: List[Tuple[float, float, float]],
+    *,
+    mcp: int,
+    pip: int,
+    dip: int,
+    tip: int,
+) -> float:
+    # Hybrid curl: PIP/DIP bend capture finger folding, while chain compression
+    # adds robustness when the projected angle looks deceptively straight in 2D.
+    pip_bend = _bend_from_angle(joint_angle(landmarks_xyz[mcp], landmarks_xyz[pip], landmarks_xyz[dip]))
+    dip_bend = _bend_from_angle(joint_angle(landmarks_xyz[pip], landmarks_xyz[dip], landmarks_xyz[tip]))
+    compression = _chain_compression(landmarks_xyz, [mcp, pip, dip, tip])
+    return clamp01(0.45 * pip_bend + 0.35 * dip_bend + 0.20 * compression)
+
+
+def _thumb_curl(landmarks_xyz: List[Tuple[float, float, float]]) -> float:
+    # Thumb kinematics differ from the long fingers, so we use its own chain:
+    # CMC->MCP->IP->TIP. The weights slightly favor the two bend angles and use
+    # compression as a stabilizer for partial opposition/flexion poses.
+    mcp_bend = _bend_from_angle(joint_angle(landmarks_xyz[THUMB_CMC], landmarks_xyz[THUMB_MCP], landmarks_xyz[THUMB_IP]))
+    ip_bend = _bend_from_angle(joint_angle(landmarks_xyz[THUMB_MCP], landmarks_xyz[THUMB_IP], landmarks_xyz[THUMB_TIP]))
+    compression = _chain_compression(landmarks_xyz, [THUMB_CMC, THUMB_MCP, THUMB_IP, THUMB_TIP])
+    return clamp01(0.40 * mcp_bend + 0.40 * ip_bend + 0.20 * compression)
 
 
 def extract_hand_features(
-    landmarks_2d: List[Tuple[float, float]], handedness: str, confidence: float, timestamp: float
+    landmarks_2d: List[Tuple[float, float]],
+    handedness: str,
+    confidence: float | None,
+    timestamp: float,
+    landmarks_xyz: List[Tuple[float, float, float]] | None = None,
 ) -> Dict:
-    palm_width = euclidean(landmarks_2d[INDEX_MCP], landmarks_2d[PINKY_MCP])
+    landmarks_xyz = _as_xyz(landmarks_2d, landmarks_xyz)
+    palm_size = _palm_size(landmarks_2d)
+    palm_center = _mean_point([landmarks_2d[idx] for idx in PALM_CENTER_POINTS])
     pinch_distance_raw = euclidean(landmarks_2d[THUMB_TIP], landmarks_2d[INDEX_TIP])
-    pinch_distance = _safe_ratio(pinch_distance_raw, palm_width, default=1.0)
+    pinch_distance_norm = _safe_ratio(pinch_distance_raw, palm_size, default=1.0)
 
-    avg_tip_wrist = (
-        euclidean(landmarks_2d[THUMB_TIP], landmarks_2d[WRIST])
-        + euclidean(landmarks_2d[INDEX_TIP], landmarks_2d[WRIST])
-        + euclidean(landmarks_2d[MIDDLE_TIP], landmarks_2d[WRIST])
-        + euclidean(landmarks_2d[RING_TIP], landmarks_2d[WRIST])
-        + euclidean(landmarks_2d[LITTLE_TIP], landmarks_2d[WRIST])
-    ) / 5.0
-    hand_open_ratio = _safe_ratio(avg_tip_wrist, palm_width, default=0.0)
+    # Hand openness is the mean fingertip distance to the palm center, normalized
+    # by palm size so the ratio is less sensitive to camera distance.
+    hand_open_ratio = _safe_ratio(
+        (
+            euclidean(landmarks_2d[THUMB_TIP], palm_center)
+            + euclidean(landmarks_2d[INDEX_TIP], palm_center)
+            + euclidean(landmarks_2d[MIDDLE_TIP], palm_center)
+            + euclidean(landmarks_2d[RING_TIP], palm_center)
+            + euclidean(landmarks_2d[LITTLE_TIP], palm_center)
+        )
+        / 5.0,
+        palm_size,
+        default=0.0,
+    )
 
     finger_curl = {
-        "thumb": _finger_curl(landmarks_2d, tip=THUMB_TIP, mcp=2),
-        "index": _finger_curl(landmarks_2d, tip=INDEX_TIP, mcp=5),
-        "middle": _finger_curl(landmarks_2d, tip=MIDDLE_TIP, mcp=9),
-        "ring": _finger_curl(landmarks_2d, tip=RING_TIP, mcp=13),
-        "little": _finger_curl(landmarks_2d, tip=LITTLE_TIP, mcp=17),
+        "thumb": _thumb_curl(landmarks_xyz),
+        "index": _long_finger_curl(landmarks_xyz, mcp=INDEX_MCP, pip=INDEX_PIP, dip=INDEX_DIP, tip=INDEX_TIP),
+        "middle": _long_finger_curl(landmarks_xyz, mcp=MIDDLE_MCP, pip=MIDDLE_PIP, dip=MIDDLE_DIP, tip=MIDDLE_TIP),
+        "ring": _long_finger_curl(landmarks_xyz, mcp=RING_MCP, pip=RING_PIP, dip=RING_DIP, tip=RING_TIP),
+        "little": _long_finger_curl(landmarks_xyz, mcp=LITTLE_MCP, pip=LITTLE_PIP, dip=LITTLE_DIP, tip=LITTLE_TIP),
     }
 
     return {
         "timestamp": timestamp,
         "detected": True,
         "handedness": handedness,
-        "detection_confidence": confidence,
-        "pinch_distance": float(pinch_distance),
+        "confidence": float(confidence) if confidence is not None else None,
+        "gesture_raw": None,
+        "gesture": None,
+        "pinch_distance_norm": float(pinch_distance_norm),
         "hand_open_ratio": float(hand_open_ratio),
         "finger_curl": finger_curl,
         "landmarks_2d": [[float(x), float(y)] for x, y in landmarks_2d],
     }
 
 
+def invalidate_control_features(features: Dict) -> Dict:
+    """Keep detection info/landmarks, but clear control-facing geometry for low-quality frames."""
+    degraded = dict(features)
+    degraded["gesture_raw"] = None
+    degraded["gesture"] = None
+    degraded["pinch_distance_norm"] = None
+    degraded["hand_open_ratio"] = None
+    degraded["finger_curl"] = dict(EMPTY_FINGER_CURL)
+    return degraded
+
+
 def empty_features(timestamp: float) -> Dict:
     return {
         "timestamp": timestamp,
         "detected": False,
-        "handedness": "None",
-        "detection_confidence": 0.0,
+        "handedness": None,
+        "confidence": None,
+        "gesture_raw": "unknown",
         "gesture": "unknown",
-        "pinch_distance": 0.0,
-        "hand_open_ratio": 0.0,
-        "finger_curl": {"thumb": 0.0, "index": 0.0, "middle": 0.0, "ring": 0.0, "little": 0.0},
+        "pinch_distance_norm": None,
+        "hand_open_ratio": None,
+        "finger_curl": dict(EMPTY_FINGER_CURL),
         "landmarks_2d": [],
     }

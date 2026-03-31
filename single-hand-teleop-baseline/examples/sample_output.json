@@ -1,19 +1,20 @@
 {
-  "timestamp": 1774947073.3538218,
+  "timestamp": 1774956183.7477846,
   "detected": false,
-  "handedness": "None",
-  "detection_confidence": 0.0,
+  "handedness": null,
+  "confidence": null,
+  "gesture_raw": "unknown",
   "gesture": "unknown",
-  "pinch_distance": 0.0,
-  "hand_open_ratio": 0.0,
+  "pinch_distance_norm": null,
+  "hand_open_ratio": null,
   "finger_curl": {
-    "thumb": 0.0,
-    "index": 0.0,
-    "middle": 0.0,
-    "ring": 0.0,
-    "little": 0.0
+    "thumb": null,
+    "index": null,
+    "middle": null,
+    "ring": null,
+    "little": null
   },
   "landmarks_2d": [],
-  "fps": 28.65789353001981,
-  "latency_ms": 13.987700000143377
+  "fps": 28.757778979951297,
+  "latency_ms": 11.631100000158767
 }
