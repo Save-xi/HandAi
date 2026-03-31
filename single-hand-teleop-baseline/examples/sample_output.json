@@ -1,0 +1,19 @@
+{
+  "timestamp": 0.0,
+  "detected": true,
+  "handedness": "Right",
+  "detection_confidence": 0.92,
+  "gesture": "pinch",
+  "pinch_distance": 0.08,
+  "hand_open_ratio": 0.31,
+  "finger_curl": {
+    "thumb": 0.42,
+    "index": 0.77,
+    "middle": 0.81,
+    "ring": 0.79,
+    "little": 0.75
+  },
+  "landmarks_2d": [[0.5, 0.5]],
+  "fps": 29.5,
+  "latency_ms": 12.4
+}
