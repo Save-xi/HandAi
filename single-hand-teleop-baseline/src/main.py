@@ -8,12 +8,15 @@ from pathlib import Path
 import cv2
 
 from capture.webcam import WebcamSource
+from control.control_representation import build_control_representation
 from features.hand_features import empty_features, extract_hand_features, invalidate_control_features
 from gesture.rule_based_gesture import GestureStabilizer, infer_gesture_raw
 from output.json_exporter import JsonExporter
 from perception.hand_filter import select_right_hand
 from perception.landmark_quality import assess_control_readiness
 from perception.mediapipe_hand import MediaPipeHandDetector
+from svh.svh_adapter import build_svh_command_preview
+from svh.svh_transport_mock import MockSvhTransport
 from utils.config import load_config
 from utils.logger import get_logger
 from utils.recent_frames import RecentFrameBuffer
@@ -63,6 +66,10 @@ def main() -> None:
         logger=logger,
     )
     history = RecentFrameBuffer(maxlen=int(cfg.get("recent_frames_buffer_size", 10)))
+    svh_transport_name = str(cfg.get("svh_transport", "mock"))
+    svh_transport = MockSvhTransport(logger=logger) if svh_transport_name == "mock" else None
+    if svh_transport is None and bool(cfg.get("svh_enable_preview", True)):
+        logger.warning("Unsupported SVH transport '%s'; falling back to preview-only payload generation.", svh_transport_name)
     stabilizer = GestureStabilizer(
         confirm_frames=int(cfg.get("stable_gesture_min_consecutive", 2)),
         unknown_confirm_frames=int(cfg.get("stable_unknown_consecutive", 1)),
@@ -104,6 +111,10 @@ def main() -> None:
 
             payload["gesture_raw"] = infer_gesture_raw(payload, cfg)
             payload["gesture"] = stabilizer.update(payload["gesture_raw"])
+            payload["control_representation"] = build_control_representation(payload, cfg)
+            payload["svh"] = build_svh_command_preview(payload, cfg)
+            if svh_transport is not None and payload["svh"]["valid"]:
+                svh_transport.send(payload["svh"])
             history.append(payload)
             dt = timer.tick()
             payload["fps"] = 1.0 / dt if dt > 1e-6 else 0.0
