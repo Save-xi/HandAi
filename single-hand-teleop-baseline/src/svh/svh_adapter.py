@@ -47,6 +47,10 @@ def _resize_positions(values: List[float], count: int, fill_value: float) -> Lis
 
 
 def _gesture_fallback_preview(gesture: str, cfg: Dict) -> Dict:
+    # Gesture fallback is a demo-oriented safety net. It keeps the preview layer
+    # visually responsive when continuous measurements are missing, but it is
+    # intentionally configurable because a more hardware-facing pipeline should
+    # usually refuse low-quality frames instead of synthesizing commands.
     channel_count = int(cfg.get("svh_preview_channel_count", 5))
     open_value = float(cfg.get("svh_position_open_value", 0.0))
     closed_value = float(cfg.get("svh_position_closed_value", 1.0))
@@ -168,6 +172,7 @@ def build_svh_command_preview(payload: Dict, cfg: Dict) -> Dict:
     features_valid = bool(control_representation.get("features_valid", control_representation.get("valid", False)))
     command_ready = bool(control_representation.get("command_ready", control_representation.get("valid", False)))
     preferred_mapping = control_representation.get("preferred_mapping")
+    enable_gesture_fallback = bool(cfg.get("svh_enable_gesture_fallback", False))
 
     if command_ready:
         if preferred_mapping == "grasp":
@@ -176,7 +181,7 @@ def build_svh_command_preview(payload: Dict, cfg: Dict) -> Dict:
             return _build_pinch_preview(control_representation, cfg)
         return _invalid_preview(True, mode, cfg)
 
-    if not features_valid and gesture in {"open", "fist", "pinch"}:
+    if enable_gesture_fallback and not features_valid and gesture in {"open", "fist", "pinch"}:
         return _gesture_fallback_preview(gesture, cfg)
 
     return _invalid_preview(True, mode, cfg)
