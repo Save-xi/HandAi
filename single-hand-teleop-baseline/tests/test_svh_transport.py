@@ -17,5 +17,6 @@ def test_mock_transport_records_latest_command():
 
     assert result["transport"] == "mock"
     assert result["accepted"] is True
+    assert result["recorded_count"] == 1
     assert transport.last_command == command
     assert transport.sent_commands[-1] == command

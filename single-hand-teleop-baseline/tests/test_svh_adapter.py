@@ -4,9 +4,11 @@ from svh.svh_adapter import build_svh_command_preview
 def _svh_cfg():
     return {
         "svh_enable_preview": True,
+        "svh_enable_gesture_fallback": False,
         "svh_preview_channel_count": 5,
         "svh_preview_mode": "preview",
         "svh_transport": "mock",
+        "svh_protocol_sync_bytes": [76, 170],
         "svh_grasp_open_ref": 0.02,
         "svh_grasp_closed_ref": 0.55,
         "svh_pinch_open_ref": 0.45,
@@ -94,7 +96,7 @@ def test_pinch_preview_prioritizes_thumb_and_index_channels():
     assert preview["target_positions"][1] > preview["target_positions"][2]
 
 
-def test_known_gesture_can_fall_back_when_continuous_features_are_missing():
+def test_known_gesture_does_not_fall_back_when_fallback_is_disabled():
     preview = build_svh_command_preview(
         _payload(
             "open",
@@ -103,6 +105,25 @@ def test_known_gesture_can_fall_back_when_continuous_features_are_missing():
             {"thumb": None, "index": None, "middle": None, "ring": None, "little": None},
         ),
         _svh_cfg(),
+    )
+
+    assert preview["valid"] is False
+    assert preview["command_source"] is None
+    assert preview["target_channels"] == []
+    assert preview["target_positions"] == []
+
+
+def test_known_gesture_can_fall_back_when_explicitly_enabled():
+    cfg = _svh_cfg()
+    cfg["svh_enable_gesture_fallback"] = True
+    preview = build_svh_command_preview(
+        _payload(
+            "open",
+            None,
+            None,
+            {"thumb": None, "index": None, "middle": None, "ring": None, "little": None},
+        ),
+        cfg,
     )
 
     assert preview["valid"] is True

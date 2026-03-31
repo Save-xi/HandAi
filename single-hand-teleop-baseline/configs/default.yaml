@@ -21,9 +21,11 @@ control_hand_open_ratio_closed_ref: 0.25
 control_pinch_index_open_ref: 0.05
 control_pinch_index_closed_ref: 0.35
 svh_enable_preview: true
+svh_enable_gesture_fallback: false  # demo-oriented fallback; keep off by default for more conservative command generation
 svh_preview_channel_count: 5  # preview abstraction only; not a final one-to-one SVH motor map
 svh_preview_mode: "preview"
 svh_transport: "mock"  # future TCP transport can be added without changing adapter call sites
+svh_protocol_sync_bytes: [76, 170]  # paper-informed preview sync bytes (0x4C, 0xAA), still not a claim of full protocol completion
 svh_grasp_open_ref: 0.02  # mean non-thumb curl expected near an open hand
 svh_grasp_closed_ref: 0.55  # mean non-thumb curl expected near a closed grasp
 svh_pinch_open_ref: 0.45  # larger pinch distance means thumb/index are apart
