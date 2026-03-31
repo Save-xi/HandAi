@@ -11,3 +11,4 @@ def test_load_config_resolves_from_repo_root(monkeypatch):
     cfg = load_config("configs/default.yaml")
 
     assert Path(cfg["output_json_path"]) == project_root / "examples" / "sample_output.json"
+    assert Path(cfg["jsonl_output_dir"]) == project_root / "outputs"

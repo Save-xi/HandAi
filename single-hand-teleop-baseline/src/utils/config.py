@@ -25,7 +25,7 @@ def load_config(path: str) -> Dict[str, Any]:
     with open(config_path, "r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
 
-    for key in ("video_file_path", "output_json_path"):
+    for key in ("video_file_path", "output_json_path", "jsonl_output_dir"):
         value = cfg.get(key)
         if isinstance(value, str) and value:
             path_value = Path(value)
