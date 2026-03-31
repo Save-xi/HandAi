@@ -12,6 +12,32 @@ save_jsonl: false
 jsonl_output_dir: "outputs"
 output_json_path: "examples/sample_output.json"
 recent_frames_buffer_size: 10
+control_grasp_open_ref: 0.02
+control_grasp_closed_ref: 0.55
+control_pinch_open_ref: 0.45
+control_pinch_closed_ref: 0.08
+control_hand_open_ratio_open_ref: 0.95
+control_hand_open_ratio_closed_ref: 0.25
+control_pinch_index_open_ref: 0.05
+control_pinch_index_closed_ref: 0.35
+svh_enable_preview: true
+svh_preview_channel_count: 5  # preview abstraction only; not a final one-to-one SVH motor map
+svh_preview_mode: "preview"
+svh_transport: "mock"  # future TCP transport can be added without changing adapter call sites
+svh_grasp_open_ref: 0.02  # mean non-thumb curl expected near an open hand
+svh_grasp_closed_ref: 0.55  # mean non-thumb curl expected near a closed grasp
+svh_pinch_open_ref: 0.45  # larger pinch distance means thumb/index are apart
+svh_pinch_closed_ref: 0.08  # smaller pinch distance means stronger pinch closure
+svh_invalid_holds_last_command: false
+svh_protocol_use_little_endian: true
+svh_hand_open_ratio_open_ref: 0.95
+svh_hand_open_ratio_closed_ref: 0.25
+svh_position_open_value: 0.0
+svh_position_closed_value: 1.0
+svh_thumb_grasp_scale: 0.85
+svh_pinch_support_scale: 0.20
+svh_pinch_index_open_ref: 0.05
+svh_pinch_index_closed_ref: 0.35
 control_ready_min_in_bounds_ratio: 0.90  # require most landmarks to stay inside the image
 control_ready_palm_center_margin: 0.08  # reject control updates when the palm center hugs the border
 control_ready_palm_core_oob_tolerance: 0.02  # allow tiny MediaPipe overshoot on palm landmarks

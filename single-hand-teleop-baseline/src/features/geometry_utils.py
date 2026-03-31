@@ -26,5 +26,13 @@ def polyline_length(points: Sequence[Sequence[float]]) -> float:
     return sum(euclidean(points[i], points[i + 1]) for i in range(len(points) - 1))
 
 
+def normalize_between(value: float, open_ref: float, closed_ref: float, default: float = 0.0) -> float:
+    if abs(closed_ref - open_ref) <= 1e-6:
+        return default
+    if closed_ref > open_ref:
+        return clamp01((value - open_ref) / (closed_ref - open_ref))
+    return clamp01((open_ref - value) / (open_ref - closed_ref))
+
+
 def clamp01(x: float) -> float:
     return max(0.0, min(1.0, x))

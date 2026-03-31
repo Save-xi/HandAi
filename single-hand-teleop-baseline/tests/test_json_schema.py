@@ -13,6 +13,29 @@ def test_json_export_fields(tmp_path):
         "hand_open_ratio": 0.7,
         "finger_curl": {"thumb": 0.1, "index": 0.1, "middle": 0.1, "ring": 0.1, "little": 0.1},
         "landmarks_2d": [],
+        "control_representation": {
+            "valid": True,
+            "features_valid": True,
+            "command_ready": True,
+            "source": "features",
+            "gesture_context": "open",
+            "preferred_mapping": "grasp",
+            "grasp_close": 0.1,
+            "thumb_index_proximity": 0.2,
+            "effective_pinch_strength": 0.0,
+            "pinch_strength": 0.0,
+            "support_flex": 0.1,
+            "finger_flex": {"thumb": 0.1, "index": 0.1, "middle": 0.1, "ring": 0.1, "little": 0.1},
+        },
+        "svh": {
+            "enabled": True,
+            "mode": "preview",
+            "valid": True,
+            "command_source": "control_representation",
+            "target_channels": [0, 1, 2, 3, 4],
+            "target_positions": [0.1, 0.2, 0.3, 0.4, 0.5],
+            "protocol_hint": {"set_control_state_addr": "0x09", "set_all_channels_addr": "0x03", "transport": "mock"},
+        },
         "fps": 30.0,
         "latency_ms": 10.0,
     }
@@ -35,6 +58,8 @@ def test_json_export_fields(tmp_path):
         "hand_open_ratio",
         "finger_curl",
         "landmarks_2d",
+        "control_representation",
+        "svh",
         "fps",
         "latency_ms",
     ]:
@@ -43,3 +68,8 @@ def test_json_export_fields(tmp_path):
     assert jsonl_path.exists()
     assert console_obj["landmarks_count"] == 0
     assert console_obj["landmarks_2d_preview"] == []
+    assert console_obj["control_representation"]["valid"] is True
+    assert console_obj["control_representation"]["features_valid"] is True
+    assert console_obj["control_representation"]["command_ready"] is True
+    assert console_obj["svh"]["target_positions_count"] == 5
+    assert console_obj["svh"]["target_positions_preview"] == [0.1, 0.2]

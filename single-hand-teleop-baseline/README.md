@@ -108,3 +108,40 @@ pytest -q
 - Unity 接口对接
 - SVH 右手控制接口
 - Azure Kinect DK 输入适配
+
+## 10) SVH Adapter Preview
+当前 baseline 已新增一个 **SVH adapter / command preview skeleton**，目标是把现有单右手 AI 输出整理成未来可接灵巧手控制的接口骨架。
+
+当前已经做到：
+- 基于 `gesture / hand_open_ratio / pinch_distance_norm / finger_curl` 构造 `payload["svh"]`
+- 输出 preview-oriented 的 `target_channels / target_positions`
+- 提供 `mock transport`，用于让 adapter 层和未来真实发送层解耦
+- 提供 `svh_protocol.py` 中的协议提示常量与 packet builder skeleton
+
+当前明确没有做到：
+- 没有连接真实 SVH
+- 没有实现真实 TCP/IP + RS485 联调
+- 没有声称已完成真实设备协议的全部长度/校验/字段验证
+
+`svh` 字段示意：
+```json
+{
+  "enabled": true,
+  "mode": "preview",
+  "valid": true,
+  "command_source": "control_representation",
+  "target_channels": [0, 1, 2, 3, 4],
+  "target_positions": [0.12, 0.15, 0.18, 0.18, 0.18],
+  "protocol_hint": {
+    "set_control_state_addr": "0x09",
+    "set_all_channels_addr": "0x03",
+    "transport": "mock"
+  }
+}
+```
+
+说明：
+- 这里的通道是 **preview-level abstraction**，不是最终真实 SVH 电机编号
+- `pinch / open / fist` 会走不同的简化映射分支
+- `invalid`、无手、质量门失败时不会残留旧命令，`svh.valid = false`
+- 未来若要接真实硬件，应新增例如 `svh_transport_tcp.py`，并结合真实协议继续校准小端字节序、长度字段、校验字段与通道映射

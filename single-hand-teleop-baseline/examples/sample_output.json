@@ -1,5 +1,5 @@
 {
-  "timestamp": 1774956183.7477846,
+  "timestamp": 1774964614.863309,
   "detected": false,
   "handedness": null,
   "confidence": null,
@@ -15,6 +15,39 @@
     "little": null
   },
   "landmarks_2d": [],
-  "fps": 28.757778979951297,
-  "latency_ms": 11.631100000158767
+  "control_representation": {
+    "valid": false,
+    "features_valid": false,
+    "command_ready": false,
+    "source": null,
+    "gesture_context": null,
+    "preferred_mapping": null,
+    "grasp_close": null,
+    "thumb_index_proximity": null,
+    "effective_pinch_strength": null,
+    "pinch_strength": null,
+    "support_flex": null,
+    "finger_flex": {
+      "thumb": null,
+      "index": null,
+      "middle": null,
+      "ring": null,
+      "little": null
+    }
+  },
+  "svh": {
+    "enabled": true,
+    "mode": "preview",
+    "valid": false,
+    "command_source": null,
+    "target_channels": [],
+    "target_positions": [],
+    "protocol_hint": {
+      "set_control_state_addr": "0x09",
+      "set_all_channels_addr": "0x03",
+      "transport": "mock"
+    }
+  },
+  "fps": 28.561309707673477,
+  "latency_ms": 11.785199996666051
 }
