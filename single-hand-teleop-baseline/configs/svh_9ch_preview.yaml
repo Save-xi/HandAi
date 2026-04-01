@@ -1,7 +1,7 @@
 camera_index: 0
-input_source_type: webcam  # webcam | video_file (reserved)
+input_source_type: webcam
 video_file_path: ""
-input_mirrored: false  # set true only if your input feed is already mirrored/selfie-style
+input_mirrored: false
 display_width: 1280
 display_height: 720
 draw_landmarks: true
@@ -10,8 +10,9 @@ console_landmarks_preview_count: 3
 save_last_json: true
 save_jsonl: false
 jsonl_output_dir: "outputs"
-output_json_path: "examples/sample_output.json"
+output_json_path: "examples/sample_output_svh_9ch.json"
 recent_frames_buffer_size: 10
+
 control_grasp_open_ref: 0.02
 control_grasp_closed_ref: 0.55
 control_pinch_open_ref: 0.45
@@ -20,17 +21,18 @@ control_hand_open_ratio_open_ref: 0.95
 control_hand_open_ratio_closed_ref: 0.25
 control_pinch_index_open_ref: 0.05
 control_pinch_index_closed_ref: 0.35
+
 svh_enable_preview: true
-svh_enable_gesture_fallback: false  # demo-oriented fallback; keep off by default for more conservative command generation
-svh_preview_layout: "compact5"  # compact5 keeps the current lightweight preview; switch to svh_9ch to mirror the paper/C# driver channel order
-svh_preview_channel_count: 5  # use 9 together with svh_9ch when you want a more SVH-like preview vector
+svh_enable_gesture_fallback: false
+svh_preview_layout: "svh_9ch"  # mirror the 9-channel order seen in the Unity/C# SVH driver
+svh_preview_channel_count: 9
 svh_preview_mode: "preview"
-svh_transport: "mock"  # future TCP transport can be added without changing adapter call sites
-svh_protocol_sync_bytes: [76, 170]  # paper-informed preview sync bytes (0x4C, 0xAA), still not a claim of full protocol completion
-svh_grasp_open_ref: 0.02  # mean non-thumb curl expected near an open hand
-svh_grasp_closed_ref: 0.55  # mean non-thumb curl expected near a closed grasp
-svh_pinch_open_ref: 0.45  # larger pinch distance means thumb/index are apart
-svh_pinch_closed_ref: 0.08  # smaller pinch distance means stronger pinch closure
+svh_transport: "mock"
+svh_protocol_sync_bytes: [76, 170]
+svh_grasp_open_ref: 0.02
+svh_grasp_closed_ref: 0.55
+svh_pinch_open_ref: 0.45
+svh_pinch_closed_ref: 0.08
 svh_invalid_holds_last_command: false
 svh_protocol_use_little_endian: true
 svh_hand_open_ratio_open_ref: 0.95
@@ -45,9 +47,12 @@ svh_grasp_spread_scale: 0.05
 svh_pinch_spread_scale: 0.10
 svh_pinch_index_open_ref: 0.05
 svh_pinch_index_closed_ref: 0.35
-control_ready_min_in_bounds_ratio: 0.90  # require most landmarks to stay inside the image
-control_ready_palm_center_margin: 0.08  # reject control updates when the palm center hugs the border
-control_ready_palm_core_oob_tolerance: 0.02  # allow tiny MediaPipe overshoot on palm landmarks
+svh_9ch_open_ticks: [-5000, -5000, -2000, 2000, -2000, 2000, -2000, -2000, -2000]
+svh_9ch_closed_ticks: [-175000, -150000, -47000, 42000, -47000, 42000, -47000, -47000, -47000]
+
+control_ready_min_in_bounds_ratio: 0.90
+control_ready_palm_center_margin: 0.08
+control_ready_palm_core_oob_tolerance: 0.02
 pinch_distance_norm_threshold: 0.45
 pinch_open_ratio_min: 0.75
 pinch_support_curl_max: 0.65

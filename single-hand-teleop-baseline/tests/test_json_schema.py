@@ -34,7 +34,16 @@ def test_json_export_fields(tmp_path):
             "command_source": "control_representation",
             "target_channels": [0, 1, 2, 3, 4],
             "target_positions": [0.1, 0.2, 0.3, 0.4, 0.5],
-            "protocol_hint": {"set_control_state_addr": "0x09", "set_all_channels_addr": "0x03", "transport": "mock"},
+            "target_ticks_preview": [],
+            "protocol_hint": {
+                "set_control_state_addr": "0x09",
+                "set_all_channels_addr": "0x03",
+                "transport": "mock",
+                "channel_layout": "compact5",
+                "channel_order": "thumb,index,middle,ring,little",
+                "position_units": "normalized_preview",
+                "target_tick_units": "none",
+            },
         },
         "fps": 30.0,
         "latency_ms": 10.0,
@@ -73,3 +82,6 @@ def test_json_export_fields(tmp_path):
     assert console_obj["control_representation"]["command_ready"] is True
     assert console_obj["svh"]["target_positions_count"] == 5
     assert console_obj["svh"]["target_positions_preview"] == [0.1, 0.2]
+    assert console_obj["svh"]["target_ticks_count"] == 0
+    assert console_obj["svh"]["target_ticks_preview_short"] == []
+    assert console_obj["svh"]["protocol_hint"]["channel_layout"] == "compact5"

@@ -1,0 +1,58 @@
+{
+  "timestamp": 1775039311.8140218,
+  "detected": false,
+  "handedness": null,
+  "confidence": null,
+  "gesture_raw": "unknown",
+  "gesture": "unknown",
+  "pinch_distance_norm": null,
+  "hand_open_ratio": null,
+  "finger_curl": {
+    "thumb": null,
+    "index": null,
+    "middle": null,
+    "ring": null,
+    "little": null
+  },
+  "landmarks_2d": [],
+  "control_representation": {
+    "valid": false,
+    "features_valid": false,
+    "command_ready": false,
+    "source": null,
+    "gesture_context": null,
+    "preferred_mapping": null,
+    "grasp_close": null,
+    "thumb_index_proximity": null,
+    "effective_pinch_strength": null,
+    "pinch_strength": null,
+    "support_flex": null,
+    "finger_flex": {
+      "thumb": null,
+      "index": null,
+      "middle": null,
+      "ring": null,
+      "little": null
+    }
+  },
+  "svh": {
+    "enabled": true,
+    "mode": "preview",
+    "valid": false,
+    "command_source": null,
+    "target_channels": [],
+    "target_positions": [],
+    "target_ticks_preview": [],
+    "protocol_hint": {
+      "set_control_state_addr": "0x09",
+      "set_all_channels_addr": "0x03",
+      "transport": "mock",
+      "channel_layout": "svh_9ch",
+      "channel_order": "thumb_flexion,thumb_opposition,index_finger_distal,index_finger_proximal,middle_finger_distal,middle_finger_proximal,ring_finger,pinky,finger_spread",
+      "position_units": "normalized_preview",
+      "target_tick_units": "encoder_ticks_preview"
+    }
+  },
+  "fps": 9.638340547589317,
+  "latency_ms": 10.776900000564638
+}
