@@ -5,6 +5,7 @@ def _svh_cfg():
     return {
         "svh_enable_preview": True,
         "svh_enable_gesture_fallback": False,
+        "svh_preview_layout": "compact5",
         "svh_preview_channel_count": 5,
         "svh_preview_mode": "preview",
         "svh_transport": "mock",
@@ -18,7 +19,11 @@ def _svh_cfg():
         "svh_position_open_value": 0.0,
         "svh_position_closed_value": 1.0,
         "svh_thumb_grasp_scale": 0.85,
+        "svh_thumb_opposition_scale": 0.75,
         "svh_pinch_support_scale": 0.20,
+        "svh_open_spread_scale": 0.25,
+        "svh_grasp_spread_scale": 0.05,
+        "svh_pinch_spread_scale": 0.10,
         "svh_pinch_index_open_ref": 0.05,
         "svh_pinch_index_closed_ref": 0.35,
     }
@@ -144,3 +149,32 @@ def test_unknown_gesture_with_measurements_does_not_emit_command():
     assert preview["valid"] is False
     assert preview["target_channels"] == []
     assert preview["target_positions"] == []
+
+
+def test_svh_9ch_layout_emits_nine_channels_in_driver_order():
+    cfg = _svh_cfg()
+    cfg["svh_preview_layout"] = "svh_9ch"
+    cfg["svh_preview_channel_count"] = 9
+
+    preview = build_svh_command_preview(
+        _payload(
+            "pinch",
+            0.81,
+            0.14,
+            {"thumb": 0.04, "index": 0.26, "middle": 0.02, "ring": 0.02, "little": 0.02},
+        ),
+        cfg,
+    )
+
+    assert preview["valid"] is True
+    assert preview["target_channels"] == list(range(9))
+    assert preview["protocol_hint"]["channel_layout"] == "svh_9ch"
+    assert preview["protocol_hint"]["channel_order"].startswith("thumb_flexion,thumb_opposition")
+    assert preview["protocol_hint"]["target_tick_units"] == "encoder_ticks_preview"
+    assert len(preview["target_positions"]) == 9
+    assert len(preview["target_ticks_preview"]) == 9
+    assert preview["target_ticks_preview"][0] < 0
+    assert preview["target_ticks_preview"][3] > 0
+    assert preview["target_positions"][0] > preview["target_positions"][6]
+    assert preview["target_positions"][1] > preview["target_positions"][8]
+    assert preview["target_positions"][2] > preview["target_positions"][4]

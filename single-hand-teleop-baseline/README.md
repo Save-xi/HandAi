@@ -2,21 +2,20 @@
 
 ## 1. 项目目标
 
-这个目录实现的是一个**单右手视觉控制 baseline**。当前主流程是：
+这个目录实现的是一个单右手视觉控制 baseline。当前主流程是：
 
 `摄像头输入 -> MediaPipe 单手检测 -> Right hand 过滤 -> 特征提取 -> 手势稳定 -> control_representation -> svh preview -> JSON / JSONL / OpenCV 可视化`
 
-当前代码目标是把“右手视觉理解”整理成一个稳定、可调、可测试的控制前端表示，方便后续再继续接更真实的机械手接口。
+当前阶段的目标不是直接控制真实机械手，而是先把“右手视觉理解”整理成一套稳定、可测、可扩展的中间表示，方便以后继续接更真实的 SVH 接口。
 
 ## 2. 当前范围
 
 当前已经支持：
 
 - 摄像头输入
-- MediaPipe 单手检测
-- 只保留 `Right hand`
+- MediaPipe 单右手检测
 - OpenCV 关键点、骨架和状态面板
-- 稳定特征提取：
+- 稳定特征提取
   - `pinch_distance_norm`
   - `hand_open_ratio`
   - `finger_curl`
@@ -30,10 +29,10 @@
 - 可选 JSONL 日志
 - 一圈基础测试
 
-当前明确**不做**：
+当前明确不做：
 
 - 双手
-- Unity
+- Unity 集成
 - 真实 SVH 联调
 - 真实 TCP/IP 发送到串口服务器
 - 真实 RS485 桥接
@@ -85,6 +84,7 @@ python src/main.py --config configs/default.yaml
 ```bash
 python src/main.py --config configs/default.yaml --print-json
 python src/main.py --config configs/default.yaml --print-json --save-jsonl
+python src/main.py --config configs/svh_9ch_preview.yaml --print-json
 ```
 
 ## 5. 目录结构
@@ -100,7 +100,7 @@ python src/main.py --config configs/default.yaml --print-json --save-jsonl
 - `src/control/`
   从原始特征整理连续控制表示
 - `src/svh/`
-  SVH preview adapter、command object、protocol skeleton、mock transport
+  SVH preview adapter、command object、layout、protocol skeleton、mock transport
 - `src/visualize/`
   OpenCV 叠加绘制和状态面板
 - `src/output/`
@@ -108,15 +108,15 @@ python src/main.py --config configs/default.yaml --print-json --save-jsonl
 - `src/utils/`
   配置、日志、计时等通用工具
 - `configs/`
-  默认配置
+  默认配置和 9 通道 preview 配置
 - `examples/`
   样例输出
 - `tests/`
   单元测试
 
-## 6. 主要输出字段
+## 6. 每帧输出字段
 
-每帧最终 payload 的顶层字段当前是：
+当前顶层 payload 字段包括：
 
 - `timestamp`
 - `detected`
@@ -135,29 +135,27 @@ python src/main.py --config configs/default.yaml --print-json --save-jsonl
 
 ### JSON 示例
 
-下面是一个**字段名与当前真实输出一致**的示例：
-
 ```json
 {
   "timestamp": 1774965000.123,
   "detected": true,
   "handedness": "Right",
-  "confidence": 0.97,
+  "confidence": 0.972,
   "gesture_raw": "pinch",
   "gesture": "pinch",
-  "pinch_distance_norm": 0.16,
-  "hand_open_ratio": 0.82,
+  "pinch_distance_norm": 0.145,
+  "hand_open_ratio": 0.793,
   "finger_curl": {
-    "thumb": 0.04,
-    "index": 0.28,
-    "middle": 0.02,
-    "ring": 0.02,
-    "little": 0.02
+    "thumb": 0.036,
+    "index": 0.316,
+    "middle": 0.017,
+    "ring": 0.013,
+    "little": 0.018
   },
   "landmarks_2d": [
-    [0.19, 0.95],
-    [0.23, 0.90],
-    [0.26, 0.84]
+    [0.185, 0.968],
+    [0.223, 0.919],
+    [0.246, 0.858]
   ],
   "control_representation": {
     "valid": true,
@@ -166,17 +164,17 @@ python src/main.py --config configs/default.yaml --print-json --save-jsonl
     "source": "features",
     "gesture_context": "pinch",
     "preferred_mapping": "pinch",
-    "grasp_close": 0.15,
-    "thumb_index_proximity": 0.79,
-    "effective_pinch_strength": 0.79,
-    "pinch_strength": 0.79,
-    "support_flex": 0.02,
+    "grasp_close": 0.17,
+    "thumb_index_proximity": 0.843,
+    "effective_pinch_strength": 0.843,
+    "pinch_strength": 0.843,
+    "support_flex": 0.016,
     "finger_flex": {
-      "thumb": 0.04,
-      "index": 0.28,
-      "middle": 0.02,
-      "ring": 0.02,
-      "little": 0.02
+      "thumb": 0.036,
+      "index": 0.316,
+      "middle": 0.017,
+      "ring": 0.013,
+      "little": 0.018
     }
   },
   "svh": {
@@ -185,40 +183,46 @@ python src/main.py --config configs/default.yaml --print-json --save-jsonl
     "valid": true,
     "command_source": "control_representation",
     "target_channels": [0, 1, 2, 3, 4],
-    "target_positions": [0.68, 0.66, 0.16, 0.16, 0.16],
+    "target_positions": [0.722, 0.711, 0.169, 0.169, 0.169],
+    "target_ticks_preview": [],
     "protocol_hint": {
       "set_control_state_addr": "0x09",
       "set_all_channels_addr": "0x03",
-      "transport": "mock"
+      "transport": "mock",
+      "channel_layout": "compact5",
+      "channel_order": "thumb,index,middle,ring,little",
+      "position_units": "normalized_preview",
+      "target_tick_units": "none"
     }
   },
-  "fps": 29.4,
-  "latency_ms": 20.1
+  "fps": 27.77,
+  "latency_ms": 20.04
 }
 ```
 
-完整样例请参考：
+完整样例见：
 
-- [examples/sample_output.json](/D:/VR/HandAi/single-hand-teleop-baseline/examples/sample_output.json)
+- [sample_output.json](/D:/VR/HandAi/single-hand-teleop-baseline/examples/sample_output.json)
+- [sample_output_svh_9ch.json](/D:/VR/HandAi/single-hand-teleop-baseline/examples/sample_output_svh_9ch.json)
 
 ## 7. `control_representation` 说明
 
-`control_representation` 是一层**硬件无关**的中间表示。它不直接声称自己就是最终机械手命令，而是把当前视觉帧整理成更适合控制映射的连续量。
+`control_representation` 是一层硬件无关的中间表示。它不直接声称自己就是最终机械手命令，而是把当前视觉帧整理成更适合控制映射的连续量。
 
-当前主要字段：
+主要字段：
 
 - `features_valid`
-  说明：当前帧连续特征是否可算
+  当前帧连续特征是否可算
 - `command_ready`
-  说明：当前帧是否已经有足够稳定的上下文来生成动作命令
+  当前帧是否已经有足够稳定的上下文来生成动作命令
 - `grasp_close`
-  说明：整体抓握闭合程度
+  整体抓握闭合程度
 - `thumb_index_proximity`
-  说明：拇指和食指的接近程度
+  拇指和食指的接近程度
 - `effective_pinch_strength`
-  说明：经过手势上下文约束后，真正用于 pinch 控制的强度
+  经过手势上下文约束后，真正用于 pinch 控制的强度
 
-设计上刻意区分了：
+设计上刻意区分：
 
 - “特征可算”
 - “命令可发”
@@ -227,18 +231,20 @@ python src/main.py --config configs/default.yaml --print-json --save-jsonl
 
 ## 8. `svh` Preview Adapter 说明
 
-当前 `svh` 字段只是一个**preview / skeleton**：
+当前 `svh` 字段只是 preview / skeleton：
 
 - 它把 `control_representation` 映射成一个可打印、可测试、可写入 JSON 的命令预览对象
 - 它不直接连接真实 SVH
 - 它不包含真实 TCP/IP + RS485 + SVH 联调
 
-当前 `target_channels / target_positions` 只是**preview abstraction**，不是已经校准好的真实电机通道映射。
+当前 `target_channels / target_positions / target_ticks_preview` 都只是 preview abstraction，不是已经校准好的真实电机命令。
 
 ### 当前已经做的事情
 
 - 根据 `open / fist / pinch` 选择不同映射分支
-- 输出 preview 级别的 `target_channels / target_positions`
+- 输出 preview 级别的目标通道和目标值
+- 支持 `compact5` 与 `svh_9ch` 两种 preview 布局
+- 在 `svh_9ch` 模式下额外输出 `target_ticks_preview`
 - 提供 `mock transport`
 - 提供 `svh_protocol.py` 中的 skeleton packet builder
 
@@ -247,11 +253,48 @@ python src/main.py --config configs/default.yaml --print-json --save-jsonl
 - 没有实现真实 TCP 客户端
 - 没有实现串口服务器联调
 - 没有实现真实 RS485 通信
-- 没有声明已经完成官方协议全部细节
+- 没有声称已经完成官方协议全部细节
 
-## 9. SVH Protocol Skeleton 说明
+## 9. SVH Preview Layout
 
-`src/svh/svh_protocol.py` 当前是一个**更贴近论文信息的协议骨架**，但仍然只是 skeleton。
+### `compact5`
+
+默认配置使用 `compact5`。它是一个更轻量的 preview 向量：
+
+- `thumb`
+- `index`
+- `middle`
+- `ring`
+- `little`
+
+优点是简单、直观，适合前期调试。
+
+### `svh_9ch`
+
+如果想让 preview 更贴近学长 Unity/C# 工程里的 SVH 驱动顺序，可以使用：
+
+```bash
+python src/main.py --config configs/svh_9ch_preview.yaml --print-json
+```
+
+此时 preview 通道顺序为：
+
+`thumb_flexion, thumb_opposition, index_finger_distal, index_finger_proximal, middle_finger_distal, middle_finger_proximal, ring_finger, pinky, finger_spread`
+
+这个模式仍然是 preview，不代表已经完成真实硬件标定，但会更方便以后继续对齐：
+
+- 通道顺序
+- ticks 量纲
+- 全通道 packet 组织方式
+
+相关文件：
+
+- [svh_9ch_preview.yaml](/D:/VR/HandAi/single-hand-teleop-baseline/configs/svh_9ch_preview.yaml)
+- [sample_output_svh_9ch.json](/D:/VR/HandAi/single-hand-teleop-baseline/examples/sample_output_svh_9ch.json)
+
+## 10. SVH Protocol Skeleton
+
+`src/svh/svh_protocol.py` 当前是一个更贴近论文和 Unity/C# 驱动信息的协议骨架，但仍然只是 skeleton。
 
 当前默认参考值：
 
@@ -259,21 +302,30 @@ python src/main.py --config configs/default.yaml --print-json --save-jsonl
 - `SYNC2 = 0xAA`
 - `SetControlState = 0x09`
 - `SetControlCommand AllChannels = 0x03`
+- command payload `40` bytes
+- command frame `48` bytes
+- response payload `64` bytes
+- response frame `72` bytes
 
-这些默认值用于让 packet builder 更接近论文描述，但这**不等于**已经完成真实设备可用的协议实现。
+当前 builder 还会给出：
 
-仍需未来继续校准的内容包括：
+- `CHECK1(sum)` preview
+- `CHECK2(xor)` preview
+
+这些只是为了让骨架更像真实协议，不等于已经完成真实设备可用的协议实现。
+
+未来仍需继续校准：
 
 - 真实通道与地址字段的编码关系
 - 长度字段
 - 零填充细节
 - `CHECK1 / CHECK2`
-- 小端字节序下的真实打包方式
-- TCP/IP 到串口服务器，再到 RS485 的真实链路行为
+- 小端字节序下的真实打包
+- TCP/IP -> 串口服务器 -> RS485 的实际链路
 
-## 10. Gesture Fallback 策略
+## 11. Gesture Fallback
 
-当前 `svh adapter` 支持一个可配置的 gesture fallback：
+当前 `svh adapter` 支持可配置的 gesture fallback：
 
 - 配置项：`svh_enable_gesture_fallback`
 - 默认值：`false`
@@ -282,16 +334,21 @@ python src/main.py --config configs/default.yaml --print-json --save-jsonl
 
 - 对 demo 来说，fallback 可以让低质量帧看起来更“连续”
 - 但对更接近真实硬件的阶段，这样做不够保守
-- 所以当前默认策略是：当 continuous features 无效时，不自动合成 fallback 命令
 
-如果显式打开 `svh_enable_gesture_fallback: true`，才允许在连续特征失效但手势标签仍可用时，生成 `gesture_fallback` preview。
+所以当前默认策略是：
 
-## 11. 配置项
+- continuous features 无效时
+- 不自动合成 fallback 命令
 
-当前和 SVH preview 相关的关键配置包括：
+只有显式打开 `svh_enable_gesture_fallback: true` 时，才允许在连续特征失效但 gesture 标签仍可用时生成 `gesture_fallback` preview。
+
+## 12. 配置项
+
+与 SVH preview 相关的关键配置包括：
 
 - `svh_enable_preview`
 - `svh_enable_gesture_fallback`
+- `svh_preview_layout`
 - `svh_preview_channel_count`
 - `svh_preview_mode`
 - `svh_transport`
@@ -300,46 +357,56 @@ python src/main.py --config configs/default.yaml --print-json --save-jsonl
 - `svh_position_open_value`
 - `svh_position_closed_value`
 - `svh_thumb_grasp_scale`
+- `svh_thumb_opposition_scale`
 - `svh_pinch_support_scale`
+- `svh_open_spread_scale`
+- `svh_grasp_spread_scale`
+- `svh_pinch_spread_scale`
+- `svh_9ch_open_ticks`
+- `svh_9ch_closed_ticks`
 
-完整默认配置请看：
+默认配置见：
 
-- [configs/default.yaml](/D:/VR/HandAi/single-hand-teleop-baseline/configs/default.yaml)
+- [default.yaml](/D:/VR/HandAi/single-hand-teleop-baseline/configs/default.yaml)
+- [svh_9ch_preview.yaml](/D:/VR/HandAi/single-hand-teleop-baseline/configs/svh_9ch_preview.yaml)
 
-## 12. 如何验证 demo 正常
+## 13. 手动验证
 
-1. 运行：
+运行：
 
 ```bash
 python src/main.py --config configs/default.yaml --print-json
 ```
 
-2. 张开手：
+检查：
 
-- `gesture` 稳定为 `open`
+1. 张开手
+- `gesture = open`
 - `grasp_close` 接近低值
 - `svh.valid = true`
 
-3. 握拳：
-
-- `gesture` 稳定为 `fist`
+2. 握拳
+- `gesture = fist`
 - `grasp_close` 明显升高
-- `effective_pinch_strength` 仍应接近 `0`
+- `effective_pinch_strength` 应接近 `0`
 
-4. 捏合：
-
-- `gesture` 稳定为 `pinch`
+3. 捏合
+- `gesture = pinch`
 - `effective_pinch_strength` 升高
-- `svh.target_positions` 前两个通道高于后面几个
+- `svh.target_positions` 前两路高于 support fingers
 
-5. 无手 / 低质量帧：
-
+4. 无手 / 低质量帧
 - `features_valid = false`
 - `command_ready = false`
 - `svh.valid = false`
 - `target_positions = []`
 
-## 13. 测试
+如果切到 `svh_9ch_preview.yaml`，还可以再看：
+
+- `target_ticks_preview`
+- `protocol_hint.channel_order`
+
+## 14. 测试
 
 运行：
 
@@ -350,21 +417,25 @@ pytest -q
 
 当前测试覆盖包括：
 
+- 配置解析
 - JSON schema
 - 特征与控制表示
 - gesture-conditioned SVH preview mapping
 - fallback 开关行为
+- 9 通道布局
 - protocol skeleton 常量和 sync bytes
+- preview checksum / payload 提示
 - mock transport
 
-## 14. 后续方向
+## 15. 后续方向
 
-后续如果继续接真实 SVH，建议按下面的顺序推进：
+如果后面继续接真实 SVH，建议按这个顺序推进：
 
-1. 校准真实通道映射
-2. 校准真实 packet packing、长度和校验
-3. 新增 `svh_transport_tcp.py`
-4. 再去连串口服务器和 RS485
+1. 校准真实 9 通道映射
+2. 校准 preview ticks 与真实 encoder ticks 的关系
+3. 校准真实 packet packing、长度和校验
+4. 新增 `svh_transport_tcp.py`
+5. 再去接串口服务器和 RS485
 
 当前这个目录的目标仍然只是：
 

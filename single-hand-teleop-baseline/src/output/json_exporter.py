@@ -42,9 +42,13 @@ class JsonExporter:
             if key == "svh" and isinstance(value, dict):
                 svh_preview = dict(value)
                 positions = list(svh_preview.get("target_positions", []))
+                ticks = list(svh_preview.get("target_ticks_preview", []))
                 svh_preview["target_positions_count"] = len(positions)
                 svh_preview["target_positions_preview"] = positions[:landmarks_preview_count]
+                svh_preview["target_ticks_count"] = len(ticks)
+                svh_preview["target_ticks_preview_short"] = ticks[:landmarks_preview_count]
                 svh_preview.pop("target_positions", None)
+                svh_preview.pop("target_ticks_preview", None)
                 console_obj[key] = svh_preview
                 continue
             console_obj[key] = value

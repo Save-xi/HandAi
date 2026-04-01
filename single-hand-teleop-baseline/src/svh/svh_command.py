@@ -8,9 +8,9 @@ from typing import Dict, List
 class SvhCommandPreview:
     """Preview-only command object for future SVH transport integration.
 
-    The channel layout is intentionally abstract at this stage: it is a compact
-    preview vector for grasp/pinch style commands, not a claimed one-to-one map
-    to the final Schunk SVH motor indices.
+    The preview layer may emit either a compact 5-channel abstraction or a
+    paper/C#-aligned 9-channel ordering. Both remain preview-oriented until
+    real transport, packing, and hardware calibration are implemented.
     """
 
     enabled: bool
@@ -19,6 +19,7 @@ class SvhCommandPreview:
     command_source: str | None
     target_channels: List[int] = field(default_factory=list)
     target_positions: List[float] = field(default_factory=list)
+    target_ticks_preview: List[int] = field(default_factory=list)
     protocol_hint: Dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> Dict:
@@ -29,5 +30,6 @@ class SvhCommandPreview:
             "command_source": self.command_source,
             "target_channels": list(self.target_channels),
             "target_positions": list(self.target_positions),
+            "target_ticks_preview": list(self.target_ticks_preview),
             "protocol_hint": dict(self.protocol_hint),
         }

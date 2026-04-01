@@ -1,53 +1,62 @@
 {
-  "timestamp": 1774964614.863309,
-  "detected": false,
-  "handedness": null,
-  "confidence": null,
-  "gesture_raw": "unknown",
-  "gesture": "unknown",
-  "pinch_distance_norm": null,
-  "hand_open_ratio": null,
+  "timestamp": 1774965000.123,
+  "detected": true,
+  "handedness": "Right",
+  "confidence": 0.972,
+  "gesture_raw": "pinch",
+  "gesture": "pinch",
+  "pinch_distance_norm": 0.145,
+  "hand_open_ratio": 0.793,
   "finger_curl": {
-    "thumb": null,
-    "index": null,
-    "middle": null,
-    "ring": null,
-    "little": null
+    "thumb": 0.036,
+    "index": 0.316,
+    "middle": 0.017,
+    "ring": 0.013,
+    "little": 0.018
   },
-  "landmarks_2d": [],
+  "landmarks_2d": [
+    [0.185, 0.968],
+    [0.223, 0.919],
+    [0.246, 0.858]
+  ],
   "control_representation": {
-    "valid": false,
-    "features_valid": false,
-    "command_ready": false,
-    "source": null,
-    "gesture_context": null,
-    "preferred_mapping": null,
-    "grasp_close": null,
-    "thumb_index_proximity": null,
-    "effective_pinch_strength": null,
-    "pinch_strength": null,
-    "support_flex": null,
+    "valid": true,
+    "features_valid": true,
+    "command_ready": true,
+    "source": "features",
+    "gesture_context": "pinch",
+    "preferred_mapping": "pinch",
+    "grasp_close": 0.17,
+    "thumb_index_proximity": 0.843,
+    "effective_pinch_strength": 0.843,
+    "pinch_strength": 0.843,
+    "support_flex": 0.016,
     "finger_flex": {
-      "thumb": null,
-      "index": null,
-      "middle": null,
-      "ring": null,
-      "little": null
+      "thumb": 0.036,
+      "index": 0.316,
+      "middle": 0.017,
+      "ring": 0.013,
+      "little": 0.018
     }
   },
   "svh": {
     "enabled": true,
     "mode": "preview",
-    "valid": false,
-    "command_source": null,
-    "target_channels": [],
-    "target_positions": [],
+    "valid": true,
+    "command_source": "control_representation",
+    "target_channels": [0, 1, 2, 3, 4],
+    "target_positions": [0.722, 0.711, 0.169, 0.169, 0.169],
+    "target_ticks_preview": [],
     "protocol_hint": {
       "set_control_state_addr": "0x09",
       "set_all_channels_addr": "0x03",
-      "transport": "mock"
+      "transport": "mock",
+      "channel_layout": "compact5",
+      "channel_order": "thumb,index,middle,ring,little",
+      "position_units": "normalized_preview",
+      "target_tick_units": "none"
     }
   },
-  "fps": 28.561309707673477,
-  "latency_ms": 11.785199996666051
+  "fps": 27.77,
+  "latency_ms": 20.037
 }
