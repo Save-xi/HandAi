@@ -14,3 +14,7 @@ def test_normalize_handedness_for_non_mirrored_input():
 def test_normalize_handedness_for_mirrored_input():
     assert normalize_handedness("Left", input_mirrored=True) == "Left"
     assert normalize_handedness("Right", input_mirrored=True) == "Right"
+
+
+def test_normalize_handedness_leaves_unknown_labels_unchanged():
+    assert normalize_handedness("Unknown", input_mirrored=False) == "Unknown"

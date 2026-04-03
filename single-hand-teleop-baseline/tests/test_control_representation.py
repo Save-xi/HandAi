@@ -17,8 +17,8 @@ def _control_cfg():
 def _payload(gesture: str, hand_open_ratio, pinch_distance_norm, finger_curl, detected: bool = True):
     return {
         "detected": detected,
-        "gesture": gesture,
         "gesture_raw": gesture,
+        "gesture_stable": gesture,
         "hand_open_ratio": hand_open_ratio,
         "pinch_distance_norm": pinch_distance_norm,
         "finger_curl": finger_curl,
@@ -97,6 +97,25 @@ def test_control_representation_pinch_strength_rises_for_pinch_pose():
     assert pinch_control["effective_pinch_strength"] > 0.5
     assert pinch_control["pinch_strength"] == pinch_control["effective_pinch_strength"]
     assert pinch_control["finger_flex"]["index"] > pinch_control["finger_flex"]["middle"]
+    assert pinch_control["valid"] == pinch_control["command_ready"]
+
+
+def test_control_representation_clamps_continuous_outputs_into_unit_interval():
+    control = build_control_representation(
+        _payload(
+            "pinch",
+            10.0,
+            -3.0,
+            {"thumb": 2.5, "index": -1.0, "middle": 1.8, "ring": 0.4, "little": 0.2},
+        ),
+        _control_cfg(),
+    )
+
+    assert 0.0 <= control["grasp_close"] <= 1.0
+    assert 0.0 <= control["thumb_index_proximity"] <= 1.0
+    assert 0.0 <= control["effective_pinch_strength"] <= 1.0
+    assert 0.0 <= control["support_flex"] <= 1.0
+    assert all(0.0 <= value <= 1.0 for value in control["finger_flex"].values())
 
 
 def test_unknown_gesture_keeps_measurements_but_is_not_command_ready():

@@ -32,8 +32,8 @@ def _svh_cfg():
 def _payload(gesture: str, hand_open_ratio, pinch_distance_norm, finger_curl, detected: bool = True):
     return {
         "detected": detected,
-        "gesture": gesture,
         "gesture_raw": gesture,
+        "gesture_stable": gesture,
         "hand_open_ratio": hand_open_ratio,
         "pinch_distance_norm": pinch_distance_norm,
         "finger_curl": finger_curl,
@@ -82,6 +82,8 @@ def test_open_and_fist_map_to_different_grasp_preview_ranges():
     assert open_preview["valid"] is True
     assert fist_preview["valid"] is True
     assert max(open_preview["target_positions"]) < min(fist_preview["target_positions"][1:])
+    assert all(0.0 <= value <= 1.0 for value in open_preview["target_positions"])
+    assert all(0.0 <= value <= 1.0 for value in fist_preview["target_positions"])
 
 
 def test_pinch_preview_prioritizes_thumb_and_index_channels():
@@ -99,6 +101,7 @@ def test_pinch_preview_prioritizes_thumb_and_index_channels():
     assert preview["command_source"] == "control_representation"
     assert preview["target_positions"][0] > preview["target_positions"][2]
     assert preview["target_positions"][1] > preview["target_positions"][2]
+    assert all(0.0 <= value <= 1.0 for value in preview["target_positions"])
 
 
 def test_known_gesture_does_not_fall_back_when_fallback_is_disabled():
@@ -173,8 +176,42 @@ def test_svh_9ch_layout_emits_nine_channels_in_driver_order():
     assert preview["protocol_hint"]["target_tick_units"] == "encoder_ticks_preview"
     assert len(preview["target_positions"]) == 9
     assert len(preview["target_ticks_preview"]) == 9
+    assert all(0.0 <= value <= 1.0 for value in preview["target_positions"])
     assert preview["target_ticks_preview"][0] < 0
     assert preview["target_ticks_preview"][3] > 0
     assert preview["target_positions"][0] > preview["target_positions"][6]
     assert preview["target_positions"][1] > preview["target_positions"][8]
     assert preview["target_positions"][2] > preview["target_positions"][4]
+
+
+def test_invalid_preview_clears_targets_even_if_constructor_input_is_dirty():
+    preview = build_svh_command_preview(
+        {
+            "detected": True,
+            "gesture_raw": "unknown",
+            "gesture_stable": "unknown",
+            "hand_open_ratio": 0.7,
+            "pinch_distance_norm": 0.1,
+            "finger_curl": {"thumb": 0.2, "index": 0.2, "middle": 0.2, "ring": 0.2, "little": 0.2},
+            "control_representation": {
+                "valid": False,
+                "features_valid": True,
+                "command_ready": False,
+                "source": "features",
+                "gesture_context": "unknown",
+                "preferred_mapping": None,
+                "grasp_close": 1.4,
+                "thumb_index_proximity": 1.2,
+                "effective_pinch_strength": 1.1,
+                "pinch_strength": 1.1,
+                "support_flex": 0.2,
+                "finger_flex": {"thumb": 0.2, "index": 0.2, "middle": 0.2, "ring": 0.2, "little": 0.2},
+            },
+        },
+        _svh_cfg(),
+    )
+
+    assert preview["valid"] is False
+    assert preview["target_channels"] == []
+    assert preview["target_positions"] == []
+    assert preview["target_ticks_preview"] == []

@@ -14,8 +14,11 @@ class RecentFrameBuffer:
         self.frames.append(
             {
                 "timestamp": payload.get("timestamp"),
+                "frame_index": payload.get("frame_index"),
                 "detected": payload.get("detected"),
+                "control_ready": payload.get("control_ready"),
                 "gesture_raw": payload.get("gesture_raw"),
+                "gesture_stable": payload.get("gesture_stable"),
                 "pinch_distance_norm": payload.get("pinch_distance_norm"),
                 "hand_open_ratio": payload.get("hand_open_ratio"),
                 "finger_curl": dict(payload.get("finger_curl", {})),

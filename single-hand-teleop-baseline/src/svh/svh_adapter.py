@@ -4,6 +4,7 @@ from typing import Dict, List
 
 from control.control_representation import build_control_representation
 from features.geometry_utils import clamp01
+from output.frame_payload_contract import get_stable_gesture
 from svh.svh_command import SvhCommandPreview
 from svh.svh_layout import SVH_9CH_LAYOUT, SVH_9CH_NAMES, get_svh_9ch_tick_refs
 from svh.svh_protocol import SET_ALL_CHANNELS_ADDR, SET_CONTROL_STATE_ADDR
@@ -42,6 +43,11 @@ def _invalid_preview(enabled: bool, mode: str, cfg: Dict) -> Dict:
         target_positions=[],
         protocol_hint=_protocol_hint(cfg),
     ).to_dict()
+
+
+def empty_svh_preview(cfg: Dict, *, enabled: bool = False, mode: str | None = None) -> Dict:
+    resolved_mode = mode or ("preview" if enabled else "disabled")
+    return _invalid_preview(enabled, resolved_mode, cfg)
 
 
 def _target_channels(count: int) -> List[int]:
@@ -355,12 +361,12 @@ def _build_pinch_preview(control_representation: Dict, cfg: Dict) -> Dict:
 
 
 def build_svh_command_preview(payload: Dict, cfg: Dict) -> Dict:
-    enabled = bool(cfg.get("svh_enable_preview", True))
+    enabled = bool(cfg.get("svh_enable_preview", False))
     mode = str(cfg.get("svh_preview_mode", "preview" if enabled else "disabled"))
     if not enabled:
-        return _invalid_preview(False, "disabled", cfg)
+        return empty_svh_preview(cfg, enabled=False, mode="disabled")
 
-    gesture = payload.get("gesture") or "unknown"
+    gesture = get_stable_gesture(payload)
     control_representation = payload.get("control_representation") or build_control_representation(payload, cfg)
     features_valid = bool(control_representation.get("features_valid", control_representation.get("valid", False)))
     command_ready = bool(control_representation.get("command_ready", control_representation.get("valid", False)))

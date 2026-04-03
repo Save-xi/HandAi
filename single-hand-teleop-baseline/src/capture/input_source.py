@@ -10,6 +10,10 @@ class InputSource(ABC):
     """Abstract input source interface for future webcam/video extension."""
 
     @abstractmethod
+    def is_opened(self) -> bool:
+        pass
+
+    @abstractmethod
     def read(self) -> Tuple[bool, Optional[np.ndarray]]:
         pass
 

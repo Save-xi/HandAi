@@ -1,51 +1,49 @@
 {
-  "timestamp": 1774965000.123,
-  "detected": true,
-  "handedness": "Right",
-  "confidence": 0.972,
-  "gesture_raw": "pinch",
-  "gesture": "pinch",
-  "pinch_distance_norm": 0.145,
-  "hand_open_ratio": 0.793,
+  "timestamp": 1775206693.109788,
+  "detected": false,
+  "handedness": null,
+  "confidence": null,
+  "gesture_raw": "unknown",
+  "gesture_stable": "unknown",
+  "pinch_distance_norm": null,
+  "hand_open_ratio": null,
   "finger_curl": {
-    "thumb": 0.036,
-    "index": 0.316,
-    "middle": 0.017,
-    "ring": 0.013,
-    "little": 0.018
+    "thumb": null,
+    "index": null,
+    "middle": null,
+    "ring": null,
+    "little": null
   },
-  "landmarks_2d": [
-    [0.185, 0.968],
-    [0.223, 0.919],
-    [0.246, 0.858]
-  ],
+  "landmarks_2d": [],
+  "landmarks_3d": [],
   "control_representation": {
-    "valid": true,
-    "features_valid": true,
-    "command_ready": true,
-    "source": "features",
-    "gesture_context": "pinch",
-    "preferred_mapping": "pinch",
-    "grasp_close": 0.17,
-    "thumb_index_proximity": 0.843,
-    "effective_pinch_strength": 0.843,
-    "pinch_strength": 0.843,
-    "support_flex": 0.016,
+    "valid": false,
+    "features_valid": false,
+    "command_ready": false,
+    "source": null,
+    "gesture_context": null,
+    "preferred_mapping": null,
+    "grasp_close": null,
+    "thumb_index_proximity": null,
+    "effective_pinch_strength": null,
+    "pinch_strength": null,
+    "support_flex": null,
     "finger_flex": {
-      "thumb": 0.036,
-      "index": 0.316,
-      "middle": 0.017,
-      "ring": 0.013,
-      "little": 0.018
+      "thumb": null,
+      "index": null,
+      "middle": null,
+      "ring": null,
+      "little": null
     }
   },
-  "svh": {
-    "enabled": true,
-    "mode": "preview",
-    "valid": true,
-    "command_source": "control_representation",
-    "target_channels": [0, 1, 2, 3, 4],
-    "target_positions": [0.722, 0.711, 0.169, 0.169, 0.169],
+  "control_ready": false,
+  "svh_preview": {
+    "enabled": false,
+    "mode": "disabled",
+    "valid": false,
+    "command_source": null,
+    "target_channels": [],
+    "target_positions": [],
     "target_ticks_preview": [],
     "protocol_hint": {
       "set_control_state_addr": "0x09",
@@ -57,6 +55,7 @@
       "target_tick_units": "none"
     }
   },
-  "fps": 27.77,
-  "latency_ms": 20.037
+  "frame_index": 180,
+  "fps": 40.20165148424996,
+  "latency_ms": 10.992299999998068
 }

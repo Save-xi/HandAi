@@ -64,9 +64,14 @@ def test_feature_structure():
     assert isinstance(feat["hand_open_ratio"], float)
     assert feat["confidence"] == 0.9
     assert feat["gesture_raw"] is None
-    assert feat["gesture"] is None
+    assert feat["gesture_stable"] is None
     assert set(feat["finger_curl"].keys()) == {"thumb", "index", "middle", "ring", "little"}
     assert len(feat["landmarks_2d"]) == 21
+    assert len(feat["landmarks_3d"]) == 21
+    for value in feat["finger_curl"].values():
+        assert 0.0 <= value <= 1.0
+    assert 0.0 <= feat["pinch_distance_norm"]
+    assert 0.0 <= feat["hand_open_ratio"]
 
 
 def test_empty_feature_structure():
@@ -76,9 +81,10 @@ def test_empty_feature_structure():
     assert feat["handedness"] is None
     assert feat["confidence"] is None
     assert feat["gesture_raw"] == "unknown"
-    assert feat["gesture"] == "unknown"
+    assert feat["gesture_stable"] == "unknown"
     assert feat["pinch_distance_norm"] is None
     assert feat["landmarks_2d"] == []
+    assert feat["landmarks_3d"] == []
 
 
 def test_invalidate_control_features_preserves_detection_but_clears_control_fields():
@@ -90,10 +96,11 @@ def test_invalidate_control_features_preserves_detection_but_clears_control_fiel
     assert degraded["handedness"] == "Right"
     assert degraded["confidence"] == 0.9
     assert degraded["gesture_raw"] is None
-    assert degraded["gesture"] is None
+    assert degraded["gesture_stable"] is None
     assert degraded["pinch_distance_norm"] is None
     assert degraded["hand_open_ratio"] is None
     assert degraded["landmarks_2d"] == feat["landmarks_2d"]
+    assert degraded["landmarks_3d"] == feat["landmarks_3d"]
     assert degraded["finger_curl"] == {
         "thumb": None,
         "index": None,
@@ -101,6 +108,30 @@ def test_invalidate_control_features_preserves_detection_but_clears_control_fiel
         "ring": None,
         "little": None,
     }
+
+
+def test_extract_hand_features_returns_empty_payload_for_incomplete_landmarks():
+    feat = extract_hand_features([(0.5, 0.5)] * 3, "Right", 0.9, 123.0)
+
+    assert feat == empty_features(123.0)
+
+
+def test_extract_hand_features_falls_back_to_zero_z_when_xyz_is_missing_or_misaligned():
+    lms = [(0.5 + i * 0.001, 0.5 + i * 0.001) for i in range(21)]
+    feat = extract_hand_features(lms, "Right", 0.9, 123.0, landmarks_xyz=[(0.0, 0.0, 0.0)] * 10)
+
+    assert len(feat["landmarks_3d"]) == 21
+    assert all(point[2] == 0.0 for point in feat["landmarks_3d"])
+
+
+def test_extract_hand_features_falls_back_to_zero_z_when_xyz_points_are_malformed():
+    lms = [(0.5 + i * 0.001, 0.5 + i * 0.001) for i in range(21)]
+    malformed_xyz = [(0.0, 0.0, 0.0)] * 20 + [(0.0, 0.0)]
+
+    feat = extract_hand_features(lms, "Right", 0.9, 123.0, landmarks_xyz=malformed_xyz)
+
+    assert len(feat["landmarks_3d"]) == 21
+    assert all(point[2] == 0.0 for point in feat["landmarks_3d"])
 
 
 def test_finger_curl_uses_joint_geometry_and_z_to_separate_open_and_fist():

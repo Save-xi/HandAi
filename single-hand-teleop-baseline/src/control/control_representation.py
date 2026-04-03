@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Dict, Iterable
 
 from features.geometry_utils import clamp01, normalize_between
+from output.frame_payload_contract import get_stable_gesture
 
 EMPTY_FINGER_FLEX = {"thumb": None, "index": None, "middle": None, "ring": None, "little": None}
 CONTROL_FINGERS = ["thumb", "index", "middle", "ring", "little"]
@@ -34,6 +35,10 @@ def _invalid_control_representation() -> Dict:
     }
 
 
+def empty_control_representation() -> Dict:
+    return _invalid_control_representation()
+
+
 def build_control_representation(payload: Dict, cfg: Dict) -> Dict:
     """Convert per-frame perception output into a control-oriented continuous vector.
 
@@ -48,7 +53,7 @@ def build_control_representation(payload: Dict, cfg: Dict) -> Dict:
     - effective_pinch_strength: pinch cue after gesture-aware gating
     """
 
-    gesture = payload.get("gesture") or "unknown"
+    gesture = get_stable_gesture(payload)
     finger_curl = payload.get("finger_curl") or {}
     if (
         not payload.get("detected", False)
@@ -56,7 +61,7 @@ def build_control_representation(payload: Dict, cfg: Dict) -> Dict:
         or payload.get("pinch_distance_norm") is None
         or any(finger_curl.get(name) is None for name in CONTROL_FINGERS)
     ):
-        return _invalid_control_representation()
+        return empty_control_representation()
 
     finger_flex = {name: clamp01(float(finger_curl[name])) for name in CONTROL_FINGERS}
     mean_non_thumb_flex = _mean(finger_flex[name] for name in NON_THUMB_FINGERS)
