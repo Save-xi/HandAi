@@ -8,11 +8,10 @@ import numpy as np
 from capture.input_source import InputSource
 
 
-class WebcamSource(InputSource):
-    def __init__(self, camera_index: int, width: int, height: int) -> None:
-        self.cap = cv2.VideoCapture(camera_index)
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+class VideoFileSource(InputSource):
+    def __init__(self, video_path: str) -> None:
+        self.video_path = video_path
+        self.cap = cv2.VideoCapture(video_path)
 
     def is_opened(self) -> bool:
         return bool(self.cap is not None and self.cap.isOpened())

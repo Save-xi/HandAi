@@ -1,0 +1,240 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://save-xi.github.io/HandAi/schemas/frame_payload.schema.json",
+  "title": "Single Hand Baseline Frame Payload",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "timestamp",
+    "frame_index",
+    "detected",
+    "handedness",
+    "confidence",
+    "control_ready",
+    "gesture_raw",
+    "gesture_stable",
+    "pinch_distance_norm",
+    "hand_open_ratio",
+    "finger_curl",
+    "landmarks_2d",
+    "landmarks_3d",
+    "control_representation",
+    "svh_preview",
+    "fps",
+    "latency_ms"
+  ],
+  "deprecatedAliases": {
+    "gesture": "gesture_stable",
+    "svh": "svh_preview"
+  },
+  "properties": {
+    "timestamp": {
+      "type": "number"
+    },
+    "frame_index": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "detected": {
+      "type": "boolean"
+    },
+    "handedness": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "confidence": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "control_ready": {
+      "type": "boolean",
+      "description": "Top-level mirror of control_representation.command_ready for downstream consumers."
+    },
+    "gesture_raw": {
+      "type": "string"
+    },
+    "gesture_stable": {
+      "type": "string"
+    },
+    "pinch_distance_norm": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "hand_open_ratio": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "finger_curl": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "thumb",
+        "index",
+        "middle",
+        "ring",
+        "little"
+      ],
+      "properties": {
+        "thumb": { "type": ["number", "null"] },
+        "index": { "type": ["number", "null"] },
+        "middle": { "type": ["number", "null"] },
+        "ring": { "type": ["number", "null"] },
+        "little": { "type": ["number", "null"] }
+      }
+    },
+    "landmarks_2d": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 2,
+        "items": { "type": "number" }
+      }
+    },
+    "landmarks_3d": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "minItems": 3,
+        "maxItems": 3,
+        "items": { "type": "number" }
+      }
+    },
+    "control_representation": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Optional extension object. It is always emitted in the frozen payload, but may be invalid when the extension is disabled or the frame is not command-ready.",
+      "required": [
+        "valid",
+        "features_valid",
+        "command_ready",
+        "source",
+        "gesture_context",
+        "preferred_mapping",
+        "grasp_close",
+        "thumb_index_proximity",
+        "effective_pinch_strength",
+        "pinch_strength",
+        "support_flex",
+        "finger_flex"
+      ],
+      "properties": {
+        "valid": {
+          "type": "boolean",
+          "description": "Compatibility mirror of command_ready."
+        },
+        "features_valid": {
+          "type": "boolean",
+          "description": "True when the continuous perception features needed for control are present this frame."
+        },
+        "command_ready": {
+          "type": "boolean",
+          "description": "Preferred downstream readiness flag for Unity / socket / preview consumers."
+        },
+        "source": { "type": ["string", "null"] },
+        "gesture_context": { "type": ["string", "null"] },
+        "preferred_mapping": {
+          "type": ["string", "null"],
+          "description": "Current control family selection. Valid values: grasp, pinch, or null."
+        },
+        "grasp_close": { "type": ["number", "null"], "minimum": 0.0, "maximum": 1.0, "description": "Normalized grasp closure in [0, 1]." },
+        "thumb_index_proximity": { "type": ["number", "null"], "minimum": 0.0, "maximum": 1.0, "description": "Normalized thumb-index proximity cue in [0, 1]." },
+        "effective_pinch_strength": { "type": ["number", "null"], "minimum": 0.0, "maximum": 1.0, "description": "Gesture-aware pinch strength in [0, 1]. This is the preferred downstream pinch field." },
+        "pinch_strength": { "type": ["number", "null"], "minimum": 0.0, "maximum": 1.0, "description": "Deprecated compatibility mirror of effective_pinch_strength." },
+        "support_flex": { "type": ["number", "null"], "minimum": 0.0, "maximum": 1.0, "description": "Normalized support-finger flexion in [0, 1]." },
+        "finger_flex": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Per-finger normalized flexion cues in [0, 1].",
+          "required": [
+            "thumb",
+            "index",
+            "middle",
+            "ring",
+            "little"
+          ],
+          "properties": {
+            "thumb": { "type": ["number", "null"], "minimum": 0.0, "maximum": 1.0 },
+            "index": { "type": ["number", "null"], "minimum": 0.0, "maximum": 1.0 },
+            "middle": { "type": ["number", "null"], "minimum": 0.0, "maximum": 1.0 },
+            "ring": { "type": ["number", "null"], "minimum": 0.0, "maximum": 1.0 },
+            "little": { "type": ["number", "null"], "minimum": 0.0, "maximum": 1.0 }
+          }
+        }
+      }
+    },
+    "svh_preview": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Optional preview-only downstream object. It stays mock/skeleton oriented and must not be treated as a real hardware command without additional safety layers.",
+      "required": [
+        "enabled",
+        "mode",
+        "valid",
+        "command_source",
+        "target_channels",
+        "target_positions",
+        "target_ticks_preview",
+        "protocol_hint"
+      ],
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Extension toggle. False means the baseline emitted a disabled placeholder preview object." },
+        "mode": { "type": "string" },
+        "valid": { "type": "boolean", "description": "True only when target arrays contain a usable preview command." },
+        "command_source": { "type": ["string", "null"], "description": "Expected values when valid=true: control_representation or gesture_fallback." },
+        "target_channels": {
+          "type": "array",
+          "description": "Preview channel indices for downstream consumers.",
+          "items": { "type": "integer" }
+        },
+        "target_positions": {
+          "type": "array",
+          "description": "Normalized preview command magnitudes in [0, 1]. These are the preferred direct-consumption values for Unity/socket preview integrations.",
+          "items": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+        },
+        "target_ticks_preview": {
+          "type": "array",
+          "description": "Preview-only encoder-like ticks. Do not treat these as hardware-safe final command units.",
+          "items": { "type": "integer" }
+        },
+        "protocol_hint": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Metadata describing the preview layout, units, and protocol assumptions for downstream integration code.",
+          "required": [
+            "set_control_state_addr",
+            "set_all_channels_addr",
+            "transport",
+            "channel_layout",
+            "channel_order",
+            "position_units",
+            "target_tick_units"
+          ],
+          "properties": {
+            "set_control_state_addr": { "type": "string" },
+            "set_all_channels_addr": { "type": "string" },
+            "transport": { "type": "string" },
+            "channel_layout": { "type": "string" },
+            "channel_order": { "type": "string" },
+            "position_units": { "type": "string" },
+            "target_tick_units": { "type": "string" }
+          }
+        }
+      }
+    },
+    "fps": {
+      "type": "number"
+    },
+    "latency_ms": {
+      "type": "number"
+    }
+  }
+}

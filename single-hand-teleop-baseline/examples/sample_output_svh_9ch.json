@@ -1,10 +1,10 @@
 {
-  "timestamp": 1775039311.8140218,
+  "timestamp": 1775206647.5439682,
   "detected": false,
   "handedness": null,
   "confidence": null,
   "gesture_raw": "unknown",
-  "gesture": "unknown",
+  "gesture_stable": "unknown",
   "pinch_distance_norm": null,
   "hand_open_ratio": null,
   "finger_curl": {
@@ -15,6 +15,7 @@
     "little": null
   },
   "landmarks_2d": [],
+  "landmarks_3d": [],
   "control_representation": {
     "valid": false,
     "features_valid": false,
@@ -35,7 +36,8 @@
       "little": null
     }
   },
-  "svh": {
+  "control_ready": false,
+  "svh_preview": {
     "enabled": true,
     "mode": "preview",
     "valid": false,
@@ -53,6 +55,7 @@
       "target_tick_units": "encoder_ticks_preview"
     }
   },
-  "fps": 9.638340547589317,
-  "latency_ms": 10.776900000564638
+  "frame_index": 183,
+  "fps": 20.91669507885081,
+  "latency_ms": 11.392299998988165
 }

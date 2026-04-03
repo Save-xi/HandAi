@@ -2,6 +2,8 @@ camera_index: 0
 input_source_type: webcam
 video_file_path: ""
 input_mirrored: false
+gui_enabled: true
+headless: false
 display_width: 1280
 display_height: 720
 draw_landmarks: true
@@ -13,6 +15,7 @@ jsonl_output_dir: "outputs"
 output_json_path: "examples/sample_output_svh_9ch.json"
 recent_frames_buffer_size: 10
 
+enable_control_extension: true
 control_grasp_open_ref: 0.02
 control_grasp_closed_ref: 0.55
 control_pinch_open_ref: 0.45

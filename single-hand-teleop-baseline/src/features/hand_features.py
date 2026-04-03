@@ -43,9 +43,25 @@ def _mean_point(points: List[Tuple[float, float]]) -> Tuple[float, float]:
     )
 
 
+def _has_complete_landmarks_2d(landmarks_2d: Sequence[Sequence[float]]) -> bool:
+    if len(landmarks_2d) <= LITTLE_TIP:
+        return False
+    return all(len(point) >= 2 for point in landmarks_2d[: LITTLE_TIP + 1])
+
+
+def _has_complete_landmarks_3d(
+    landmarks_xyz: Sequence[Sequence[float]] | None,
+    *,
+    expected_len: int,
+) -> bool:
+    if not landmarks_xyz or len(landmarks_xyz) != expected_len:
+        return False
+    return all(len(point) >= 3 for point in landmarks_xyz)
+
+
 def _as_xyz(landmarks_2d: List[Tuple[float, float]], landmarks_xyz: List[Tuple[float, float, float]] | None) -> List[Tuple[float, float, float]]:
-    if landmarks_xyz and len(landmarks_xyz) == len(landmarks_2d):
-        return landmarks_xyz
+    if _has_complete_landmarks_3d(landmarks_xyz, expected_len=len(landmarks_2d)):
+        return [(float(x), float(y), float(z)) for x, y, z in landmarks_xyz]
     return [(x, y, 0.0) for x, y in landmarks_2d]
 
 
@@ -105,6 +121,12 @@ def extract_hand_features(
     timestamp: float,
     landmarks_xyz: List[Tuple[float, float, float]] | None = None,
 ) -> Dict:
+    # Keep feature extraction total-function-like for tests and non-camera paths:
+    # malformed or incomplete landmark lists degrade to an empty frame payload
+    # instead of raising index errors deep inside geometry code.
+    if not _has_complete_landmarks_2d(landmarks_2d):
+        return empty_features(timestamp)
+
     landmarks_xyz = _as_xyz(landmarks_2d, landmarks_xyz)
     palm_size = _palm_size(landmarks_2d)
     palm_center = _mean_point([landmarks_2d[idx] for idx in PALM_CENTER_POINTS])
@@ -140,11 +162,12 @@ def extract_hand_features(
         "handedness": handedness,
         "confidence": float(confidence) if confidence is not None else None,
         "gesture_raw": None,
-        "gesture": None,
+        "gesture_stable": None,
         "pinch_distance_norm": float(pinch_distance_norm),
         "hand_open_ratio": float(hand_open_ratio),
         "finger_curl": finger_curl,
         "landmarks_2d": [[float(x), float(y)] for x, y in landmarks_2d],
+        "landmarks_3d": [[float(x), float(y), float(z)] for x, y, z in landmarks_xyz],
     }
 
 
@@ -152,7 +175,7 @@ def invalidate_control_features(features: Dict) -> Dict:
     """Keep detection info/landmarks, but clear control-facing geometry for low-quality frames."""
     degraded = dict(features)
     degraded["gesture_raw"] = None
-    degraded["gesture"] = None
+    degraded["gesture_stable"] = None
     degraded["pinch_distance_norm"] = None
     degraded["hand_open_ratio"] = None
     degraded["finger_curl"] = dict(EMPTY_FINGER_CURL)
@@ -166,9 +189,10 @@ def empty_features(timestamp: float) -> Dict:
         "handedness": None,
         "confidence": None,
         "gesture_raw": "unknown",
-        "gesture": "unknown",
+        "gesture_stable": "unknown",
         "pinch_distance_norm": None,
         "hand_open_ratio": None,
         "finger_curl": dict(EMPTY_FINGER_CURL),
         "landmarks_2d": [],
+        "landmarks_3d": [],
     }

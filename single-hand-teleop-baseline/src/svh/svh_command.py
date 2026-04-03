@@ -23,13 +23,28 @@ class SvhCommandPreview:
     protocol_hint: Dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> Dict:
+        positions = [min(1.0, max(0.0, float(value))) for value in self.target_positions]
+        channels = [int(value) for value in self.target_channels]
+        ticks = [int(value) for value in self.target_ticks_preview]
+        valid = bool(self.valid)
+        enabled = bool(self.enabled)
+        command_source = self.command_source
+
+        if not enabled:
+            valid = False
+        if not valid:
+            command_source = None
+            channels = []
+            positions = []
+            ticks = []
+
         return {
-            "enabled": self.enabled,
+            "enabled": enabled,
             "mode": self.mode,
-            "valid": self.valid,
-            "command_source": self.command_source,
-            "target_channels": list(self.target_channels),
-            "target_positions": list(self.target_positions),
-            "target_ticks_preview": list(self.target_ticks_preview),
+            "valid": valid,
+            "command_source": command_source,
+            "target_channels": channels,
+            "target_positions": positions,
+            "target_ticks_preview": ticks,
             "protocol_hint": dict(self.protocol_hint),
         }

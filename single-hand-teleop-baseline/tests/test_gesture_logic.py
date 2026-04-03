@@ -1,18 +1,9 @@
+import pytest
+
 from gesture.rule_based_gesture import GestureStabilizer, infer_gesture_raw, infer_stable_gesture
 
 
-def test_infer_gesture_raw_categories():
-    cfg = {
-        "pinch_distance_norm_threshold": 0.45,
-        "pinch_open_ratio_min": 0.75,
-        "pinch_support_curl_max": 0.65,
-        "open_ratio_threshold": 0.85,
-        "open_mean_curl_max": 0.45,
-        "fist_ratio_threshold": 0.85,
-        "fist_mean_curl_min": 0.45,
-        "fist_compact_ratio_threshold": 0.65,
-    }
-
+def test_infer_gesture_raw_categories(gesture_cfg):
     open_features = {
         "detected": True,
         "pinch_distance_norm": 0.8,
@@ -32,23 +23,12 @@ def test_infer_gesture_raw_categories():
         "finger_curl": {"thumb": 0.4, "index": 0.4, "middle": 0.2, "ring": 0.2, "little": 0.2},
     }
 
-    assert infer_gesture_raw(open_features, cfg) == "open"
-    assert infer_gesture_raw(fist_features, cfg) == "fist"
-    assert infer_gesture_raw(pinch_features, cfg) == "pinch"
+    assert infer_gesture_raw(open_features, gesture_cfg) == "open"
+    assert infer_gesture_raw(fist_features, gesture_cfg) == "fist"
+    assert infer_gesture_raw(pinch_features, gesture_cfg) == "pinch"
 
 
-def test_open_and_fist_rules_do_not_depend_on_thumb_too_much():
-    cfg = {
-        "pinch_distance_norm_threshold": 0.45,
-        "pinch_open_ratio_min": 0.75,
-        "pinch_support_curl_max": 0.65,
-        "open_ratio_threshold": 0.85,
-        "open_mean_curl_max": 0.45,
-        "fist_ratio_threshold": 0.85,
-        "fist_mean_curl_min": 0.45,
-        "fist_compact_ratio_threshold": 0.65,
-    }
-
+def test_open_and_fist_rules_do_not_depend_on_thumb_too_much(gesture_cfg):
     open_features = {
         "detected": True,
         "pinch_distance_norm": 0.9,
@@ -62,22 +42,11 @@ def test_open_and_fist_rules_do_not_depend_on_thumb_too_much():
         "finger_curl": {"thumb": 0.10, "index": 0.7, "middle": 0.7, "ring": 0.7, "little": 0.7},
     }
 
-    assert infer_gesture_raw(open_features, cfg) == "open"
-    assert infer_gesture_raw(fist_features, cfg) == "fist"
+    assert infer_gesture_raw(open_features, gesture_cfg) == "open"
+    assert infer_gesture_raw(fist_features, gesture_cfg) == "fist"
 
 
-def test_fist_can_use_compact_hand_fallback_when_curl_is_unstable():
-    cfg = {
-        "pinch_distance_norm_threshold": 0.45,
-        "pinch_open_ratio_min": 0.75,
-        "pinch_support_curl_max": 0.65,
-        "open_ratio_threshold": 0.85,
-        "open_mean_curl_max": 0.45,
-        "fist_ratio_threshold": 0.85,
-        "fist_mean_curl_min": 0.45,
-        "fist_compact_ratio_threshold": 0.65,
-    }
-
+def test_fist_can_use_compact_hand_fallback_when_curl_is_unstable(gesture_cfg):
     fist_features = {
         "detected": True,
         "pinch_distance_norm": 0.32,
@@ -85,21 +54,10 @@ def test_fist_can_use_compact_hand_fallback_when_curl_is_unstable():
         "finger_curl": {"thumb": 0.0, "index": 0.0, "middle": 0.0, "ring": 0.0, "little": 0.0},
     }
 
-    assert infer_gesture_raw(fist_features, cfg) == "fist"
+    assert infer_gesture_raw(fist_features, gesture_cfg) == "fist"
 
 
-def test_infer_gesture_raw_returns_unknown_when_control_features_are_cleared():
-    cfg = {
-        "pinch_distance_norm_threshold": 0.45,
-        "pinch_open_ratio_min": 0.75,
-        "pinch_support_curl_max": 0.65,
-        "open_ratio_threshold": 0.85,
-        "open_mean_curl_max": 0.45,
-        "fist_ratio_threshold": 0.85,
-        "fist_mean_curl_min": 0.45,
-        "fist_compact_ratio_threshold": 0.65,
-    }
-
+def test_infer_gesture_raw_returns_unknown_when_control_features_are_cleared(gesture_cfg):
     degraded_features = {
         "detected": True,
         "pinch_distance_norm": None,
@@ -107,15 +65,64 @@ def test_infer_gesture_raw_returns_unknown_when_control_features_are_cleared():
         "finger_curl": {"thumb": None, "index": None, "middle": None, "ring": None, "little": None},
     }
 
-    assert infer_gesture_raw(degraded_features, cfg) == "unknown"
+    assert infer_gesture_raw(degraded_features, gesture_cfg) == "unknown"
 
 
-def test_infer_stable_gesture_uses_majority_and_unknown_on_missing_hand():
-    cfg = {
-        "stable_gesture_window": 5,
-        "stable_gesture_min_consecutive": 2,
-        "stable_unknown_consecutive": 1,
-    }
+@pytest.mark.parametrize(
+    ("features", "expected"),
+    [
+        (
+            {
+                "detected": True,
+                "pinch_distance_norm": 0.45,
+                "hand_open_ratio": 0.75,
+                "finger_curl": {"thumb": 0.4, "index": 0.35, "middle": 0.65, "ring": 0.65, "little": 0.65},
+            },
+            "pinch",
+        ),
+        (
+            {
+                "detected": True,
+                "pinch_distance_norm": 0.44,
+                "hand_open_ratio": 0.86,
+                "finger_curl": {"thumb": 0.4, "index": 0.35, "middle": 0.66, "ring": 0.66, "little": 0.66},
+            },
+            "unknown",
+        ),
+        (
+            {
+                "detected": True,
+                "pinch_distance_norm": 0.90,
+                "hand_open_ratio": 0.85,
+                "finger_curl": {"thumb": 0.9, "index": 0.45, "middle": 0.45, "ring": 0.45, "little": 0.45},
+            },
+            "open",
+        ),
+        (
+            {
+                "detected": True,
+                "pinch_distance_norm": 0.90,
+                "hand_open_ratio": 0.65,
+                "finger_curl": {"thumb": 0.0, "index": 0.0, "middle": 0.0, "ring": 0.0, "little": 0.0},
+            },
+            "fist",
+        ),
+        (
+            {
+                "detected": True,
+                "pinch_distance_norm": 0.90,
+                "hand_open_ratio": 0.85,
+                "finger_curl": {"thumb": 0.0, "index": 0.45, "middle": 0.45, "ring": 0.45, "little": 0.45},
+            },
+            "open",
+        ),
+    ],
+)
+def test_infer_gesture_raw_boundary_thresholds(gesture_cfg, features, expected):
+    assert infer_gesture_raw(features, gesture_cfg) == expected
+
+
+def test_infer_stable_gesture_uses_majority_and_unknown_on_missing_hand(gesture_cfg):
     history = [
         {"detected": True, "gesture_raw": "pinch"},
         {"detected": True, "gesture_raw": "pinch"},
@@ -123,8 +130,8 @@ def test_infer_stable_gesture_uses_majority_and_unknown_on_missing_hand():
         {"detected": True, "gesture_raw": "fist"},
     ]
 
-    assert infer_stable_gesture(history, cfg) == "fist"
-    assert infer_stable_gesture(history + [{"detected": False, "gesture_raw": "unknown"}], cfg) == "unknown"
+    assert infer_stable_gesture(history, gesture_cfg) == "fist"
+    assert infer_stable_gesture(history + [{"detected": False, "gesture_raw": "unknown"}], gesture_cfg) == "unknown"
 
 
 def test_gesture_stabilizer_switches_without_old_history_blocking_new_gesture():
@@ -134,4 +141,14 @@ def test_gesture_stabilizer_switches_without_old_history_blocking_new_gesture():
     assert stabilizer.update("pinch") == "pinch"
     assert stabilizer.update("fist") == "pinch"
     assert stabilizer.update("fist") == "fist"
+    assert stabilizer.update("unknown") == "unknown"
+
+
+def test_gesture_stabilizer_requires_confirm_frames_for_known_labels_but_not_unknown():
+    stabilizer = GestureStabilizer(confirm_frames=3, unknown_confirm_frames=1)
+
+    assert stabilizer.update("open") == "unknown"
+    assert stabilizer.update("open") == "unknown"
+    assert stabilizer.update("open") == "open"
+    assert stabilizer.update("fist") == "open"
     assert stabilizer.update("unknown") == "unknown"
