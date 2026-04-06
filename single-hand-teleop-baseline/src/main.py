@@ -1,17 +1,19 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import cv2
 
 from capture.input_source import InputSource
 from capture.video_file import VideoFileSource
 from capture.webcam import WebcamSource
+from control.control_representation import build_control_representation, empty_control_representation
 from features.hand_features import empty_features, extract_hand_features, invalidate_control_features
 from gesture.rule_based_gesture import GestureStabilizer, infer_gesture_raw
 from output.frame_payload_contract import normalize_frame_payload
@@ -19,6 +21,7 @@ from output.json_exporter import JsonExporter
 from perception.hand_filter import select_right_hand
 from perception.landmark_quality import assess_control_readiness
 from perception.mediapipe_hand import MediaPipeHandDetector
+from svh.svh_adapter import build_svh_command_preview, empty_svh_preview
 from utils.config import load_config
 from utils.logger import get_logger
 from utils.recent_frames import RecentFrameBuffer
@@ -35,6 +38,9 @@ class RuntimeMode:
     control_extension_enabled: bool
     svh_preview_enabled: bool
     video_file_path: str | None
+
+
+ExtensionDiagnostics = List[Dict[str, str]]
 
 
 def parse_args() -> argparse.Namespace:
@@ -152,6 +158,8 @@ def _build_exporter(cfg: Dict[str, Any], logger) -> JsonExporter:
         output_path=str(cfg.get("output_json_path", "examples/sample_output.json")),
         save_last_json=bool(cfg.get("save_last_json", True)),
         jsonl_path=_build_jsonl_session_path(cfg) if bool(cfg.get("save_jsonl", False)) else None,
+        export_last_every_n_frames=int(cfg.get("export_last_every_n_frames", 1)),
+        jsonl_flush_interval=int(cfg.get("jsonl_flush_interval", 1)),
         logger=logger,
     )
 
@@ -218,98 +226,88 @@ def _build_baseline_payload(frame, detector: MediaPipeHandDetector, cfg: Dict[st
     return payload
 
 
-def _empty_control_representation_payload() -> Dict[str, Any]:
-    return {
-        "valid": False,
-        "features_valid": False,
-        "command_ready": False,
-        "source": None,
-        "gesture_context": None,
-        "preferred_mapping": None,
-        "grasp_close": None,
-        "thumb_index_proximity": None,
-        "effective_pinch_strength": None,
-        "pinch_strength": None,
-        "support_flex": None,
-        "finger_flex": {
-            "thumb": None,
-            "index": None,
-            "middle": None,
-            "ring": None,
-            "little": None,
-        },
-    }
+def _summarize_exception(exc: Exception, *, max_length: int = 160) -> str:
+    detail = str(exc).strip()
+    summary = type(exc).__name__ if not detail else f"{type(exc).__name__}: {detail}"
+    if len(summary) <= max_length:
+        return summary
+    return summary[: max_length - 3] + "..."
 
 
-def _empty_svh_preview_payload(cfg: Dict[str, Any], *, enabled: bool, mode: str) -> Dict[str, Any]:
-    channel_layout = str(cfg.get("svh_preview_layout", "compact5"))
-    channel_order = (
-        "thumb_flexion,thumb_opposition,index_finger_distal,index_finger_proximal,middle_finger_distal,middle_finger_proximal,ring_finger,pinky,finger_spread"
-        if channel_layout == "svh_9ch"
-        else "thumb,index,middle,ring,little"
-    )
-    return {
-        "enabled": enabled,
-        "mode": mode,
-        "valid": False,
-        "command_source": None,
-        "target_channels": [],
-        "target_positions": [],
-        "target_ticks_preview": [],
-        "protocol_hint": {
-            "set_control_state_addr": "0x09",
-            "set_all_channels_addr": "0x03",
-            "transport": str(cfg.get("svh_transport", "mock")),
-            "channel_layout": channel_layout,
-            "channel_order": channel_order,
-            "position_units": "normalized_preview",
-            "target_tick_units": "encoder_ticks_preview" if channel_layout == "svh_9ch" else "none",
-        },
-    }
+def _record_extension_failure(
+    diagnostics: ExtensionDiagnostics,
+    *,
+    extension_name: str,
+    exc: Exception,
+    logger,
+    fallback_summary: str,
+) -> None:
+    summary = _summarize_exception(exc)
+    diagnostics.append({"extension": extension_name, "error": summary})
+    logger.warning("%s extension failed (%s); %s", extension_name, summary, fallback_summary)
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug(
+            "%s extension traceback follows.",
+            extension_name,
+            exc_info=(type(exc), exc, exc.__traceback__),
+        )
 
 
-def _apply_extension_chain(payload: Dict[str, Any], cfg: Dict[str, Any], runtime: RuntimeMode, *, svh_transport, logger) -> None:
+def _apply_extension_chain(
+    payload: Dict[str, Any],
+    cfg: Dict[str, Any],
+    runtime: RuntimeMode,
+    *,
+    svh_transport,
+    logger,
+) -> ExtensionDiagnostics:
+    diagnostics: ExtensionDiagnostics = []
     if runtime.control_extension_enabled:
         try:
-            from control.control_representation import build_control_representation, empty_control_representation
-
             control_representation = build_control_representation(payload, cfg)
-        except Exception:
-            logger.exception("control_representation extension failed; continuing with baseline-only payload for this frame.")
-            try:
-                from control.control_representation import empty_control_representation
-
-                control_representation = empty_control_representation()
-            except Exception:
-                control_representation = _empty_control_representation_payload()
+        except Exception as exc:
+            _record_extension_failure(
+                diagnostics,
+                extension_name="control_representation",
+                exc=exc,
+                logger=logger,
+                fallback_summary="continuing with the canonical empty control placeholder.",
+            )
+            control_representation = empty_control_representation()
     else:
-        control_representation = _empty_control_representation_payload()
+        control_representation = empty_control_representation()
 
     payload["control_representation"] = control_representation
     payload["control_ready"] = bool(control_representation.get("command_ready", False))
 
     if runtime.svh_preview_enabled:
         try:
-            from svh.svh_adapter import build_svh_command_preview, empty_svh_preview
-
             svh_preview = build_svh_command_preview(payload, cfg)
-        except Exception:
-            logger.exception("svh_preview extension failed; continuing without SVH preview output for this frame.")
-            try:
-                from svh.svh_adapter import empty_svh_preview
-
-                svh_preview = empty_svh_preview(cfg, enabled=True, mode=str(cfg.get("svh_preview_mode", "preview")))
-            except Exception:
-                svh_preview = _empty_svh_preview_payload(cfg, enabled=True, mode=str(cfg.get("svh_preview_mode", "preview")))
+        except Exception as exc:
+            _record_extension_failure(
+                diagnostics,
+                extension_name="svh_preview",
+                exc=exc,
+                logger=logger,
+                fallback_summary="continuing with the canonical empty SVH preview placeholder.",
+            )
+            svh_preview = empty_svh_preview(cfg, enabled=True, mode=str(cfg.get("svh_preview_mode", "preview")))
         if svh_transport is not None and svh_preview.get("valid"):
             try:
                 svh_transport.send(svh_preview)
-            except Exception:
-                logger.exception("SVH transport send failed; keeping preview output but skipping transport for this frame.")
+            except Exception as exc:
+                _record_extension_failure(
+                    diagnostics,
+                    extension_name="svh_transport",
+                    exc=exc,
+                    logger=logger,
+                    fallback_summary="keeping the preview payload but skipping transport send for this frame.",
+                )
     else:
-        svh_preview = _empty_svh_preview_payload(cfg, enabled=False, mode="disabled")
+        svh_preview = empty_svh_preview(cfg, enabled=False, mode="disabled")
 
     payload["svh_preview"] = svh_preview
+    return diagnostics
 
 
 def main() -> None:
@@ -325,6 +323,7 @@ def main() -> None:
         return
 
     detector = None
+    exporter = None
     try:
         detector = _build_detector(cfg, runtime)
         exporter = _build_exporter(cfg, logger)
@@ -374,8 +373,7 @@ def main() -> None:
 
             if args.print_json and frame_index % print_every_n_frames == 0:
                 exporter.print_console(payload, landmarks_preview_count=landmarks_preview_count)
-            exporter.save_last_frame(payload)
-            exporter.append_jsonl(payload)
+            exporter.export_prepared_frame(payload, frame_index=frame_index)
             exporter.send(payload)
 
             if runtime.gui_enabled:
@@ -391,6 +389,8 @@ def main() -> None:
     except KeyboardInterrupt:
         logger.info("Interrupted by user.")
     finally:
+        if exporter is not None:
+            exporter.close()
         if detector is not None:
             detector.close()
         source.release()

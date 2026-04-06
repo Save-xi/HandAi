@@ -129,7 +129,7 @@ def _compact_gesture_fallback_preview(gesture: str, cfg: Dict) -> Dict:
             support_value,
         )
     else:
-        return _invalid_preview(True, str(cfg.get("svh_preview_mode", "preview")), cfg)
+        return empty_svh_preview(cfg, enabled=True, mode=str(cfg.get("svh_preview_mode", "preview")))
 
     return SvhCommandPreview(
         enabled=True,
@@ -164,7 +164,7 @@ def _svh9_gesture_fallback_preview(gesture: str, cfg: Dict) -> Dict:
         alphas = [1.0, 1.0, 1.0, 0.85, support, support, support, support, pinch_spread_scale]
         fill_value = _svh9_positions_from_alphas([support], cfg)[0]
     else:
-        return _invalid_preview(True, str(cfg.get("svh_preview_mode", "preview")), cfg)
+        return empty_svh_preview(cfg, enabled=True, mode=str(cfg.get("svh_preview_mode", "preview")))
 
     positions = _resize_positions(_svh9_positions_from_alphas(alphas, cfg), channel_count, fill_value)
     return SvhCommandPreview(
@@ -378,9 +378,9 @@ def build_svh_command_preview(payload: Dict, cfg: Dict) -> Dict:
             return _build_grasp_preview(control_representation, cfg)
         if preferred_mapping == "pinch":
             return _build_pinch_preview(control_representation, cfg)
-        return _invalid_preview(True, mode, cfg)
+        return empty_svh_preview(cfg, enabled=True, mode=mode)
 
     if enable_gesture_fallback and not features_valid and gesture in {"open", "fist", "pinch"}:
         return _gesture_fallback_preview(gesture, cfg)
 
-    return _invalid_preview(True, mode, cfg)
+    return empty_svh_preview(cfg, enabled=True, mode=mode)
