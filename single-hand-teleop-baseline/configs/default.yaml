@@ -1,5 +1,8 @@
+# Default startup path:
+# single right-hand visual baseline, webcam/video input, frozen payload export,
+# optional control/SVH extensions disabled by default.
 camera_index: 0
-input_source_type: webcam  # webcam | video_file
+input_source_type: webcam  # webcam | video_file; Unity and real hardware are not baseline input prerequisites
 video_file_path: ""
 input_mirrored: false  # set true only if your input feed is already mirrored/selfie-style
 gui_enabled: true
@@ -13,8 +16,10 @@ save_last_json: true
 save_jsonl: false
 jsonl_output_dir: "outputs"
 output_json_path: "examples/sample_output.json"
+export_last_every_n_frames: 5  # last-frame JSON is throttled during runtime and still written once on clean shutdown
+jsonl_flush_interval: 10  # keep a small in-process buffer so JSONL stays lighter during realtime runs
 recent_frames_buffer_size: 10
-enable_control_extension: false  # baseline default stays perception/gesture/output only; enable this to emit control_representation
+enable_control_extension: false  # keep off for the default single-right-hand baseline; enable only when you want the optional control layer
 control_grasp_open_ref: 0.02
 control_grasp_closed_ref: 0.55
 control_pinch_open_ref: 0.45
@@ -23,7 +28,7 @@ control_hand_open_ratio_open_ref: 0.95
 control_hand_open_ratio_closed_ref: 0.25
 control_pinch_index_open_ref: 0.05
 control_pinch_index_closed_ref: 0.35
-svh_enable_preview: false  # preview extension stays off by default so baseline runs independently from SVH-related logic
+svh_enable_preview: false  # preview extension stays off by default so baseline runs independently from Unity/SVH-related downstream work
 svh_enable_gesture_fallback: false  # demo-oriented fallback; keep off by default for more conservative command generation
 svh_preview_layout: "compact5"  # compact5 keeps the current lightweight preview; switch to svh_9ch to mirror the paper/C# driver channel order
 svh_preview_channel_count: 5  # use 9 together with svh_9ch when you want a more SVH-like preview vector
@@ -64,4 +69,4 @@ stable_gesture_min_consecutive: 2
 stable_unknown_consecutive: 1
 min_detection_confidence: 0.5
 min_tracking_confidence: 0.5
-max_num_hands: 2
+max_num_hands: 2  # detector may observe multiple hands, but the runtime still selects a single right hand for the baseline output

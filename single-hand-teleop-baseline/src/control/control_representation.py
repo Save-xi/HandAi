@@ -5,7 +5,6 @@ from typing import Dict, Iterable
 from features.geometry_utils import clamp01, normalize_between
 from output.frame_payload_contract import get_stable_gesture
 
-EMPTY_FINGER_FLEX = {"thumb": None, "index": None, "middle": None, "ring": None, "little": None}
 CONTROL_FINGERS = ["thumb", "index", "middle", "ring", "little"]
 NON_THUMB_FINGERS = ["index", "middle", "ring", "little"]
 SUPPORT_FINGERS = ["middle", "ring", "little"]
@@ -17,8 +16,7 @@ def _mean(values: Iterable[float]) -> float:
         return 0.0
     return sum(values) / len(values)
 
-
-def _invalid_control_representation() -> Dict:
+def empty_control_representation() -> Dict:
     return {
         "valid": False,
         "features_valid": False,
@@ -31,12 +29,8 @@ def _invalid_control_representation() -> Dict:
         "effective_pinch_strength": None,
         "pinch_strength": None,
         "support_flex": None,
-        "finger_flex": dict(EMPTY_FINGER_FLEX),
+        "finger_flex": {name: None for name in CONTROL_FINGERS},
     }
-
-
-def empty_control_representation() -> Dict:
-    return _invalid_control_representation()
 
 
 def build_control_representation(payload: Dict, cfg: Dict) -> Dict:

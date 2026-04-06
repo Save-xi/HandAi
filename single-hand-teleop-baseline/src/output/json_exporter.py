@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, TextIO
 
 from output.frame_payload_contract import prepare_frame_payload
 
@@ -14,13 +14,24 @@ class JsonExporter:
         output_path: str,
         save_last_json: bool = True,
         jsonl_path: str | None = None,
+        export_last_every_n_frames: int = 1,
+        jsonl_flush_interval: int = 1,
         logger: logging.Logger | None = None,
     ) -> None:
         self.output_path = output_path
         self.save_last_json = save_last_json
         self.jsonl_path = jsonl_path
+        self.export_last_every_n_frames = max(1, int(export_last_every_n_frames))
+        self.jsonl_flush_interval = max(1, int(jsonl_flush_interval))
         self.logger = logger
         self._jsonl_failed = False
+        self._jsonl_handle: TextIO | None = None
+        self._jsonl_pending_lines = 0
+        self._last_frame_dirty = False
+        self._latest_prepared_payload: Dict[str, Any] | None = None
+        self._last_frame_write_count = 0
+        self._jsonl_write_count = 0
+        self._jsonl_flush_count = 0
 
     def to_json_str(self, obj: Dict[str, Any]) -> str:
         prepared = prepare_frame_payload(obj, include_deprecated_aliases=False)
@@ -69,15 +80,53 @@ class JsonExporter:
         if self.logger is not None:
             self.logger.warning(message)
 
+    def _debug(self, message: str, *args: Any) -> None:
+        if self.logger is not None:
+            self.logger.debug(message, *args)
+
+    def _write_last_prepared_frame(self, prepared: Dict[str, Any]) -> None:
+        path = Path(self.output_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("w", encoding="utf-8") as f:
+            json.dump(prepared, f, ensure_ascii=False, indent=2)
+        self._last_frame_write_count += 1
+        self._last_frame_dirty = False
+
+    def _ensure_jsonl_handle(self) -> TextIO | None:
+        if not self.jsonl_path or self._jsonl_failed:
+            return None
+        if self._jsonl_handle is None:
+            path = Path(self.jsonl_path)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            self._jsonl_handle = path.open("a", encoding="utf-8")
+        return self._jsonl_handle
+
+    def _flush_jsonl_handle(self) -> None:
+        if self._jsonl_handle is None:
+            return
+        self._jsonl_handle.flush()
+        self._jsonl_flush_count += 1
+        self._jsonl_pending_lines = 0
+
+    def _append_prepared_jsonl(self, prepared: Dict[str, Any], *, force_flush: bool) -> None:
+        handle = self._ensure_jsonl_handle()
+        if handle is None:
+            return
+        handle.write(json.dumps(prepared, ensure_ascii=False))
+        handle.write("\n")
+        self._jsonl_write_count += 1
+        self._jsonl_pending_lines += 1
+        if force_flush or self._jsonl_pending_lines >= self.jsonl_flush_interval:
+            self._flush_jsonl_handle()
+
     def save_last_frame(self, obj: Dict[str, Any]) -> None:
         if not self.save_last_json:
             return
         try:
             prepared = prepare_frame_payload(obj, include_deprecated_aliases=False)
-            path = Path(self.output_path)
-            path.parent.mkdir(parents=True, exist_ok=True)
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(prepared, f, ensure_ascii=False, indent=2)
+            self._latest_prepared_payload = prepared
+            self._last_frame_dirty = True
+            self._write_last_prepared_frame(prepared)
         except OSError as exc:
             self._warn(f"Failed to save last-frame JSON: {exc}")
 
@@ -86,15 +135,55 @@ class JsonExporter:
             return
         try:
             prepared = prepare_frame_payload(obj, include_deprecated_aliases=False)
-            path = Path(self.jsonl_path)
-            path.parent.mkdir(parents=True, exist_ok=True)
-            with open(path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(prepared, ensure_ascii=False))
-                f.write("\n")
+            self._append_prepared_jsonl(prepared, force_flush=True)
         except OSError as exc:
             self._jsonl_failed = True
+            if self._jsonl_handle is not None:
+                self._jsonl_handle.close()
+                self._jsonl_handle = None
             self._warn(f"Failed to append JSONL log; disabling JSONL for this session: {exc}")
+
+    def export_prepared_frame(self, prepared: Dict[str, Any], *, frame_index: int) -> None:
+        if self.save_last_json:
+            self._latest_prepared_payload = prepared
+            self._last_frame_dirty = True
+            if frame_index % self.export_last_every_n_frames == 0:
+                try:
+                    self._write_last_prepared_frame(prepared)
+                except OSError as exc:
+                    self._warn(f"Failed to save last-frame JSON: {exc}")
+        if self.jsonl_path and not self._jsonl_failed:
+            try:
+                self._append_prepared_jsonl(prepared, force_flush=False)
+            except OSError as exc:
+                self._jsonl_failed = True
+                if self._jsonl_handle is not None:
+                    self._jsonl_handle.close()
+                    self._jsonl_handle = None
+                self._warn(f"Failed to append JSONL log; disabling JSONL for this session: {exc}")
 
     def send(self, obj: Dict[str, Any]) -> None:
         """Reserved output interface for future network/control integration."""
         _ = prepare_frame_payload(obj, include_deprecated_aliases=False)
+
+    def close(self) -> None:
+        if self.save_last_json and self._last_frame_dirty and self._latest_prepared_payload is not None:
+            try:
+                self._write_last_prepared_frame(self._latest_prepared_payload)
+            except OSError as exc:
+                self._warn(f"Failed to save final last-frame JSON on close: {exc}")
+
+        if self._jsonl_handle is not None:
+            try:
+                if self._jsonl_pending_lines > 0:
+                    self._flush_jsonl_handle()
+            finally:
+                self._jsonl_handle.close()
+                self._jsonl_handle = None
+
+        self._debug(
+            "Exporter summary: last-frame writes=%d, jsonl lines=%d, jsonl flushes=%d",
+            self._last_frame_write_count,
+            self._jsonl_write_count,
+            self._jsonl_flush_count,
+        )
