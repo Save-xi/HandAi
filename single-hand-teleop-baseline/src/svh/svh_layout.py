@@ -15,10 +15,10 @@ SVH_9CH_NAMES = [
     "finger_spread",
 ]
 
-# These defaults are derived from the Unity/C# SVH finger manager's home-setting
-# ranges. They are still preview references rather than final, device-calibrated
-# encoder limits, but they provide a much more SVH-like scale than normalized
-# 0..1 values alone when the 9-channel layout is enabled.
+# 这些默认值来自 Unity / C# 参考实现里 SVH finger manager 的 home-setting
+# 范围。它们仍然只是 preview 参考值，而不是最终完成设备标定后的编码器限位；
+# 但在启用 9 通道布局时，它们相比单纯使用归一化 0..1 数值，更接近
+# SVH 风格的尺度。
 SVH_9CH_OPEN_TICKS = [
     -5000,
     -5000,
@@ -49,5 +49,5 @@ def get_svh_9ch_tick_refs(cfg: Dict) -> Tuple[List[int], List[int]]:
     open_values = [int(v) for v in open_ticks]
     closed_values = [int(v) for v in closed_ticks]
     if len(open_values) != len(SVH_9CH_NAMES) or len(closed_values) != len(SVH_9CH_NAMES):
-        raise ValueError("svh_9ch_open_ticks and svh_9ch_closed_ticks must both contain 9 values")
+        raise ValueError("svh_9ch_open_ticks 和 svh_9ch_closed_ticks 都必须包含 9 个值")
     return open_values, closed_values

@@ -1,10 +1,10 @@
-# Default startup path:
-# single right-hand visual baseline, webcam/video input, frozen payload export,
-# optional control/SVH extensions disabled by default.
+# 默认启动路径：
+# 单右手视觉 baseline、webcam/video 输入、冻结的 payload 导出，
+# 默认关闭 control / SVH 扩展。
 camera_index: 0
-input_source_type: webcam  # webcam | video_file; Unity and real hardware are not baseline input prerequisites
+input_source_type: webcam  # webcam | video_file；Unity 和真实硬件都不是 baseline 输入前提
 video_file_path: ""
-input_mirrored: false  # set true only if your input feed is already mirrored/selfie-style
+input_mirrored: false  # 只有当输入流本身已经是镜像/自拍视角时才设为 true
 gui_enabled: true
 headless: false
 display_width: 1280
@@ -16,10 +16,10 @@ save_last_json: true
 save_jsonl: false
 jsonl_output_dir: "outputs"
 output_json_path: "examples/sample_output.json"
-export_last_every_n_frames: 5  # last-frame JSON is throttled during runtime and still written once on clean shutdown
-jsonl_flush_interval: 10  # keep a small in-process buffer so JSONL stays lighter during realtime runs
+export_last_every_n_frames: 5  # 运行期按帧间隔节流写 last-frame JSON，正常退出时仍会补写一次
+jsonl_flush_interval: 10  # JSONL 保持一个小缓冲，降低实时运行时的逐帧写盘压力
 recent_frames_buffer_size: 10
-enable_control_extension: false  # keep off for the default single-right-hand baseline; enable only when you want the optional control layer
+enable_control_extension: false  # 默认单右手 baseline 保持关闭；只有需要可选控制层时才开启
 control_grasp_open_ref: 0.02
 control_grasp_closed_ref: 0.55
 control_pinch_open_ref: 0.45
@@ -28,17 +28,17 @@ control_hand_open_ratio_open_ref: 0.95
 control_hand_open_ratio_closed_ref: 0.25
 control_pinch_index_open_ref: 0.05
 control_pinch_index_closed_ref: 0.35
-svh_enable_preview: false  # preview extension stays off by default so baseline runs independently from Unity/SVH-related downstream work
-svh_enable_gesture_fallback: false  # demo-oriented fallback; keep off by default for more conservative command generation
-svh_preview_layout: "compact5"  # compact5 keeps the current lightweight preview; switch to svh_9ch to mirror the paper/C# driver channel order
-svh_preview_channel_count: 5  # use 9 together with svh_9ch when you want a more SVH-like preview vector
+svh_enable_preview: false  # 默认关闭 preview 扩展，让 baseline 能独立于 Unity / SVH 下游工作运行
+svh_enable_gesture_fallback: false  # 这是偏演示用途的 fallback；默认关闭会更保守
+svh_preview_layout: "compact5"  # compact5 是当前轻量 preview；切到 svh_9ch 更接近论文/C# 参考顺序
+svh_preview_channel_count: 5  # 如果想使用更像 SVH 的 preview 向量，可配合 svh_9ch 一起改成 9
 svh_preview_mode: "preview"
-svh_transport: "mock"  # future TCP transport can be added without changing adapter call sites
-svh_protocol_sync_bytes: [76, 170]  # paper-informed preview sync bytes (0x4C, 0xAA), still not a claim of full protocol completion
-svh_grasp_open_ref: 0.02  # mean non-thumb curl expected near an open hand
-svh_grasp_closed_ref: 0.55  # mean non-thumb curl expected near a closed grasp
-svh_pinch_open_ref: 0.45  # larger pinch distance means thumb/index are apart
-svh_pinch_closed_ref: 0.08  # smaller pinch distance means stronger pinch closure
+svh_transport: "mock"  # 未来可以扩展 TCP transport，但不需要改适配器调用点
+svh_protocol_sync_bytes: [76, 170]  # 论文启发的 preview sync bytes（0x4C, 0xAA），不代表完整协议已确认
+svh_grasp_open_ref: 0.02  # 非拇指平均 curl 接近张开手时的参考值
+svh_grasp_closed_ref: 0.55  # 非拇指平均 curl 接近闭合抓握时的参考值
+svh_pinch_open_ref: 0.45  # 捏合距离较大，表示拇指与食指分开
+svh_pinch_closed_ref: 0.08  # 捏合距离较小，表示捏合更强
 svh_invalid_holds_last_command: false
 svh_protocol_use_little_endian: true
 svh_hand_open_ratio_open_ref: 0.95
@@ -53,9 +53,9 @@ svh_grasp_spread_scale: 0.05
 svh_pinch_spread_scale: 0.10
 svh_pinch_index_open_ref: 0.05
 svh_pinch_index_closed_ref: 0.35
-control_ready_min_in_bounds_ratio: 0.90  # require most landmarks to stay inside the image
-control_ready_palm_center_margin: 0.08  # reject control updates when the palm center hugs the border
-control_ready_palm_core_oob_tolerance: 0.02  # allow tiny MediaPipe overshoot on palm landmarks
+control_ready_min_in_bounds_ratio: 0.90  # 要求大多数 landmark 保持在画面内
+control_ready_palm_center_margin: 0.08  # 当掌心中心贴边时拒绝控制更新
+control_ready_palm_core_oob_tolerance: 0.02  # 允许 MediaPipe 的掌心关键点有一点点越界
 pinch_distance_norm_threshold: 0.45
 pinch_open_ratio_min: 0.75
 pinch_support_curl_max: 0.65
@@ -69,4 +69,4 @@ stable_gesture_min_consecutive: 2
 stable_unknown_consecutive: 1
 min_detection_confidence: 0.5
 min_tracking_confidence: 0.5
-max_num_hands: 2  # detector may observe multiple hands, but the runtime still selects a single right hand for the baseline output
+max_num_hands: 2  # 检测器可以看到多只手，但 baseline 输出仍只选择单右手

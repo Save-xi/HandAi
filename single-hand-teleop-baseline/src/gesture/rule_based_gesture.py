@@ -41,12 +41,12 @@ def infer_gesture_raw(features: Dict, cfg: Dict) -> str:
     support_curls = [curls["middle"], curls["ring"], curls["little"]]
     non_thumb_curls = [curls["index"], curls["middle"], curls["ring"], curls["little"]]
 
-    # Fist comes first because compact hands often also have short thumb-index
-    # distances in 2D, which would otherwise be mistaken for pinch.
+    # 先判断 fist，因为紧凑手型在 2D 里往往也会表现出较短的拇指-食指距离，
+    # 否则容易被误判成 pinch。
     if float(open_ratio) <= fist_compact_ratio_threshold:
         return "fist"
 
-    # Pinch requires thumb-index proximity while the hand is not compact.
+    # Pinch 要求拇指与食指足够接近，同时整只手不能太紧凑。
     if (
         float(pinch_distance) <= pinch_threshold
         and float(open_ratio) >= pinch_open_ratio_min
@@ -54,12 +54,12 @@ def infer_gesture_raw(features: Dict, cfg: Dict) -> str:
     ):
         return "pinch"
 
-    # Open is driven mainly by the four non-thumb fingers; thumb posture varies
-    # a lot across people and camera viewpoints, so it should not dominate this rule.
+    # Open 主要由四个非拇指手指决定；
+    # 拇指姿态在人和视角之间变化很大，不应该主导这条规则。
     if float(open_ratio) >= open_ratio_threshold and _mean(non_thumb_curls) <= open_mean_curl_max:
         return "open"
 
-    # Secondary fist rule for borderline ratios when curl is informative.
+    # 当 ratio 处在边界附近时，再用 curl 辅助判定 fist。
     if float(open_ratio) <= fist_ratio_threshold and _mean(non_thumb_curls) >= fist_mean_curl_min:
         return "fist"
 
@@ -71,7 +71,7 @@ def infer_gesture(features: Dict, cfg: Dict) -> str:
 
 
 class GestureStabilizer:
-    """Order-independent gesture debounce using consecutive hits only."""
+    """只依赖连续命中的、与顺序无关的手势去抖器。"""
 
     def __init__(self, confirm_frames: int = 2, unknown_confirm_frames: int = 1) -> None:
         self.confirm_frames = max(1, confirm_frames)

@@ -6,11 +6,11 @@ from typing import Dict, List
 
 @dataclass
 class SvhCommandPreview:
-    """Preview-only command object for future SVH transport integration.
+    """面向未来 SVH 传输集成的 preview-only 命令对象。
 
-    The preview layer may emit either a compact 5-channel abstraction or a
-    paper/C#-aligned 9-channel ordering. Both remain preview-oriented until
-    real transport, packing, and hardware calibration are implemented.
+    preview 层既可能输出紧凑的 5 通道抽象，也可能输出与论文 / C#
+    参考实现更接近的 9 通道顺序。在真实传输、打包和硬件标定完成前，
+    这两种形式都只应被视为 preview。
     """
 
     enabled: bool

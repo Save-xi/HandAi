@@ -44,18 +44,18 @@ ExtensionDiagnostics = List[Dict[str, str]]
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Single right hand teleop baseline demo")
+    parser = argparse.ArgumentParser(description="单右手遥操作 baseline 演示")
     parser.add_argument("--config", default="configs/default.yaml", type=str)
-    parser.add_argument("--camera-index", default=None, type=int, help="Override webcam camera index")
-    parser.add_argument("--video-file", default=None, type=str, help="Read frames from a local video file instead of a webcam")
-    parser.add_argument("--input-mirrored", action="store_true", help="Treat input as already mirrored/selfie-style")
-    parser.add_argument("--enable-control", action="store_true", help="Enable the control_representation extension layer")
-    parser.add_argument("--preview-svh", action="store_true", help="Enable the SVH preview extension layer (implies --enable-control)")
-    parser.add_argument("--no-gui", action="store_true", help="Disable the OpenCV preview window but keep live processing")
-    parser.add_argument("--headless", action="store_true", help="Run without any OpenCV window; useful for logs, JSONL, or video-file processing")
-    parser.add_argument("--max-frames", default=None, type=int, help="Stop after processing N frames")
-    parser.add_argument("--print-json", action="store_true", help="Print frame JSON to console")
-    parser.add_argument("--save-jsonl", action="store_true", help="Enable per-frame JSONL logging for this session")
+    parser.add_argument("--camera-index", default=None, type=int, help="覆盖默认摄像头的相机索引")
+    parser.add_argument("--video-file", default=None, type=str, help="从本地视频文件读取帧，而不是使用摄像头")
+    parser.add_argument("--input-mirrored", action="store_true", help="把输入视为已经镜像/自拍视角")
+    parser.add_argument("--enable-control", action="store_true", help="启用 control_representation 扩展层")
+    parser.add_argument("--preview-svh", action="store_true", help="启用 SVH 预览扩展层（会隐式开启 --enable-control）")
+    parser.add_argument("--no-gui", action="store_true", help="关闭 OpenCV 预览窗口，但保持实时处理")
+    parser.add_argument("--headless", action="store_true", help="完全无窗口运行；适合日志、JSONL 或视频文件处理")
+    parser.add_argument("--max-frames", default=None, type=int, help="处理到 N 帧后自动停止")
+    parser.add_argument("--print-json", action="store_true", help="把逐帧 JSON 打印到控制台")
+    parser.add_argument("--save-jsonl", action="store_true", help="为本次运行启用逐帧 JSONL 日志")
     return parser.parse_args()
 
 
@@ -117,18 +117,18 @@ def _build_input_source(cfg: Dict[str, Any], runtime: RuntimeMode, logger) -> In
     source_type = runtime.input_source_type
     if source_type == "video_file":
         if not runtime.video_file_path:
-            logger.error("Video-file mode requested but no video path was provided; exiting gracefully.")
+            logger.error("请求了视频文件模式，但没有提供视频路径；程序将安全退出。")
             return None
         source = VideoFileSource(runtime.video_file_path)
         if not source.is_opened():
-            logger.error("Unable to open video file '%s'; exiting gracefully.", runtime.video_file_path)
+            logger.error("无法打开视频文件 '%s'；程序将安全退出。", runtime.video_file_path)
             source.release()
             return None
-        logger.info("Using video file input: %s", runtime.video_file_path)
+        logger.info("当前使用视频文件输入：%s", runtime.video_file_path)
         return source
 
     if source_type != "webcam":
-        logger.warning("Unsupported input_source_type '%s'; falling back to webcam.", source_type)
+        logger.warning("不支持的 input_source_type '%s'；将回退到默认摄像头输入。", source_type)
 
     camera_index = int(cfg.get("camera_index", 0))
     source = WebcamSource(
@@ -137,10 +137,10 @@ def _build_input_source(cfg: Dict[str, Any], runtime: RuntimeMode, logger) -> In
         height=int(cfg["display_height"]),
     )
     if not source.is_opened():
-        logger.error("Unable to open webcam at camera_index=%s; exiting gracefully.", camera_index)
+        logger.error("无法打开 camera_index=%s 对应的摄像头；程序将安全退出。", camera_index)
         source.release()
         return None
-    logger.info("Using webcam input at camera_index=%s.", camera_index)
+    logger.info("当前使用摄像头输入，camera_index=%s。", camera_index)
     return source
 
 
@@ -171,10 +171,10 @@ def _build_svh_transport(cfg: Dict[str, Any], runtime: RuntimeMode, logger):
     if svh_transport_name == "mock":
         from svh.svh_transport_mock import MockSvhTransport
 
-        logger.info("SVH preview extension enabled with mock transport.")
+        logger.info("SVH 预览扩展已启用，当前使用 mock 传输。")
         return MockSvhTransport(logger=logger)
     logger.warning(
-        "Unsupported SVH transport '%s'; continuing in preview-only mode without transport send.",
+        "不支持的 SVH transport '%s'；将继续以纯预览模式运行，不发送传输命令。",
         svh_transport_name,
     )
     return None
@@ -182,22 +182,22 @@ def _build_svh_transport(cfg: Dict[str, Any], runtime: RuntimeMode, logger):
 
 def _log_runtime_mode(runtime: RuntimeMode, cfg: Dict[str, Any], logger) -> None:
     if runtime.gui_enabled:
-        logger.info("GUI enabled. Press q in the OpenCV window to quit.")
+        logger.info("GUI 已启用。请在 OpenCV 窗口中按 q 退出。")
     else:
-        logger.info("GUI disabled; running headless.")
+        logger.info("GUI 已关闭；当前以无界面模式运行。")
 
     if runtime.input_mirrored:
-        logger.info("Input is treated as mirrored/selfie-style.")
+        logger.info("输入将按镜像/自拍视角处理。")
 
     if not runtime.control_extension_enabled and not runtime.svh_preview_enabled:
-        logger.info("Running in baseline-only mode; control and SVH extensions are disabled.")
+        logger.info("当前运行在纯 baseline 模式；control 与 SVH 扩展均已关闭。")
     elif runtime.control_extension_enabled and not runtime.svh_preview_enabled:
-        logger.info("Control extension enabled; SVH preview extension remains disabled.")
+        logger.info("control 扩展已启用；SVH 预览扩展保持关闭。")
     elif runtime.svh_preview_enabled:
-        logger.info("SVH preview extension is enabled in preview-only mode.")
+        logger.info("SVH 预览扩展已启用，当前以纯预览模式运行。")
 
     if bool(cfg.get("save_jsonl", False)):
-        logger.info("Per-frame JSONL logging is enabled for this session.")
+        logger.info("本次运行已启用逐帧 JSONL 日志。")
 
 
 def _build_baseline_payload(frame, detector: MediaPipeHandDetector, cfg: Dict[str, Any], stabilizer: GestureStabilizer, *, draw_landmarks: bool) -> Dict[str, Any]:
@@ -244,10 +244,10 @@ def _record_extension_failure(
 ) -> None:
     summary = _summarize_exception(exc)
     diagnostics.append({"extension": extension_name, "error": summary})
-    logger.warning("%s extension failed (%s); %s", extension_name, summary, fallback_summary)
+    logger.warning("%s 扩展失败（%s）；%s", extension_name, summary, fallback_summary)
     if logger.isEnabledFor(logging.DEBUG):
         logger.debug(
-            "%s extension traceback follows.",
+            "%s 扩展的 traceback 如下。",
             extension_name,
             exc_info=(type(exc), exc, exc.__traceback__),
         )
@@ -271,7 +271,7 @@ def _apply_extension_chain(
                 extension_name="control_representation",
                 exc=exc,
                 logger=logger,
-                fallback_summary="continuing with the canonical empty control placeholder.",
+                fallback_summary="将继续使用规范的空 control 占位对象。",
             )
             control_representation = empty_control_representation()
     else:
@@ -289,7 +289,7 @@ def _apply_extension_chain(
                 extension_name="svh_preview",
                 exc=exc,
                 logger=logger,
-                fallback_summary="continuing with the canonical empty SVH preview placeholder.",
+                fallback_summary="将继续使用规范的空 SVH 预览占位对象。",
             )
             svh_preview = empty_svh_preview(cfg, enabled=True, mode=str(cfg.get("svh_preview_mode", "preview")))
         if svh_transport is not None and svh_preview.get("valid"):
@@ -301,7 +301,7 @@ def _apply_extension_chain(
                     extension_name="svh_transport",
                     exc=exc,
                     logger=logger,
-                    fallback_summary="keeping the preview payload but skipping transport send for this frame.",
+                    fallback_summary="将保留预览 payload，但跳过这一帧的传输发送。",
                 )
     else:
         svh_preview = empty_svh_preview(cfg, enabled=False, mode="disabled")
@@ -344,9 +344,9 @@ def main() -> None:
             ok, frame = source.read()
             if not ok or frame is None:
                 if frame_index == 0:
-                    logger.warning("Input source did not yield any frames; exiting gracefully.")
+                    logger.warning("输入源没有产出任何帧；程序将安全退出。")
                 else:
-                    logger.info("Input source exhausted after %d processed frames.", frame_index)
+                    logger.info("输入源已耗尽，共处理 %d 帧。", frame_index)
                 break
 
             t0 = time.perf_counter()
@@ -384,10 +384,10 @@ def main() -> None:
 
             frame_index += 1
             if args.max_frames is not None and frame_index >= args.max_frames:
-                logger.info("Reached max_frames=%d; exiting.", args.max_frames)
+                logger.info("已达到 max_frames=%d；程序退出。", args.max_frames)
                 break
     except KeyboardInterrupt:
-        logger.info("Interrupted by user.")
+        logger.info("用户中断运行。")
     finally:
         if exporter is not None:
             exporter.close()

@@ -1,88 +1,90 @@
-# Single Right Hand Teleop Baseline
+# 单右手遥操作 Baseline
 
-`single-hand-teleop-baseline/` is currently the most mature runnable part of this repository.
+`single-hand-teleop-baseline/` 是当前仓库里最成熟、最适合直接运行的部分。
 
-If you are cloning the repo for the first time, this subproject is the intended starting point. The supported baseline today is a single right-hand visual pipeline that runs from a webcam or a local video file and emits a frozen per-frame payload contract.
+如果你是第一次 clone 这个仓库，建议从这个子项目开始。当前支持的 baseline 是一条以单右手视觉链路为核心的运行路径，输入来自 webcam 或本地视频文件，输出是一份已经冻结的逐帧 payload contract。
 
-Current stage:
+## 当前阶段
 
-- The main focus is a single right-hand vision baseline.
-- Webcam and local video input are the supported baseline entry points.
-- The exported frame payload contract is intentionally frozen for downstream consumers.
-- `control_representation` and `svh_preview` are optional extensions on top of the baseline payload.
-- Unity integration, real hardware transport, and real SVH control are not required to install or start the baseline.
+- 当前主目标是单右手视觉 baseline。
+- baseline 的标准输入入口是 webcam 或本地视频文件。
+- 导出的逐帧 payload contract 已经固定，供下游稳定消费。
+- `control_representation` 和 `svh_preview` 是建立在 baseline 之上的可选扩展。
+- Unity 集成、真实硬件传输链路、真实 SVH 控制都不是安装或启动 baseline 的前置条件。
 
-Baseline chain:
+Baseline 主链路：
 
-`input -> MediaPipe hand detection -> right-hand filter -> feature extraction -> gesture stabilization -> JSON / JSONL / OpenCV visualization`
+`输入 -> MediaPipe 手部检测 -> 右手筛选 -> 特征提取 -> 手势稳定 -> JSON / JSONL / OpenCV 可视化`
 
-Optional extension chain:
+可选扩展链路：
 
-`baseline payload -> control_representation -> svh_preview -> mock transport`
+`baseline payload -> control_representation -> svh_preview -> mock 传输`
 
-## Scope
+## 范围说明
 
-Current scope:
+当前范围：
 
-- single right hand only
-- right-hand-focused runtime path
-- webcam or local video input
-- MediaPipe-based hand perception
-- rule-based gesture classification with stabilization
-- baseline JSON / JSONL export with a frozen frame payload contract
-- optional `control_representation`
-- optional SVH preview adapter and mock transport
+- 仅支持单右手主流程
+- 运行路径以右手为中心
+- 输入来自 webcam 或本地视频
+- 基于 MediaPipe 的手部感知
+- 基于规则的手势分类与稳定
+- 导出带有冻结 contract 的 JSON / JSONL
+- 可选的 `control_representation`
+- 可选的 SVH preview 适配器与 mock transport
 
-Out of scope for the baseline startup path:
+不属于当前 baseline 启动路径的内容：
 
-- dual-hand / multi-hand runtime flow
-- Unity runtime integration
-- real TCP / serial / RS485 transport
-- real SVH hardware control
-- ROS / database / web frontend
+- 双手 / 多手运行主流程
+- Unity runtime 集成
+- 真实 TCP / 串口 / RS485 传输
+- 真实 SVH 硬件控制
+- ROS / 数据库 / Web 前端
 
-Future extensions may grow around these areas, but they should be treated as downstream work on top of the baseline rather than assumptions baked into the default startup path.
+这些方向未来都可以继续扩展，但它们应该建立在 baseline 之上，而不是默认混进 baseline 的启动前提里。
 
-## Key Files
+## 关键文件
 
-Configs:
+配置：
 
 - [configs/default.yaml](configs/default.yaml)
 - [configs/svh_9ch_preview.yaml](configs/svh_9ch_preview.yaml)
 
-Examples:
+示例：
 
 - [examples/sample_output.json](examples/sample_output.json)
 - [examples/sample_output_svh_9ch.json](examples/sample_output_svh_9ch.json)
+- [examples/sample_session.jsonl](examples/sample_session.jsonl)
 
-Schema and payload contract:
+Schema 与 payload contract：
 
 - [schemas/frame_payload.schema.json](schemas/frame_payload.schema.json)
 - [src/output/frame_payload_contract.py](src/output/frame_payload_contract.py)
 
-Docs and tests:
+文档与测试：
 
 - [docs/downstream_preview_contract.md](docs/downstream_preview_contract.md)
+- [docs/svh_real_hardware_calibration_table.md](docs/svh_real_hardware_calibration_table.md)
 - [CONTRIBUTING.md](CONTRIBUTING.md)
 - [tests/](tests/)
 - [tests/test_cli_smoke.py](tests/test_cli_smoke.py)
 - [tests/test_json_schema.py](tests/test_json_schema.py)
 
-Repository-level workflow:
+仓库级工作流：
 
 - [../.github/workflows/single-hand-teleop-baseline-ci.yml](../.github/workflows/single-hand-teleop-baseline-ci.yml)
 
-## Environment
+## 环境
 
-Recommended Python version:
+推荐 Python 版本：
 
 - Python `3.10`
 
-You can install dependencies either from the subproject directory or from the repository root.
+你既可以在子项目目录里安装依赖，也可以在仓库根目录安装依赖。
 
-### Option A: Run From `single-hand-teleop-baseline/`
+### 方式 A：在 `single-hand-teleop-baseline/` 目录下运行
 
-Conda:
+Conda：
 
 ```bash
 cd single-hand-teleop-baseline
@@ -90,71 +92,71 @@ conda env create -f environment.yml
 conda activate single-right-hand-baseline
 ```
 
-Pip:
+Pip：
 
 ```bash
 cd single-hand-teleop-baseline
 python -m pip install -r requirements.txt
 ```
 
-### Option B: Run From Repository Root
+### 方式 B：在仓库根目录运行
 
-Conda:
+Conda：
 
 ```bash
 conda env create -f single-hand-teleop-baseline/environment.yml
 conda activate single-right-hand-baseline
 ```
 
-Pip:
+Pip：
 
 ```bash
 python -m pip install -r single-hand-teleop-baseline/requirements.txt
 ```
 
-## Minimal Commands
+## 最小命令
 
-### If Your Current Directory Is `single-hand-teleop-baseline/`
+### 当前目录是 `single-hand-teleop-baseline/`
 
-Show CLI help:
+查看 CLI 帮助：
 
 ```bash
 python src/main.py --help
 ```
 
-Run the default baseline:
+运行默认 baseline：
 
 ```bash
 python src/main.py --config configs/default.yaml
 ```
 
-Run the smallest smoke test:
+运行最小 smoke test：
 
 ```bash
 pytest -q tests/test_cli_smoke.py
 ```
 
-### If Your Current Directory Is The Repository Root
+### 当前目录是仓库根目录
 
-Show CLI help:
+查看 CLI 帮助：
 
 ```bash
 python single-hand-teleop-baseline/src/main.py --help
 ```
 
-Run the default baseline:
+运行默认 baseline：
 
 ```bash
 python single-hand-teleop-baseline/src/main.py --config single-hand-teleop-baseline/configs/default.yaml
 ```
 
-Run the smallest smoke test:
+运行最小 smoke test：
 
 ```bash
 pytest -q single-hand-teleop-baseline/tests/test_cli_smoke.py
 ```
 
-## Common Runtime Options
+## 常用运行参数
 
 - `--camera-index 1`
 - `--video-file path/to/demo.mp4`
@@ -167,7 +169,7 @@ pytest -q single-hand-teleop-baseline/tests/test_cli_smoke.py
 - `--save-jsonl`
 - `--max-frames 300`
 
-Example commands from `single-hand-teleop-baseline/`:
+在 `single-hand-teleop-baseline/` 目录下的示例命令：
 
 ```bash
 python src/main.py --config configs/default.yaml --print-json
@@ -176,28 +178,28 @@ python src/main.py --config configs/default.yaml --enable-control --print-json
 python src/main.py --config configs/svh_9ch_preview.yaml --print-json
 ```
 
-## Run Modes
+## 运行模式
 
-| Mode | How to enter | What is enabled | Extra environment needed |
+| 模式 | 进入方式 | 启用内容 | 额外环境要求 |
 |---|---|---|---|
-| Baseline | `configs/default.yaml` | detection, right-hand filtering, features, gesture, visualization, JSON / JSONL | camera for live mode, or a video file with `--video-file` |
-| Baseline headless | `--no-gui` or `--headless` | same baseline chain without an OpenCV window | no GUI required |
-| Control extension | `enable_control_extension: true` or `--enable-control` | baseline + `control_representation` | no hardware required |
-| SVH preview extension | `svh_enable_preview: true` or `--preview-svh` | baseline + `control_representation` + `svh_preview` + mock transport | no real SVH required |
+| Baseline | `configs/default.yaml` | 检测、右手筛选、特征、手势、可视化、JSON / JSONL | 实时模式需要摄像头；也可以配合 `--video-file` 读取视频 |
+| Baseline 无界面 | `--no-gui` 或 `--headless` | 同一条 baseline 链路，但不打开 OpenCV 窗口 | 不需要 GUI |
+| control 扩展 | `enable_control_extension: true` 或 `--enable-control` | baseline + `control_representation` | 不需要硬件 |
+| SVH 预览扩展 | `svh_enable_preview: true` 或 `--preview-svh` | baseline + `control_representation` + `svh_preview` + mock 传输 | 不需要真实 SVH |
 
-Default behavior:
+默认行为：
 
-- [configs/default.yaml](configs/default.yaml) runs in baseline-only mode.
-- The default startup target is a single right-hand webcam/video baseline.
-- Control and SVH preview are off by default.
-- Extension failures degrade to invalid preview objects instead of crashing the baseline loop.
-- Unsupported non-mock SVH transports log a warning and stay in preview-only mode.
+- [configs/default.yaml](configs/default.yaml) 默认运行 baseline-only 模式。
+- 默认启动目标是单右手 webcam / video baseline。
+- Control 和 SVH preview 默认关闭。
+- 扩展失败时会退化为无效占位对象，而不是拖垮 baseline 主循环。
+- 不支持的非 mock SVH transport 会打 warning，并保持在 preview-only 模式。
 
-## Payload Contract
+## 帧载荷契约
 
-The exported per-frame payload is frozen around a canonical schema.
+导出的逐帧 payload 使用一份固定的 canonical schema。
 
-Canonical top-level fields:
+Canonical 顶层字段：
 
 - `timestamp`
 - `frame_index`
@@ -217,73 +219,73 @@ Canonical top-level fields:
 - `fps`
 - `latency_ms`
 
-Deprecated aliases:
+已弃用别名：
 
 - `gesture` -> `gesture_stable`
 - `svh` -> `svh_preview`
 
-Reference files:
+参考文件：
 
 - [schemas/frame_payload.schema.json](schemas/frame_payload.schema.json)
 - [src/output/frame_payload_contract.py](src/output/frame_payload_contract.py)
 
-Sample payload files:
+示例 payload 文件：
 
-- [examples/sample_output.json](examples/sample_output.json) for baseline default mode
-- [examples/sample_output_svh_9ch.json](examples/sample_output_svh_9ch.json) for `svh_9ch` preview mode
+- [examples/sample_output.json](examples/sample_output.json) 用于默认 baseline 模式
+- [examples/sample_output_svh_9ch.json](examples/sample_output_svh_9ch.json) 用于 `svh_9ch` preview 模式
 
-Runtime session JSONL logs are written to `outputs/` when `--save-jsonl` is enabled.
+开启 `--save-jsonl` 后，运行期 JSONL 日志会写入 `outputs/`。
 
-## What This Baseline Is Not
+## 这条 Baseline 不是什么
 
-- Unity runtime is not required to launch, test, or validate the baseline.
-- Real SVH hardware control is not a prerequisite for baseline startup.
-- Dual-hand or broader multi-hand behavior is not part of the current supported baseline path.
-- Preview-oriented extensions should not be treated as proof of a production-ready robot or game-engine integration.
+- Unity runtime 不是启动、测试或验证 baseline 的必需条件。
+- 真实 SVH 硬件控制不是 baseline 启动前提。
+- 双手或更广义的多手行为不属于当前支持的 baseline 主路径。
+- preview 类扩展不能被当成生产可用的机器人控制或游戏引擎集成证明。
 
-## Extension Notes
+## 扩展说明
 
-`control_representation`:
+`control_representation`：
 
-- optional extension layer
-- hardware-agnostic intermediate representation
-- not required for baseline startup
+- 可选扩展层
+- 与硬件无关的中间表示
+- 不要求 baseline 启动时必须启用
 
-`svh_preview`:
+`svh_preview`：
 
-- optional preview-only extension
-- useful for JSON / JSONL recording and future integration planning
-- not a real hardware-safe SVH command path
+- 可选的 preview-only 扩展
+- 适合 JSON / JSONL 记录和后续集成规划
+- 不是可直接用于真实硬件的安全命令链路
 
-For downstream field semantics, see [docs/downstream_preview_contract.md](docs/downstream_preview_contract.md).
+关于下游字段语义，请见 [docs/downstream_preview_contract.md](docs/downstream_preview_contract.md)。
 
-## Future Extension Directions
+## 未来扩展方向
 
-Likely future work includes:
+可能的后续工作包括：
 
-- broader dual-hand or multi-hand perception experiments
-- Unity or other downstream runtime adapters
-- real transport and hardware control layers beyond the current mock preview path
+- 更广泛的双手或多手感知实验
+- Unity 或其他下游 runtime 适配器
+- 超出当前 mock preview 路径的真实传输和硬件控制层
 
-Those directions are intentionally separate from the default baseline so that the single right-hand visual chain stays easy to install, run, and validate.
+这些方向与默认 baseline 有意保持解耦，这样单右手视觉链路仍然能保持易安装、易运行、易验证。
 
-## Validation
+## 验证
 
-Minimal validation from `single-hand-teleop-baseline/`:
+在 `single-hand-teleop-baseline/` 目录下的最小验证：
 
 ```bash
 python src/main.py --help
 pytest -q tests/test_cli_smoke.py
 ```
 
-Broader validation commands used in this subproject:
+这个子项目常用的更完整验证：
 
 ```bash
 python -m compileall -q src
 pytest -q
 ```
 
-If you install CI-only tooling locally, you can also run:
+如果本地也安装了 CI 才需要的工具，还可以运行：
 
 ```bash
 python -m ruff check src tests

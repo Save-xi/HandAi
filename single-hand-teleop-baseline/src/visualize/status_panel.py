@@ -9,7 +9,7 @@ from output.frame_payload_contract import get_stable_gesture, get_svh_preview
 
 def _fmt_float(value) -> str:
     if value is None:
-        return "None"
+        return "无"
     return f"{float(value):.3f}"
 
 
@@ -27,27 +27,27 @@ def build_status_panel(height: int, width: int, data: Dict) -> np.ndarray:
     svh = get_svh_preview(data)
     control = data.get("control_representation", {})
     text_rows = [
-        f"detected: {data.get('detected')}",
-        f"handedness: {data.get('handedness')}",
-        f"gesture_stable: {get_stable_gesture(data)}",
-        f"gesture_raw: {data.get('gesture_raw')}",
-        f"control_ready: {data.get('control_ready')}",
-        f"pinch_distance_norm: {_fmt_float(data.get('pinch_distance_norm'))}",
-        f"hand_open_ratio: {_fmt_float(data.get('hand_open_ratio'))}",
-        f"ctrl.features: {control.get('features_valid')}",
-        f"grasp_close: {_fmt_float(control.get('grasp_close'))}",
-        f"pinch_eff: {_fmt_float(control.get('effective_pinch_strength'))}",
-        f"thumb_index_prox: {_fmt_float(control.get('thumb_index_proximity'))}",
-        f"thumb curl: {_fmt_float(data.get('finger_curl', {}).get('thumb'))}",
-        f"index curl: {_fmt_float(data.get('finger_curl', {}).get('index'))}",
-        f"middle curl: {_fmt_float(data.get('finger_curl', {}).get('middle'))}",
-        f"ring curl: {_fmt_float(data.get('finger_curl', {}).get('ring'))}",
-        f"little curl: {_fmt_float(data.get('finger_curl', {}).get('little'))}",
-        f"svh_preview.valid: {svh.get('valid')}",
-        f"svh_preview.mode: {svh.get('mode')}",
-        f"svh_preview.targets: {_fmt_list_preview(svh.get('target_positions', []))}",
-        f"fps: {data.get('fps', 0.0):.2f}",
-        f"latency_ms: {data.get('latency_ms', 0.0):.2f}",
+        f"检测到手: {data.get('detected')}",
+        f"左右手标签: {data.get('handedness')}",
+        f"稳定手势: {get_stable_gesture(data)}",
+        f"原始手势: {data.get('gesture_raw')}",
+        f"控制就绪: {data.get('control_ready')}",
+        f"归一化捏合距离: {_fmt_float(data.get('pinch_distance_norm'))}",
+        f"手掌张开比例: {_fmt_float(data.get('hand_open_ratio'))}",
+        f"控制特征有效: {control.get('features_valid')}",
+        f"抓握闭合度: {_fmt_float(control.get('grasp_close'))}",
+        f"有效捏合强度: {_fmt_float(control.get('effective_pinch_strength'))}",
+        f"拇指-食指接近度: {_fmt_float(control.get('thumb_index_proximity'))}",
+        f"拇指 curl: {_fmt_float(data.get('finger_curl', {}).get('thumb'))}",
+        f"食指 curl: {_fmt_float(data.get('finger_curl', {}).get('index'))}",
+        f"中指 curl: {_fmt_float(data.get('finger_curl', {}).get('middle'))}",
+        f"无名指 curl: {_fmt_float(data.get('finger_curl', {}).get('ring'))}",
+        f"小指 curl: {_fmt_float(data.get('finger_curl', {}).get('little'))}",
+        f"svh_preview 是否有效: {svh.get('valid')}",
+        f"svh_preview 模式: {svh.get('mode')}",
+        f"svh_preview 目标: {_fmt_list_preview(svh.get('target_positions', []))}",
+        f"帧率 fps: {data.get('fps', 0.0):.2f}",
+        f"时延 ms: {data.get('latency_ms', 0.0):.2f}",
     ]
     y = 30
     for row in text_rows:

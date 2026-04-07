@@ -94,7 +94,7 @@ def test_extension_chain_keeps_valid_payload_when_control_extension_fails(
     )
 
     def _boom(*_args, **_kwargs):
-        raise RuntimeError("control exploded")
+        raise RuntimeError("control 扩展故障")
 
     monkeypatch.setattr(app_main, "build_control_representation", _boom)
     logger = logging.getLogger("test_extension_chain_control_failure")
@@ -107,11 +107,11 @@ def test_extension_chain_keeps_valid_payload_when_control_extension_fails(
     payload["latency_ms"] = 10.0
     payload = normalize_frame_payload(payload, include_deprecated_aliases=False)
 
-    assert diagnostics == [{"extension": "control_representation", "error": "RuntimeError: control exploded"}]
+    assert diagnostics == [{"extension": "control_representation", "error": "RuntimeError: control 扩展故障"}]
     assert payload["control_representation"]["valid"] is False
     assert payload["control_ready"] is False
     assert validate_frame_payload(payload) == []
-    assert "control_representation extension failed" in caplog.text
+    assert "control_representation 扩展失败" in caplog.text
 
 
 def test_extension_chain_keeps_valid_payload_when_svh_preview_fails(
@@ -134,7 +134,7 @@ def test_extension_chain_keeps_valid_payload_when_svh_preview_fails(
     )
 
     def _boom(*_args, **_kwargs):
-        raise ValueError("svh preview exploded")
+        raise ValueError("SVH 预览扩展故障")
 
     monkeypatch.setattr(app_main, "build_svh_command_preview", _boom)
     logger = logging.getLogger("test_extension_chain_svh_failure")
@@ -147,9 +147,9 @@ def test_extension_chain_keeps_valid_payload_when_svh_preview_fails(
     payload["latency_ms"] = 11.0
     payload = normalize_frame_payload(payload, include_deprecated_aliases=False)
 
-    assert diagnostics == [{"extension": "svh_preview", "error": "ValueError: svh preview exploded"}]
+    assert diagnostics == [{"extension": "svh_preview", "error": "ValueError: SVH 预览扩展故障"}]
     assert payload["control_representation"]["command_ready"] is True
     assert payload["control_ready"] is True
     assert payload["svh_preview"]["valid"] is False
     assert validate_frame_payload(payload) == []
-    assert "svh_preview extension failed" in caplog.text
+    assert "svh_preview 扩展失败" in caplog.text

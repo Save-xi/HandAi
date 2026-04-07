@@ -27,7 +27,7 @@ control_pinch_index_closed_ref: 0.35
 
 svh_enable_preview: true
 svh_enable_gesture_fallback: false
-svh_preview_layout: "svh_9ch"  # mirror the 9-channel order seen in the Unity/C# SVH driver
+svh_preview_layout: "svh_9ch"  # 对齐 Unity/C# 参考实现里看到的 9 通道顺序
 svh_preview_channel_count: 9
 svh_preview_mode: "preview"
 svh_transport: "mock"

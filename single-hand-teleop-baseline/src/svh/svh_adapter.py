@@ -97,10 +97,10 @@ def _target_ticks_preview(positions: List[float], cfg: Dict) -> List[int]:
 
 
 def _compact_gesture_fallback_preview(gesture: str, cfg: Dict) -> Dict:
-    # Gesture fallback is a demo-oriented safety net. It keeps the preview layer
-    # visually responsive when continuous measurements are missing, but it is
-    # intentionally configurable because a more hardware-facing pipeline should
-    # usually refuse low-quality frames instead of synthesizing commands.
+    # 手势兜底是面向演示场景的安全网。
+    # 当连续测量缺失时，它能让预览层保持可见响应；
+    # 但它被刻意设计成可配置，因为更接近硬件的链路通常应该拒绝低质量帧，
+    # 而不是主动合成命令。
     channel_count = _channel_count(cfg)
     open_value = float(cfg.get("svh_position_open_value", 0.0))
     closed_value = float(cfg.get("svh_position_closed_value", 1.0))

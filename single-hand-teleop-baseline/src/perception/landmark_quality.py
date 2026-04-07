@@ -15,11 +15,11 @@ def _mean_point(points: List[Tuple[float, float]]) -> Tuple[float, float]:
 
 
 def assess_control_readiness(landmarks_2d: List[Tuple[float, float]], cfg: Dict) -> Dict[str, float | bool]:
-    """Reject partial/out-of-frame hands before they affect control-side features.
+    """在局部缺失或越界的手影响控制特征前，先把它们拦下来。
 
-    MediaPipe landmarks may drift slightly outside [0, 1], so the palm core check
-    allows a tiny tolerance. The palm center margin is stricter because hands that
-    are too close to the image border tend to produce unstable pinch/open metrics.
+    MediaPipe 的 landmark 可能会轻微漂到 [0, 1] 外面，因此掌心核心点
+    检查允许一点容差。掌心中心边距则更严格，因为太贴近图像边缘的手
+    往往会让 pinch / open 指标不稳定。
     """
 
     if not landmarks_2d:

@@ -34,17 +34,17 @@ def empty_control_representation() -> Dict:
 
 
 def build_control_representation(payload: Dict, cfg: Dict) -> Dict:
-    """Convert per-frame perception output into a control-oriented continuous vector.
+    """把逐帧感知结果转换成面向控制的连续向量。
 
-    This layer is intentionally hardware-agnostic. It keeps gesture labels for
-    context, but exposes grasp/pinch style continuous quantities that future VR
-    and SVH integrations can consume without depending directly on raw features.
+    这一层刻意保持与硬件无关。它保留手势标签作为上下文，
+    同时输出 grasp / pinch 风格的连续量，方便后续 VR 或 SVH 集成
+    在不直接依赖原始特征的前提下进行消费。
 
-    Semantics:
-    - features_valid: continuous measurements are available this frame
-    - command_ready / valid: gesture context is stable enough to select a mapping
-    - thumb_index_proximity: raw thumb-index closeness cue
-    - effective_pinch_strength: pinch cue after gesture-aware gating
+    语义说明：
+    - features_valid：当前帧具备可用的连续特征
+    - command_ready / valid：当前手势上下文已经稳定到足以选择映射
+    - thumb_index_proximity：拇指与食指接近程度的原始线索
+    - effective_pinch_strength：经过手势感知门控后的捏合强度
     """
 
     gesture = get_stable_gesture(payload)

@@ -128,7 +128,7 @@ class JsonExporter:
             self._last_frame_dirty = True
             self._write_last_prepared_frame(prepared)
         except OSError as exc:
-            self._warn(f"Failed to save last-frame JSON: {exc}")
+            self._warn(f"保存最后一帧 JSON 失败：{exc}")
 
     def append_jsonl(self, obj: Dict[str, Any]) -> None:
         if not self.jsonl_path or self._jsonl_failed:
@@ -141,7 +141,7 @@ class JsonExporter:
             if self._jsonl_handle is not None:
                 self._jsonl_handle.close()
                 self._jsonl_handle = None
-            self._warn(f"Failed to append JSONL log; disabling JSONL for this session: {exc}")
+            self._warn(f"追加 JSONL 日志失败；本次运行将停用 JSONL：{exc}")
 
     def export_prepared_frame(self, prepared: Dict[str, Any], *, frame_index: int) -> None:
         if self.save_last_json:
@@ -151,7 +151,7 @@ class JsonExporter:
                 try:
                     self._write_last_prepared_frame(prepared)
                 except OSError as exc:
-                    self._warn(f"Failed to save last-frame JSON: {exc}")
+                    self._warn(f"保存最后一帧 JSON 失败：{exc}")
         if self.jsonl_path and not self._jsonl_failed:
             try:
                 self._append_prepared_jsonl(prepared, force_flush=False)
@@ -160,10 +160,10 @@ class JsonExporter:
                 if self._jsonl_handle is not None:
                     self._jsonl_handle.close()
                     self._jsonl_handle = None
-                self._warn(f"Failed to append JSONL log; disabling JSONL for this session: {exc}")
+                self._warn(f"追加 JSONL 日志失败；本次运行将停用 JSONL：{exc}")
 
     def send(self, obj: Dict[str, Any]) -> None:
-        """Reserved output interface for future network/control integration."""
+        """为未来网络 / 控制集成预留的输出接口。"""
         _ = prepare_frame_payload(obj, include_deprecated_aliases=False)
 
     def close(self) -> None:
@@ -171,7 +171,7 @@ class JsonExporter:
             try:
                 self._write_last_prepared_frame(self._latest_prepared_payload)
             except OSError as exc:
-                self._warn(f"Failed to save final last-frame JSON on close: {exc}")
+                self._warn(f"关闭导出器时保存最后一帧 JSON 失败：{exc}")
 
         if self._jsonl_handle is not None:
             try:
@@ -182,7 +182,7 @@ class JsonExporter:
                 self._jsonl_handle = None
 
         self._debug(
-            "Exporter summary: last-frame writes=%d, jsonl lines=%d, jsonl flushes=%d",
+            "导出器摘要：last-frame 写入=%d，jsonl 行数=%d，jsonl flush 次数=%d",
             self._last_frame_write_count,
             self._jsonl_write_count,
             self._jsonl_flush_count,

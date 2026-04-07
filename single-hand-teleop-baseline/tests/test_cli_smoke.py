@@ -16,7 +16,7 @@ def test_main_help_smoke_without_camera_or_hardware():
     )
 
     assert result.returncode == 0
-    assert "Single right hand teleop baseline demo" in result.stdout
+    assert "单右手遥操作 baseline 演示" in result.stdout
     assert "--print-json" in result.stdout
     assert "--save-jsonl" in result.stdout
     assert "--no-gui" in result.stdout

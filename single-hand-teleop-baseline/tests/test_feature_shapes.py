@@ -3,27 +3,27 @@ from features.hand_features import empty_features, extract_hand_features, invali
 
 def _make_hand_pose(curled: bool = False, thumb_folded: bool = False):
     xyz = [
-        (0.0, 0.0, 0.0),  # wrist
-        (-1.0, 0.5, 0.0),  # thumb cmc
-        (-1.4, 1.0, 0.0),  # thumb mcp
-        (-1.8, 1.4, 0.0),  # thumb ip
-        (-2.2, 1.8, 0.0),  # thumb tip
-        (-0.8, 1.0, 0.0),  # index mcp
-        (-0.8, 2.0, 0.0),  # index pip
-        (-0.8, 3.0, 0.0),  # index dip
-        (-0.8, 4.0, 0.0),  # index tip
-        (0.0, 1.0, 0.0),  # middle mcp
-        (0.0, 2.1, 0.0),  # middle pip
-        (0.0, 3.2, 0.0),  # middle dip
-        (0.0, 4.3, 0.0),  # middle tip
-        (0.8, 1.0, 0.0),  # ring mcp
-        (0.8, 2.0, 0.0),  # ring pip
-        (0.8, 3.0, 0.0),  # ring dip
-        (0.8, 4.0, 0.0),  # ring tip
-        (1.6, 1.0, 0.0),  # little mcp
-        (1.6, 1.9, 0.0),  # little pip
-        (1.6, 2.8, 0.0),  # little dip
-        (1.6, 3.7, 0.0),  # little tip
+        (0.0, 0.0, 0.0),  # 手腕
+        (-1.0, 0.5, 0.0),  # 拇指 CMC
+        (-1.4, 1.0, 0.0),  # 拇指 MCP
+        (-1.8, 1.4, 0.0),  # 拇指 IP
+        (-2.2, 1.8, 0.0),  # 拇指指尖
+        (-0.8, 1.0, 0.0),  # 食指 MCP
+        (-0.8, 2.0, 0.0),  # 食指 PIP
+        (-0.8, 3.0, 0.0),  # 食指 DIP
+        (-0.8, 4.0, 0.0),  # 食指指尖
+        (0.0, 1.0, 0.0),  # 中指 MCP
+        (0.0, 2.1, 0.0),  # 中指 PIP
+        (0.0, 3.2, 0.0),  # 中指 DIP
+        (0.0, 4.3, 0.0),  # 中指指尖
+        (0.8, 1.0, 0.0),  # 无名指 MCP
+        (0.8, 2.0, 0.0),  # 无名指 PIP
+        (0.8, 3.0, 0.0),  # 无名指 DIP
+        (0.8, 4.0, 0.0),  # 无名指指尖
+        (1.6, 1.0, 0.0),  # 小指 MCP
+        (1.6, 1.9, 0.0),  # 小指 PIP
+        (1.6, 2.8, 0.0),  # 小指 DIP
+        (1.6, 3.7, 0.0),  # 小指指尖
     ]
 
     if thumb_folded:
@@ -54,7 +54,7 @@ def _make_hand_pose(curled: bool = False, thumb_folded: bool = False):
 
 
 def test_feature_structure():
-    # 21 pseudo landmarks in normalized image coordinates
+    # 21 个位于归一化图像坐标中的伪 landmark 点
     lms = [(0.5 + i * 0.001, 0.5 + i * 0.001) for i in range(21)]
     feat = extract_hand_features(lms, "Right", 0.9, 123.0)
 
