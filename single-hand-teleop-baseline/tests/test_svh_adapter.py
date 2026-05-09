@@ -138,7 +138,7 @@ def test_known_gesture_can_fall_back_when_explicitly_enabled():
     assert preview["command_source"] == "gesture_fallback"
 
 
-def test_unknown_gesture_with_measurements_does_not_emit_command():
+def test_unknown_gesture_with_measurements_still_emits_continuous_command():
     preview = build_svh_command_preview(
         _payload(
             "unknown",
@@ -149,9 +149,42 @@ def test_unknown_gesture_with_measurements_does_not_emit_command():
         _svh_cfg(),
     )
 
-    assert preview["valid"] is False
-    assert preview["target_channels"] == []
-    assert preview["target_positions"] == []
+    assert preview["valid"] is True
+    assert preview["command_source"] == "control_representation"
+    assert preview["target_channels"] == list(range(5))
+    assert len(preview["target_positions"]) == 5
+    assert preview["target_positions"][0] > preview["target_positions"][2]
+
+
+def test_svh_9ch_support_fingers_follow_their_own_flex_more_directly():
+    cfg = _svh_cfg()
+    cfg["svh_preview_layout"] = "svh_9ch"
+    cfg["svh_preview_channel_count"] = 9
+
+    low_support = build_svh_command_preview(
+        _payload(
+            "pinch",
+            0.84,
+            0.16,
+            {"thumb": 0.03, "index": 0.20, "middle": 0.04, "ring": 0.03, "little": 0.02},
+        ),
+        cfg,
+    )
+    high_support = build_svh_command_preview(
+        _payload(
+            "pinch",
+            0.72,
+            0.16,
+            {"thumb": 0.03, "index": 0.20, "middle": 0.32, "ring": 0.28, "little": 0.24},
+        ),
+        cfg,
+    )
+
+    assert high_support["valid"] is True
+    assert high_support["target_positions"][4] > low_support["target_positions"][4]
+    assert high_support["target_positions"][5] > low_support["target_positions"][5]
+    assert high_support["target_positions"][6] > low_support["target_positions"][6]
+    assert high_support["target_positions"][7] > low_support["target_positions"][7]
 
 
 def test_svh_9ch_layout_emits_nine_channels_in_driver_order():

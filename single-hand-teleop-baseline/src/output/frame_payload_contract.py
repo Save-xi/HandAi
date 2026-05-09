@@ -254,38 +254,38 @@ def normalize_frame_payload(
 
 def _validate_finger_map(name: str, mapping: Any, errors: List[str]) -> None:
     if not isinstance(mapping, dict):
-        errors.append(f"{name} must be an object with five named fingers")
+        errors.append(f"{name} 必须是一个包含五个命名手指的对象")
         return
     for finger in FINGER_NAMES:
         if finger not in mapping:
-            errors.append(f"{name}.{finger} is required")
+            errors.append(f"{name}.{finger} 是必填字段")
             continue
         value = mapping[finger]
         if value is not None and not _is_number(value):
-            errors.append(f"{name}.{finger} must be a number or null")
+            errors.append(f"{name}.{finger} 必须是数字或 null")
 
 
 def _validate_landmarks(name: str, landmarks: Any, dims: int, errors: List[str]) -> None:
     if not isinstance(landmarks, list):
-        errors.append(f"{name} must be a list")
+        errors.append(f"{name} 必须是列表")
         return
     for index, point in enumerate(landmarks):
         if not isinstance(point, list) or len(point) != dims:
-            errors.append(f"{name}[{index}] must be a {dims}-element list")
+            errors.append(f"{name}[{index}] 必须是一个长度为 {dims} 的列表")
             continue
         for axis, value in enumerate(point):
             if not _is_number(value):
-                errors.append(f"{name}[{index}][{axis}] must be numeric")
+                errors.append(f"{name}[{index}][{axis}] 必须是数字")
 
 
 def _validate_unit_interval(name: str, value: Any, errors: List[str]) -> None:
     if value is None:
         return
     if not _is_number(value):
-        errors.append(f"{name} must be numeric or null")
+        errors.append(f"{name} 必须是数字或 null")
         return
     if not 0.0 <= float(value) <= 1.0:
-        errors.append(f"{name} must stay within [0, 1]")
+        errors.append(f"{name} 必须位于 [0, 1] 区间内")
 
 
 def validate_frame_payload(
@@ -297,46 +297,46 @@ def validate_frame_payload(
 
     for field in FRAME_PAYLOAD_REQUIRED_FIELDS:
         if field not in payload:
-            errors.append(f"missing required field: {field}")
+            errors.append(f"缺少必填字段：{field}")
 
     if not allow_deprecated_aliases:
         for alias in DEPRECATED_ALIASES:
             if alias in payload:
-                errors.append(f"deprecated alias field must not be emitted: {alias}")
+                errors.append(f"不应继续输出已弃用的别名字段：{alias}")
     else:
         for alias, canonical in DEPRECATED_ALIASES.items():
             if alias in payload and canonical in payload and payload[alias] != payload[canonical]:
-                errors.append(f"deprecated alias {alias} must mirror {canonical}")
+                errors.append(f"已弃用别名 {alias} 必须与 {canonical} 保持一致")
 
     if "timestamp" in payload and not _is_number(payload["timestamp"]):
-        errors.append("timestamp must be numeric")
+        errors.append("timestamp 必须是数字")
     if "frame_index" in payload:
         value = payload["frame_index"]
         if not isinstance(value, int) or isinstance(value, bool) or value < 0:
-            errors.append("frame_index must be a non-negative integer")
+            errors.append("frame_index 必须是非负整数")
     if "detected" in payload and not isinstance(payload["detected"], bool):
-        errors.append("detected must be a boolean")
+        errors.append("detected 必须是布尔值")
     if "handedness" in payload and payload["handedness"] is not None and not isinstance(payload["handedness"], str):
-        errors.append("handedness must be a string or null")
+        errors.append("handedness 必须是字符串或 null")
     if "confidence" in payload and payload["confidence"] is not None and not _is_number(payload["confidence"]):
-        errors.append("confidence must be numeric or null")
+        errors.append("confidence 必须是数字或 null")
     if "confidence" in payload and payload["confidence"] is not None and _is_number(payload["confidence"]):
         if not 0.0 <= float(payload["confidence"]) <= 1.0:
-            errors.append("confidence must stay within [0, 1]")
+            errors.append("confidence 必须位于 [0, 1] 区间内")
     if "control_ready" in payload and not isinstance(payload["control_ready"], bool):
-        errors.append("control_ready must be a boolean")
+        errors.append("control_ready 必须是布尔值")
     if "gesture_raw" in payload and not isinstance(payload["gesture_raw"], str):
-        errors.append("gesture_raw must be a string")
+        errors.append("gesture_raw 必须是字符串")
     if "gesture_stable" in payload and not isinstance(payload["gesture_stable"], str):
-        errors.append("gesture_stable must be a string")
+        errors.append("gesture_stable 必须是字符串")
     if "pinch_distance_norm" in payload and payload["pinch_distance_norm"] is not None and not _is_number(payload["pinch_distance_norm"]):
-        errors.append("pinch_distance_norm must be numeric or null")
+        errors.append("pinch_distance_norm 必须是数字或 null")
     if "hand_open_ratio" in payload and payload["hand_open_ratio"] is not None and not _is_number(payload["hand_open_ratio"]):
-        errors.append("hand_open_ratio must be numeric or null")
+        errors.append("hand_open_ratio 必须是数字或 null")
     if "fps" in payload and not _is_number(payload["fps"]):
-        errors.append("fps must be numeric")
+        errors.append("fps 必须是数字")
     if "latency_ms" in payload and not _is_number(payload["latency_ms"]):
-        errors.append("latency_ms must be numeric")
+        errors.append("latency_ms 必须是数字")
 
     if "finger_curl" in payload:
         _validate_finger_map("finger_curl", payload["finger_curl"], errors)
@@ -347,15 +347,15 @@ def validate_frame_payload(
     if "landmarks_2d" in payload and "landmarks_3d" in payload:
         if isinstance(payload["landmarks_2d"], list) and isinstance(payload["landmarks_3d"], list):
             if len(payload["landmarks_2d"]) != len(payload["landmarks_3d"]):
-                errors.append("landmarks_3d must contain the same number of points as landmarks_2d")
+                errors.append("landmarks_3d 的点数必须与 landmarks_2d 一致")
 
     control = payload.get("control_representation")
     if not isinstance(control, dict):
-        errors.append("control_representation must be an object")
+        errors.append("control_representation 必须是对象")
     else:
         for field in CONTROL_REPRESENTATION_REQUIRED_FIELDS:
             if field not in control:
-                errors.append(f"control_representation.{field} is required")
+                errors.append(f"control_representation.{field} 是必填字段")
         if "finger_flex" in control:
             _validate_finger_map("control_representation.finger_flex", control["finger_flex"], errors)
         _validate_unit_interval("control_representation.grasp_close", control.get("grasp_close"), errors)
@@ -365,69 +365,69 @@ def validate_frame_payload(
         _validate_unit_interval("control_representation.support_flex", control.get("support_flex"), errors)
         preferred_mapping = control.get("preferred_mapping")
         if preferred_mapping is not None and preferred_mapping not in CONTROL_PREFERRED_MAPPINGS:
-            errors.append("control_representation.preferred_mapping must be one of grasp, pinch, or null")
+            errors.append("control_representation.preferred_mapping 必须是 grasp、pinch 或 null")
         if "valid" in control and "command_ready" in control and control["valid"] != control["command_ready"]:
-            errors.append("control_representation.valid must mirror control_representation.command_ready")
+            errors.append("control_representation.valid 必须与 control_representation.command_ready 保持一致")
         if control.get("pinch_strength") != control.get("effective_pinch_strength"):
-            errors.append("control_representation.pinch_strength must mirror effective_pinch_strength")
+            errors.append("control_representation.pinch_strength 必须与 effective_pinch_strength 保持一致")
         if "control_ready" in payload and payload["control_ready"] != bool(control.get("command_ready", False)):
-            errors.append("top-level control_ready must mirror control_representation.command_ready")
+            errors.append("顶层 control_ready 必须与 control_representation.command_ready 保持一致")
 
     preview = payload.get("svh_preview")
     if not isinstance(preview, dict):
-        errors.append("svh_preview must be an object")
+        errors.append("svh_preview 必须是对象")
     else:
         for field in SVH_PREVIEW_REQUIRED_FIELDS:
             if field not in preview:
-                errors.append(f"svh_preview.{field} is required")
+                errors.append(f"svh_preview.{field} 是必填字段")
         if "target_channels" in preview:
             if not isinstance(preview["target_channels"], list):
-                errors.append("svh_preview.target_channels must be a list")
+                errors.append("svh_preview.target_channels 必须是列表")
             else:
                 for index, value in enumerate(preview["target_channels"]):
                     if not isinstance(value, int) or isinstance(value, bool):
-                        errors.append(f"svh_preview.target_channels[{index}] must be an integer")
+                        errors.append(f"svh_preview.target_channels[{index}] 必须是整数")
         if "target_positions" in preview:
             if not isinstance(preview["target_positions"], list):
-                errors.append("svh_preview.target_positions must be a list")
+                errors.append("svh_preview.target_positions 必须是列表")
             else:
                 for index, value in enumerate(preview["target_positions"]):
                     if not _is_number(value):
-                        errors.append(f"svh_preview.target_positions[{index}] must be numeric")
+                        errors.append(f"svh_preview.target_positions[{index}] 必须是数字")
                     elif not 0.0 <= float(value) <= 1.0:
-                        errors.append(f"svh_preview.target_positions[{index}] must stay within [0, 1]")
+                        errors.append(f"svh_preview.target_positions[{index}] 必须位于 [0, 1] 区间内")
         if "target_ticks_preview" in preview:
             if not isinstance(preview["target_ticks_preview"], list):
-                errors.append("svh_preview.target_ticks_preview must be a list")
+                errors.append("svh_preview.target_ticks_preview 必须是列表")
             else:
                 for index, value in enumerate(preview["target_ticks_preview"]):
                     if not isinstance(value, int):
-                        errors.append(f"svh_preview.target_ticks_preview[{index}] must be an integer")
+                        errors.append(f"svh_preview.target_ticks_preview[{index}] 必须是整数")
         protocol_hint = preview.get("protocol_hint")
         if not isinstance(protocol_hint, dict):
-            errors.append("svh_preview.protocol_hint must be an object")
+            errors.append("svh_preview.protocol_hint 必须是对象")
         else:
             for field in PROTOCOL_HINT_REQUIRED_FIELDS:
                 if field not in protocol_hint:
-                    errors.append(f"svh_preview.protocol_hint.{field} is required")
+                    errors.append(f"svh_preview.protocol_hint.{field} 是必填字段")
         if preview.get("enabled") is False and preview.get("valid") is True:
-            errors.append("svh_preview.valid cannot be true when svh_preview.enabled is false")
+            errors.append("当 svh_preview.enabled 为 false 时，svh_preview.valid 不能为 true")
         if preview.get("valid") is False:
             if preview.get("target_channels"):
-                errors.append("svh_preview.target_channels must be empty when svh_preview.valid is false")
+                errors.append("当 svh_preview.valid 为 false 时，svh_preview.target_channels 必须为空")
             if preview.get("target_positions"):
-                errors.append("svh_preview.target_positions must be empty when svh_preview.valid is false")
+                errors.append("当 svh_preview.valid 为 false 时，svh_preview.target_positions 必须为空")
             if preview.get("target_ticks_preview"):
-                errors.append("svh_preview.target_ticks_preview must be empty when svh_preview.valid is false")
+                errors.append("当 svh_preview.valid 为 false 时，svh_preview.target_ticks_preview 必须为空")
         if preview.get("valid") is True:
             if preview.get("command_source") not in SVH_PREVIEW_COMMAND_SOURCES:
-                errors.append("svh_preview.command_source must identify a known preview source when svh_preview.valid is true")
+                errors.append("当 svh_preview.valid 为 true 时，svh_preview.command_source 必须标明已知 preview 来源")
             if len(preview.get("target_channels", [])) != len(preview.get("target_positions", [])):
-                errors.append("svh_preview.target_channels and target_positions must have matching lengths")
+                errors.append("svh_preview.target_channels 与 target_positions 的长度必须一致")
             protocol_hint = preview.get("protocol_hint", {})
             if protocol_hint.get("target_tick_units") != "none":
                 if len(preview.get("target_ticks_preview", [])) != len(preview.get("target_positions", [])):
-                    errors.append("svh_preview.target_ticks_preview must match target_positions when tick preview is enabled")
+                    errors.append("当启用 tick preview 时，svh_preview.target_ticks_preview 的长度必须与 target_positions 一致")
 
     return errors
 
@@ -439,7 +439,7 @@ def assert_valid_frame_payload(
 ) -> None:
     errors = validate_frame_payload(payload, allow_deprecated_aliases=allow_deprecated_aliases)
     if errors:
-        raise ValueError("Invalid frame payload contract: " + "; ".join(errors))
+        raise ValueError("frame payload contract 非法：" + "; ".join(errors))
 
 
 def prepare_frame_payload(

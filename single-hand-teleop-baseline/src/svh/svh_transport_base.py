@@ -5,8 +5,8 @@ from typing import Dict
 
 
 class SvhTransportBase(ABC):
-    """Base transport for future mock/TCP SVH senders."""
+    """为未来 mock / TCP 等 SVH 发送器预留的基础传输接口。"""
 
     @abstractmethod
     def send(self, command: Dict) -> Dict:
-        """Send or record an SVH command preview."""
+        """发送或记录一条 SVH 命令 preview。"""

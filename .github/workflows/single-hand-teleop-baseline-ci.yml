@@ -1,4 +1,4 @@
-name: single-hand-teleop-baseline CI
+name: 单右手 baseline CI
 
 "on":
   push:
@@ -14,7 +14,7 @@ name: single-hand-teleop-baseline CI
 
 jobs:
   baseline-ci:
-    name: baseline checks (${{ matrix.os }})
+    name: baseline 检查 (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -26,10 +26,10 @@ jobs:
       run:
         working-directory: single-hand-teleop-baseline
     steps:
-      - name: Checkout
+      - name: 检出代码
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: 配置 Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
@@ -38,44 +38,44 @@ jobs:
             single-hand-teleop-baseline/requirements.txt
             single-hand-teleop-baseline/pyproject.toml
 
-      - name: Install runtime and test dependencies
+      - name: 安装运行与测试依赖
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
 
-      - name: Install required CI tooling
+      - name: 安装 CI 必需工具
         run: |
           python -m pip install ruff
 
-      - name: Install pip-audit (advisory)
+      - name: 安装 pip-audit（仅告警）
         continue-on-error: true
         run: |
           python -m pip install pip-audit
 
-      - name: Check installed dependencies
+      - name: 检查已安装依赖
         run: |
           python -m pip check
 
-      - name: Ruff check
+      - name: 运行 Ruff 检查
         run: |
           python -m ruff check src tests
 
-      - name: Compile sources
+      - name: 编译源码
         run: |
           python -m compileall -q src
 
-      - name: Run tests
+      - name: 运行测试
         shell: bash
         run: |
           mkdir -p ../ci-artifacts
           set -o pipefail
           pytest -q 2>&1 | tee ../ci-artifacts/pytest.log
 
-      - name: Upload CI diagnostics on failure
+      - name: 失败时上传诊断信息
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: single-hand-teleop-baseline-diagnostics-${{ matrix.os }}
+          name: single-hand-baseline-diagnostics-${{ matrix.os }}
           if-no-files-found: warn
           path: |
             ci-artifacts/**
@@ -83,7 +83,7 @@ jobs:
             single-hand-teleop-baseline/examples/*.json
             single-hand-teleop-baseline/examples/*.jsonl
 
-      - name: pip-audit (advisory)
+      - name: 运行 pip-audit（仅告警）
         continue-on-error: true
         run: |
           python -m pip_audit -r requirements.txt

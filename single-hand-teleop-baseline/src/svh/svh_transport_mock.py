@@ -7,11 +7,11 @@ from svh.svh_transport_base import SvhTransportBase
 
 
 class MockSvhTransport(SvhTransportBase):
-    """Preview-only transport.
+    """仅用于 preview 的传输层。
 
-    This keeps the adapter layer decoupled from real I/O. A future
-    `svh_transport_tcp.py` can implement the same interface once the TCP/RS485
-    bridge protocol is validated against hardware.
+    它让适配器层保持与真实 I/O 解耦。等到 TCP / RS485 桥接协议
+    在真实硬件上验证完成后，未来可以再由 `svh_transport_tcp.py`
+    实现同一套接口。
     """
 
     def __init__(self, logger: logging.Logger | None = None) -> None:
@@ -23,7 +23,7 @@ class MockSvhTransport(SvhTransportBase):
         self.last_command = dict(command)
         self.sent_commands.append(dict(command))
         if self.logger is not None:
-            self.logger.debug("Mock SVH transport recorded command preview.")
+            self.logger.debug("Mock SVH transport 已记录一条命令 preview。")
         return {
             "transport": "mock",
             "accepted": True,

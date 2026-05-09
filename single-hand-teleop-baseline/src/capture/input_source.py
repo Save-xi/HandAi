@@ -7,7 +7,7 @@ import numpy as np
 
 
 class InputSource(ABC):
-    """Abstract input source interface for future webcam/video extension."""
+    """为未来 webcam / video 扩展预留的抽象输入源接口。"""
 
     @abstractmethod
     def is_opened(self) -> bool:

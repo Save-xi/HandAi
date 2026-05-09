@@ -13,6 +13,11 @@ save_last_json: true
 save_jsonl: false
 jsonl_output_dir: "outputs"
 output_json_path: "examples/sample_output_svh_9ch.json"
+export_last_every_n_frames: 5
+jsonl_flush_interval: 10
+unity_udp_enabled: true
+unity_udp_host: "127.0.0.1"
+unity_udp_port: 18080
 recent_frames_buffer_size: 10
 
 enable_control_extension: true
@@ -27,7 +32,7 @@ control_pinch_index_closed_ref: 0.35
 
 svh_enable_preview: true
 svh_enable_gesture_fallback: false
-svh_preview_layout: "svh_9ch"  # 对齐 Unity/C# 参考实现里看到的 9 通道顺序
+svh_preview_layout: "svh_9ch"  # 供 Unity 虚拟 SVH 直接读取的 9 通道预览
 svh_preview_channel_count: 9
 svh_preview_mode: "preview"
 svh_transport: "mock"

@@ -1,4 +1,5 @@
 import json
+import socket
 from pathlib import Path
 
 from output.frame_payload_contract import normalize_frame_payload, validate_frame_payload
@@ -143,3 +144,31 @@ def test_default_config_exposes_exporter_tuning(monkeypatch):
 
     assert cfg["export_last_every_n_frames"] == 5
     assert cfg["jsonl_flush_interval"] == 10
+    assert cfg["unity_udp_enabled"] is False
+    assert cfg["unity_udp_host"] == "127.0.0.1"
+    assert cfg["unity_udp_port"] == 18080
+
+
+def test_send_prepared_frame_can_broadcast_over_unity_udp(tmp_path):
+    receiver = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    receiver.bind(("127.0.0.1", 0))
+    receiver.settimeout(1.0)
+    _, port = receiver.getsockname()
+
+    exporter = JsonExporter(
+        str(tmp_path / "last.json"),
+        save_last_json=False,
+        unity_udp_enabled=True,
+        unity_udp_host="127.0.0.1",
+        unity_udp_port=port,
+    )
+
+    payload = _sample_payload(7)
+    exporter.send_prepared_frame(payload)
+    raw, _ = receiver.recvfrom(65535)
+    exporter.close()
+    receiver.close()
+
+    received = json.loads(raw.decode("utf-8"))
+    assert received["frame_index"] == 7
+    assert validate_frame_payload(received) == []

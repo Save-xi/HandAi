@@ -1,23 +1,23 @@
-# Contributing
+# 贡献说明
 
-This subproject is maintained as a single-right-hand baseline.
+这个子项目当前按“单右手 baseline”维护。
 
-## Scope
+## 范围
 
-- Keep the baseline path stable: input -> detection -> features -> gesture -> visualization / JSON.
-- Treat `control_representation` and `svh_preview` as optional extensions.
-- Do not make Unity, real SVH hardware, or network transport a runtime requirement for the baseline.
+- 保持 baseline 主路径稳定：输入 -> 检测 -> 特征 -> 手势 -> 可视化 / JSON。
+- 将 `control_representation` 和 `svh_preview` 视为可选扩展。
+- 不要把 Unity、真实 SVH 硬件或网络传输链路变成 baseline 的运行时前置依赖。
 
-## Recommended environment
+## 推荐环境
 
 - Python `3.10`
 - `conda activate single-right-hand-baseline`
-  or install with:
+  或者直接安装：
   `python -m pip install -r requirements.txt`
 
-## Before opening a PR
+## 提交 PR 前
 
-Run these checks from `single-hand-teleop-baseline/`:
+请在 `single-hand-teleop-baseline/` 目录下运行：
 
 ```bash
 python -m compileall -q src
@@ -25,15 +25,16 @@ pytest -q
 python src/main.py --help
 ```
 
-If you have CI-only tooling installed locally, also run:
+如果本地安装了 CI 专用工具，也建议运行：
 
 ```bash
 python -m ruff check src tests
 ```
 
-## Code style
+## 代码风格
 
-- Prefer small, targeted patches over large rewrites.
-- Keep payload field names aligned with the frozen frame payload contract.
-- Add tests for behavior changes, especially around gesture logic, payload export, and extension fallbacks.
-- When adding optional features, make sure baseline-only mode still works without hardware, Unity, or networking.
+- 优先做小而明确的补丁，不要把无关重写混进来。
+- payload 字段名要和冻结的 frame payload contract 保持一致。
+- 只要行为发生变化，就补测试，尤其是手势逻辑、payload 导出、扩展降级相关部分。
+- 新增可选特性时，必须保证 baseline-only 模式在没有硬件、Unity 和网络的情况下仍然可运行。
+- 默认将注释、文档、日志文案、CLI 帮助等文字类内容写成中文；字段名、协议常量、外部接口名等兼容项保持英文。

@@ -1,29 +1,23 @@
-# Downstream Preview Contract
+# 下游 Preview Contract 说明
 
-This note explains which parts of the frozen frame payload are intended for
-downstream Unity / socket / SVH-preview consumers.
+这份说明文档解释了：冻结后的 frame payload 中，哪些部分适合给 Unity / socket / SVH preview 类下游消费者读取。
 
-## 1. Contract Scope
+## 1. Contract 范围
 
-This baseline does **not** emit real hardware-safe SVH commands.
+这个 baseline **不会**输出可以直接用于真实硬件的安全 SVH 命令。
 
-It does emit two extension objects that are useful for downstream integration
-work before real hardware is connected:
+它会输出两个对下游集成有价值的扩展对象，便于在真实硬件接入前先完成下游联调：
 
 - `control_representation`
 - `svh_preview`
 
-Both objects are always present in the canonical payload so downstream code can
-depend on a stable shape. When an extension is disabled or the current frame is
-not ready, the object remains present but degrades to a safe invalid/disabled
-state.
+这两个对象在 canonical payload 中始终存在，因此下游代码可以依赖稳定形状。当扩展被关闭，或当前帧还不适合产生命令时，对象仍然保留，只是退化成安全的 invalid / disabled 状态。
 
-## 2. Preferred Downstream Fields
+## 2. 推荐下游读取字段
 
-### Top-level fields
+### 顶层字段
 
-These fields are the best first read for Unity, socket, or session-logging
-consumers:
+对于 Unity、socket 或会话记录消费者，最建议优先读取这些字段：
 
 - `frame_index`
 - `timestamp`
@@ -34,9 +28,9 @@ consumers:
 - `control_representation`
 - `svh_preview`
 
-### control_representation
+### control_representation（控制表示）
 
-Preferred fields:
+推荐字段：
 
 - `command_ready`
 - `preferred_mapping`
@@ -45,33 +39,30 @@ Preferred fields:
 - `finger_flex`
 - `support_flex`
 
-Compatibility mirrors kept for now:
+当前仍保留的兼容镜像字段：
 
 - `valid`
-  - compatibility mirror of `command_ready`
+  - `command_ready` 的兼容镜像
 - `pinch_strength`
-  - compatibility mirror of `effective_pinch_strength`
+  - `effective_pinch_strength` 的兼容镜像
 
-Units and ranges:
+数值单位与范围：
 
-- `grasp_close`: normalized `[0, 1]`
-- `thumb_index_proximity`: normalized `[0, 1]`
-- `effective_pinch_strength`: normalized `[0, 1]`
-- `support_flex`: normalized `[0, 1]`
-- `finger_flex.*`: normalized `[0, 1]`
+- `grasp_close`：归一化 `[0, 1]`
+- `thumb_index_proximity`：归一化 `[0, 1]`
+- `effective_pinch_strength`：归一化 `[0, 1]`
+- `support_flex`：归一化 `[0, 1]`
+- `finger_flex.*`：归一化 `[0, 1]`
 
-Interpretation:
+语义解释：
 
-- `preferred_mapping="grasp"` means the stable gesture context is using the
-  grasp family.
-- `preferred_mapping="pinch"` means the stable gesture context is using the
-  pinch family.
-- `command_ready=false` means downstream code should not turn this frame into a
-  new control action.
+- `preferred_mapping="grasp"` 表示当前稳定手势上下文属于抓握类。
+- `preferred_mapping="pinch"` 表示当前稳定手势上下文属于捏合类。
+- `command_ready=false` 表示下游不应该把这一帧转换成新的控制动作。
 
-### svh_preview
+### svh_preview（SVH 预览）
 
-Preferred fields:
+推荐字段：
 
 - `enabled`
 - `valid`
@@ -81,29 +72,28 @@ Preferred fields:
 - `target_ticks_preview`
 - `protocol_hint`
 
-Units and ranges:
+数值单位与范围：
 
 - `target_positions`
-  - normalized preview values in `[0, 1]`
-  - these are the preferred direct-consumption values for Unity / socket preview
-    integrations
+  - 归一化 preview 数值，范围在 `[0, 1]`
+  - 推荐作为 Unity / socket preview 集成时的直接消费值
 - `target_ticks_preview`
-  - preview-only encoder-like integers
-  - useful for UI/debugging and future transport planning
-  - **not** a final hardware-safe command unit
+  - 仅用于 preview 的 encoder-like 整数
+  - 适合 UI 调试和未来传输规划
+  - **不是** 最终可直接下发给真实硬件的安全命令单位
 
-Important semantics:
+关键语义：
 
 - `enabled=false`
-  - the SVH preview extension is off for this run
+  - 本次运行没有启用 SVH preview 扩展
 - `valid=false`
-  - no usable preview command should be consumed from this frame
+  - 当前帧没有可被下游消费的 preview 命令
 - `command_source="control_representation"`
-  - preview came from stable continuous control output
+  - preview 来自稳定的连续控制输出
 - `command_source="gesture_fallback"`
-  - preview came from demo-oriented fallback logic
+  - preview 来自演示导向的 fallback 逻辑
 
-## 3. Example JSON Shape
+## 3. 示例 JSON 形状
 
 ```json
 {
@@ -141,9 +131,9 @@ Important semantics:
 }
 ```
 
-## 4. What Downstream Can Consume Directly
+## 4. 下游可直接消费的内容
 
-Unity / virtual-hand preview can safely consume:
+Unity / 虚拟手 preview 可以直接安全消费：
 
 - `gesture_stable`
 - `control_ready`
@@ -153,34 +143,32 @@ Unity / virtual-hand preview can safely consume:
 - `svh_preview.target_positions`
 - `svh_preview.target_channels`
 
-Socket / logging clients can safely record:
+Socket / 日志客户端可以直接稳定记录：
 
-- the full frozen payload
-- `target_ticks_preview` as preview metadata
-- `protocol_hint` for layout/unit awareness
+- 整份冻结后的 payload
+- `target_ticks_preview` 作为 preview 元数据
+- `protocol_hint` 作为布局和单位说明
 
-## 5. Preview-only Fields
+## 5. 仅限 Preview 的字段
 
-These should be treated as preview/debug metadata rather than final command
-truth:
+这些字段更适合作为 preview / 调试元数据，而不是最终命令真值：
 
 - `svh_preview.target_ticks_preview`
 - `svh_preview.protocol_hint`
 - `control_representation.valid`
 - `control_representation.pinch_strength`
 
-## 6. Safety Gaps Before Real SVH
+## 6. 真实 SVH 接入前的安全缺口
 
-Before connecting a real dexterous hand, at least these measures are still
-missing:
+在真实灵巧手接入前，至少还缺少下面这些措施：
 
-1. transport ACK / retry / timeout handling
-2. homing and zero-position confirmation
-3. per-channel hard safety limits and calibration
-4. watchdog / heartbeat and fault reset flow
-5. operator emergency stop path
-6. command rate limiting and smoothing policy
-7. confirmation that `target_ticks_preview` matches real device units
-8. real packet packing / checksum / response parsing validation
+1. transport ACK / retry / timeout 处理
+2. homing 和零位确认
+3. 按通道的硬安全限位与标定
+4. watchdog / heartbeat 与 fault reset 流程
+5. 操作员急停路径
+6. 命令速率限制与平滑策略
+7. 确认 `target_ticks_preview` 与真实设备单位一致
+8. 真实 packet packing / checksum / response parsing 验证
 
-Until those exist, `svh_preview` must remain preview/mock only.
+在这些环节完成前，`svh_preview` 必须继续保持在预览 / mock 层面。

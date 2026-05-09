@@ -66,8 +66,8 @@ def _as_xyz(landmarks_2d: List[Tuple[float, float]], landmarks_xyz: List[Tuple[f
 
 
 def _palm_size(landmarks: List[Tuple[float, float]]) -> float:
-    # Wrist->middle MCP is a stable longitudinal palm scale and is less affected
-    # by finger spread than the index-to-little MCP width.
+    # Wrist->middle MCP 形成的掌长尺度更稳定，
+    # 相比 index-to-little MCP 的掌宽，更不容易受手指张开程度影响。
     primary = euclidean(landmarks[WRIST], landmarks[MIDDLE_MCP])
     if primary > 1e-6:
         return primary
@@ -75,7 +75,7 @@ def _palm_size(landmarks: List[Tuple[float, float]]) -> float:
 
 
 def _bend_from_angle(angle: float) -> float:
-    # Straight joints are near pi radians; tighter bends move toward 0.
+    # 关节越接近伸直，角度越接近 pi；弯曲越明显，角度越逼近 0。
     return clamp01((math.pi - angle) / math.pi)
 
 
@@ -96,8 +96,9 @@ def _long_finger_curl(
     dip: int,
     tip: int,
 ) -> float:
-    # Hybrid curl: PIP/DIP bend capture finger folding, while chain compression
-    # adds robustness when the projected angle looks deceptively straight in 2D.
+    # 这里使用混合 curl：
+    # PIP/DIP 的弯曲反映手指折叠，
+    # 链长压缩项则在 2D 投影看上去“假装很直”时补充稳定性。
     pip_bend = _bend_from_angle(joint_angle(landmarks_xyz[mcp], landmarks_xyz[pip], landmarks_xyz[dip]))
     dip_bend = _bend_from_angle(joint_angle(landmarks_xyz[pip], landmarks_xyz[dip], landmarks_xyz[tip]))
     compression = _chain_compression(landmarks_xyz, [mcp, pip, dip, tip])
@@ -105,9 +106,9 @@ def _long_finger_curl(
 
 
 def _thumb_curl(landmarks_xyz: List[Tuple[float, float, float]]) -> float:
-    # Thumb kinematics differ from the long fingers, so we use its own chain:
-    # CMC->MCP->IP->TIP. The weights slightly favor the two bend angles and use
-    # compression as a stabilizer for partial opposition/flexion poses.
+    # 拇指的运动学和其余长手指不同，因此单独使用：
+    # CMC->MCP->IP->TIP 这条链。
+    # 权重略偏向两个弯曲角，压缩项则用于稳定部分对掌 / 屈曲姿态。
     mcp_bend = _bend_from_angle(joint_angle(landmarks_xyz[THUMB_CMC], landmarks_xyz[THUMB_MCP], landmarks_xyz[THUMB_IP]))
     ip_bend = _bend_from_angle(joint_angle(landmarks_xyz[THUMB_MCP], landmarks_xyz[THUMB_IP], landmarks_xyz[THUMB_TIP]))
     compression = _chain_compression(landmarks_xyz, [THUMB_CMC, THUMB_MCP, THUMB_IP, THUMB_TIP])
@@ -121,9 +122,9 @@ def extract_hand_features(
     timestamp: float,
     landmarks_xyz: List[Tuple[float, float, float]] | None = None,
 ) -> Dict:
-    # Keep feature extraction total-function-like for tests and non-camera paths:
-    # malformed or incomplete landmark lists degrade to an empty frame payload
-    # instead of raising index errors deep inside geometry code.
+    # 让特征提取尽量保持“总是可返回”的风格，方便测试和非摄像头路径：
+    # 当 landmark 列表损坏或不完整时，退化为空帧 payload，
+    # 而不是在几何代码深处抛出索引错误。
     if not _has_complete_landmarks_2d(landmarks_2d):
         return empty_features(timestamp)
 
@@ -133,8 +134,8 @@ def extract_hand_features(
     pinch_distance_raw = euclidean(landmarks_2d[THUMB_TIP], landmarks_2d[INDEX_TIP])
     pinch_distance_norm = _safe_ratio(pinch_distance_raw, palm_size, default=1.0)
 
-    # Hand openness is the mean fingertip distance to the palm center, normalized
-    # by palm size so the ratio is less sensitive to camera distance.
+    # hand_open_ratio 取的是指尖到掌心中心的平均距离，
+    # 再用掌长归一化，降低它对相机远近的敏感性。
     hand_open_ratio = _safe_ratio(
         (
             euclidean(landmarks_2d[THUMB_TIP], palm_center)
@@ -172,7 +173,7 @@ def extract_hand_features(
 
 
 def invalidate_control_features(features: Dict) -> Dict:
-    """Keep detection info/landmarks, but clear control-facing geometry for low-quality frames."""
+    """保留检测信息和 landmark，但在低质量帧里清空面向控制的几何量。"""
     degraded = dict(features)
     degraded["gesture_raw"] = None
     degraded["gesture_stable"] = None

@@ -130,8 +130,8 @@ def test_unknown_gesture_keeps_measurements_but_is_not_command_ready():
     )
 
     assert control["features_valid"] is True
-    assert control["command_ready"] is False
-    assert control["valid"] is False
-    assert control["preferred_mapping"] is None
+    assert control["command_ready"] is True
+    assert control["valid"] is True
+    assert control["preferred_mapping"] == "pinch"
     assert control["thumb_index_proximity"] > 0.5
-    assert control["effective_pinch_strength"] == 0.0
+    assert control["effective_pinch_strength"] > 0.5

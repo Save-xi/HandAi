@@ -35,8 +35,8 @@ class MediaPipeHandDetector:
     ) -> None:
         if not hasattr(mp, "solutions") or not hasattr(mp.solutions, "hands"):
             raise RuntimeError(
-                "Unsupported mediapipe package detected. "
-                "Install mediapipe==0.10.14 for this baseline."
+                "检测到不受支持的 mediapipe 包。"
+                "这个 baseline 请安装 mediapipe==0.10.14。"
             )
         self.input_mirrored = input_mirrored
         self.mp_hands = mp.solutions.hands
