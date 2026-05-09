@@ -1,5 +1,5 @@
 {
-  "timestamp": 1775206693.109788,
+  "timestamp": 1777379394.5259295,
   "detected": false,
   "handedness": null,
   "confidence": null,
@@ -38,8 +38,8 @@
   },
   "control_ready": false,
   "svh_preview": {
-    "enabled": false,
-    "mode": "disabled",
+    "enabled": true,
+    "mode": "preview",
     "valid": false,
     "command_source": null,
     "target_channels": [],
@@ -55,7 +55,7 @@
       "target_tick_units": "none"
     }
   },
-  "frame_index": 180,
-  "fps": 40.20165148424996,
-  "latency_ms": 10.992299999998068
+  "frame_index": 185,
+  "fps": 31.175762715802573,
+  "latency_ms": 12.79060000069876
 }

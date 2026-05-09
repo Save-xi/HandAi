@@ -1,10 +1,24 @@
 from __future__ import annotations
 
+from functools import lru_cache
+from pathlib import Path
 from typing import Dict
 
 import cv2
 import numpy as np
+from PIL import Image, ImageDraw, ImageFont
+
 from output.frame_payload_contract import get_stable_gesture, get_svh_preview
+
+_FONT_CANDIDATES = (
+    Path("C:/Windows/Fonts/msyh.ttc"),
+    Path("C:/Windows/Fonts/simhei.ttf"),
+    Path("C:/Windows/Fonts/simsun.ttc"),
+    Path("C:/Windows/Fonts/simkai.ttf"),
+    Path("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"),
+    Path("/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc"),
+    Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+)
 
 
 def _fmt_float(value) -> str:
@@ -20,6 +34,26 @@ def _fmt_list_preview(values, max_items: int = 3) -> str:
     if len(values) > max_items:
         preview += ", ..."
     return f"[{preview}]"
+
+
+@lru_cache(maxsize=4)
+def _load_font(size: int) -> ImageFont.ImageFont:
+    for candidate in _FONT_CANDIDATES:
+        if candidate.exists():
+            return ImageFont.truetype(str(candidate), size=size)
+    return ImageFont.load_default()
+
+
+def _draw_text_rows(panel: np.ndarray, rows: list[str]) -> np.ndarray:
+    rgb = cv2.cvtColor(panel, cv2.COLOR_BGR2RGB)
+    image = Image.fromarray(rgb)
+    draw = ImageDraw.Draw(image)
+    font = _load_font(22)
+    y = 18
+    for row in rows:
+        draw.text((10, y), row, font=font, fill=(0, 255, 255))
+        y += 30
+    return cv2.cvtColor(np.asarray(image), cv2.COLOR_RGB2BGR)
 
 
 def build_status_panel(height: int, width: int, data: Dict) -> np.ndarray:
@@ -49,8 +83,4 @@ def build_status_panel(height: int, width: int, data: Dict) -> np.ndarray:
         f"帧率 fps: {data.get('fps', 0.0):.2f}",
         f"时延 ms: {data.get('latency_ms', 0.0):.2f}",
     ]
-    y = 30
-    for row in text_rows:
-        cv2.putText(panel, row, (10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 1, cv2.LINE_AA)
-        y += 28
-    return panel
+    return _draw_text_rows(panel, text_rows)

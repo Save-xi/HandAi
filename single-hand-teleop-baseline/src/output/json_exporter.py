@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import socket
 from pathlib import Path
 from typing import Any, Dict, TextIO
 
@@ -11,11 +12,14 @@ from output.frame_payload_contract import prepare_frame_payload
 class JsonExporter:
     def __init__(
         self,
-        output_path: str,
+        output_path: str,  
         save_last_json: bool = True,
         jsonl_path: str | None = None,
         export_last_every_n_frames: int = 1,
         jsonl_flush_interval: int = 1,
+        unity_udp_enabled: bool = True,
+        unity_udp_host: str = "127.0.0.1",
+        unity_udp_port: int = 18080,
         logger: logging.Logger | None = None,
     ) -> None:
         self.output_path = output_path
@@ -23,15 +27,21 @@ class JsonExporter:
         self.jsonl_path = jsonl_path
         self.export_last_every_n_frames = max(1, int(export_last_every_n_frames))
         self.jsonl_flush_interval = max(1, int(jsonl_flush_interval))
+        self.unity_udp_enabled = bool(unity_udp_enabled)
+        self.unity_udp_host = str(unity_udp_host)
+        self.unity_udp_port = int(unity_udp_port)
         self.logger = logger
         self._jsonl_failed = False
         self._jsonl_handle: TextIO | None = None
+        self._unity_udp_failed = False
+        self._unity_udp_socket: socket.socket | None = None
         self._jsonl_pending_lines = 0
         self._last_frame_dirty = False
         self._latest_prepared_payload: Dict[str, Any] | None = None
         self._last_frame_write_count = 0
         self._jsonl_write_count = 0
         self._jsonl_flush_count = 0
+        self._unity_udp_send_count = 0
 
     def to_json_str(self, obj: Dict[str, Any]) -> str:
         prepared = prepare_frame_payload(obj, include_deprecated_aliases=False)
@@ -108,6 +118,13 @@ class JsonExporter:
         self._jsonl_flush_count += 1
         self._jsonl_pending_lines = 0
 
+    def _ensure_unity_udp_socket(self) -> socket.socket | None:
+        if not self.unity_udp_enabled or self._unity_udp_failed:
+            return None
+        if self._unity_udp_socket is None:
+            self._unity_udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        return self._unity_udp_socket
+
     def _append_prepared_jsonl(self, prepared: Dict[str, Any], *, force_flush: bool) -> None:
         handle = self._ensure_jsonl_handle()
         if handle is None:
@@ -164,7 +181,30 @@ class JsonExporter:
 
     def send(self, obj: Dict[str, Any]) -> None:
         """为未来网络 / 控制集成预留的输出接口。"""
-        _ = prepare_frame_payload(obj, include_deprecated_aliases=False)
+        prepared = prepare_frame_payload(obj, include_deprecated_aliases=False)
+        self.send_prepared_frame(prepared)
+
+    def send_prepared_frame(self, prepared: Dict[str, Any]) -> None:
+        if not self.unity_udp_enabled:
+            return
+        if self._unity_udp_failed:
+            return
+
+        udp_socket = self._ensure_unity_udp_socket()
+        print (f"UDP Socket: {udp_socket}")
+        if udp_socket is None:
+            return
+
+        try:
+            payload = json.dumps(prepared, ensure_ascii=False).encode("utf-8")
+            suc = udp_socket.sendto(payload, (self.unity_udp_host, self.unity_udp_port))
+            self._unity_udp_send_count += 1
+        except OSError as exc:
+            self._unity_udp_failed = True
+            if self._unity_udp_socket is not None:
+                self._unity_udp_socket.close()
+                self._unity_udp_socket = None
+            self._warn(f"发送 Unity UDP 预览数据失败；本次运行将停用该通道：{exc}")
 
     def close(self) -> None:
         if self.save_last_json and self._last_frame_dirty and self._latest_prepared_payload is not None:
@@ -181,9 +221,14 @@ class JsonExporter:
                 self._jsonl_handle.close()
                 self._jsonl_handle = None
 
+        if self._unity_udp_socket is not None:
+            self._unity_udp_socket.close()
+            self._unity_udp_socket = None
+
         self._debug(
-            "导出器摘要：last-frame 写入=%d，jsonl 行数=%d，jsonl flush 次数=%d",
+            "导出器摘要：last-frame 写入=%d，jsonl 行数=%d，jsonl flush 次数=%d，Unity UDP 发送次数=%d",
             self._last_frame_write_count,
             self._jsonl_write_count,
             self._jsonl_flush_count,
+            self._unity_udp_send_count,
         )

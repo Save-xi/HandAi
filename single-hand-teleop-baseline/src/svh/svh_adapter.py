@@ -20,6 +20,22 @@ def _float_list(values: List[float]) -> List[float]:
     return [float(v) for v in values]
 
 
+def _blend_finger_follow(finger_flex: float, guide_close: float, *, flex_weight: float, guide_weight: float) -> float:
+    return clamp01(flex_weight * finger_flex + guide_weight * guide_close)
+
+
+def _blend_support_follow(
+    finger_flex: float,
+    support_floor: float,
+    grasp_close: float,
+    *,
+    flex_weight: float,
+    support_weight: float,
+    grasp_weight: float,
+) -> float:
+    return clamp01(flex_weight * finger_flex + support_weight * support_floor + grasp_weight * grasp_close)
+
+
 def _protocol_hint(cfg: Dict) -> Dict[str, str]:
     layout = _layout(cfg)
     return {
@@ -187,21 +203,30 @@ def _gesture_fallback_preview(gesture: str, cfg: Dict) -> Dict:
 
 def _build_compact_grasp_preview(control_representation: Dict, cfg: Dict) -> Dict:
     grasp_close = clamp01(float(control_representation["grasp_close"]))
-    thumb_flex = clamp01(float(control_representation["finger_flex"]["thumb"]))
+    finger_flex = control_representation["finger_flex"]
+    thumb_flex = clamp01(float(finger_flex["thumb"]))
+    index_flex = clamp01(float(finger_flex["index"]))
+    middle_flex = clamp01(float(finger_flex["middle"]))
+    ring_flex = clamp01(float(finger_flex["ring"]))
+    little_flex = clamp01(float(finger_flex["little"]))
     channel_count = _channel_count(cfg)
     open_value = float(cfg.get("svh_position_open_value", 0.0))
     closed_value = float(cfg.get("svh_position_closed_value", 1.0))
     thumb_grasp_scale = float(cfg.get("svh_thumb_grasp_scale", 0.85))
     thumb_close = clamp01(0.75 * (grasp_close * thumb_grasp_scale) + 0.25 * thumb_flex)
+    index_close = clamp01(index_flex + 0.25 * grasp_close)
+    middle_close = clamp01(middle_flex + 0.25 * grasp_close)
+    ring_close = clamp01(ring_flex + 0.20 * grasp_close)
+    little_close = clamp01(little_flex + 0.15 * grasp_close)
 
     preview_values = [
         _lerp(open_value, closed_value, thumb_close),
-        _lerp(open_value, closed_value, grasp_close),
-        _lerp(open_value, closed_value, grasp_close),
-        _lerp(open_value, closed_value, grasp_close),
-        _lerp(open_value, closed_value, grasp_close),
+        _lerp(open_value, closed_value, index_close),
+        _lerp(open_value, closed_value, middle_close),
+        _lerp(open_value, closed_value, ring_close),
+        _lerp(open_value, closed_value, little_close),
     ]
-    positions = _resize_positions(preview_values, channel_count, _lerp(open_value, closed_value, grasp_close))
+    positions = _resize_positions(preview_values, channel_count, _lerp(open_value, closed_value, little_close))
 
     return SvhCommandPreview(
         enabled=True,
@@ -235,12 +260,12 @@ def _build_svh9_grasp_preview(control_representation: Dict, cfg: Dict) -> Dict:
     alphas = [
         thumb_close,
         thumb_opp,
-        clamp01(0.65 * grasp_close + 0.35 * index_flex),
-        clamp01(0.80 * grasp_close + 0.20 * index_flex),
-        clamp01(0.65 * grasp_close + 0.35 * middle_flex),
-        clamp01(0.80 * grasp_close + 0.20 * middle_flex),
-        clamp01(0.75 * grasp_close + 0.25 * ring_flex),
-        clamp01(0.70 * grasp_close + 0.30 * little_flex),
+        max(_blend_finger_follow(index_flex, grasp_close, flex_weight=0.55, guide_weight=0.45), clamp01(grasp_close * 0.62)),
+        max(_blend_finger_follow(index_flex, grasp_close, flex_weight=0.40, guide_weight=0.60), clamp01(grasp_close * 0.74)),
+        max(_blend_finger_follow(middle_flex, grasp_close, flex_weight=0.72, guide_weight=0.28), clamp01(grasp_close * 0.66)),
+        max(_blend_finger_follow(middle_flex, grasp_close, flex_weight=0.58, guide_weight=0.42), clamp01(grasp_close * 0.78)),
+        max(_blend_finger_follow(ring_flex, grasp_close, flex_weight=0.80, guide_weight=0.20), clamp01(grasp_close * 0.74)),
+        max(_blend_finger_follow(little_flex, grasp_close, flex_weight=0.84, guide_weight=0.16), clamp01(grasp_close * 0.72)),
         spread_alpha,
     ]
     grasp_fill_position = _svh9_positions_from_alphas([grasp_close], cfg)[0]
@@ -275,6 +300,9 @@ def _build_compact_pinch_preview(control_representation: Dict, cfg: Dict) -> Dic
     )
     thumb_flex = clamp01(float(control_representation["finger_flex"]["thumb"]))
     index_flex = clamp01(float(control_representation["finger_flex"]["index"]))
+    middle_flex = clamp01(float(control_representation["finger_flex"]["middle"]))
+    ring_flex = clamp01(float(control_representation["finger_flex"]["ring"]))
+    little_flex = clamp01(float(control_representation["finger_flex"]["little"]))
     support_flex = clamp01(float(control_representation["support_flex"]))
     channel_count = _channel_count(cfg)
     open_value = float(cfg.get("svh_position_open_value", 0.0))
@@ -283,15 +311,30 @@ def _build_compact_pinch_preview(control_representation: Dict, cfg: Dict) -> Dic
 
     thumb_value = _lerp(open_value, closed_value, clamp01(0.85 * pinch_close + 0.15 * thumb_flex))
     index_value = _lerp(open_value, closed_value, clamp01(0.75 * pinch_close + 0.25 * index_flex))
-    support_value = _lerp(open_value, closed_value, max(support_flex, pinch_close * pinch_support_scale))
+    support_floor = clamp01(max(support_flex, pinch_close * pinch_support_scale))
+    middle_value = _lerp(
+        open_value,
+        closed_value,
+        _blend_support_follow(middle_flex, support_floor, 0.0, flex_weight=0.90, support_weight=0.25, grasp_weight=0.0),
+    )
+    ring_value = _lerp(
+        open_value,
+        closed_value,
+        _blend_support_follow(ring_flex, support_floor, 0.0, flex_weight=0.95, support_weight=0.20, grasp_weight=0.0),
+    )
+    little_value = _lerp(
+        open_value,
+        closed_value,
+        _blend_support_follow(little_flex, support_floor, 0.0, flex_weight=1.00, support_weight=0.18, grasp_weight=0.0),
+    )
     preview_values = [
         thumb_value,
         index_value,
-        support_value,
-        support_value,
-        support_value,
+        middle_value,
+        ring_value,
+        little_value,
     ]
-    positions = _resize_positions(preview_values, channel_count, support_value)
+    positions = _resize_positions(preview_values, channel_count, little_value)
 
     return SvhCommandPreview(
         enabled=True,
@@ -333,10 +376,10 @@ def _build_svh9_pinch_preview(control_representation: Dict, cfg: Dict) -> Dict:
         clamp01(0.75 * pinch_close + 0.15 * thumb_flex + 0.10 * thumb_opposition_scale * grasp_close),
         clamp01(0.80 * pinch_close + 0.20 * index_flex),
         clamp01(0.70 * pinch_close + 0.30 * index_flex),
-        clamp01(max(middle_flex, support_value)),
-        clamp01(max(middle_flex, support_value)),
-        clamp01(max(ring_flex, support_value)),
-        clamp01(max(little_flex, support_value)),
+        _blend_support_follow(middle_flex, support_value, grasp_close, flex_weight=0.90, support_weight=0.20, grasp_weight=0.10),
+        _blend_support_follow(middle_flex, support_value, grasp_close, flex_weight=0.82, support_weight=0.20, grasp_weight=0.15),
+        _blend_support_follow(ring_flex, support_value, grasp_close, flex_weight=0.95, support_weight=0.18, grasp_weight=0.10),
+        _blend_support_follow(little_flex, support_value, grasp_close, flex_weight=1.00, support_weight=0.15, grasp_weight=0.10),
         clamp01(pinch_close * pinch_spread_scale),
     ]
     support_position = _svh9_positions_from_alphas([support_value], cfg)[0]

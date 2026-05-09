@@ -16,6 +16,13 @@ def _mean(values: Iterable[float]) -> float:
         return 0.0
     return sum(values) / len(values)
 
+
+def _resolve_effective_pinch_strength(thumb_index_proximity: float, support_flex: float, grasp_close: float) -> float:
+    # 21 个视觉关键点不会一一映射到 Unity 的 20 个关节。
+    # 正确链路应该是：21 点 -> 连续手部特征 -> 9 个执行通道 -> Unity 20 个关节展开。
+    # 之前的问题在于连续特征被稳定手势门控截断，导致大量中间姿态在进入 Unity 前就丢了。
+    return clamp01(thumb_index_proximity - 0.45 * support_flex - 0.60 * grasp_close)
+
 def empty_control_representation() -> Dict:
     return {
         "valid": False,
@@ -84,15 +91,18 @@ def build_control_representation(payload: Dict, cfg: Dict) -> Dict:
         float(cfg.get("control_pinch_index_closed_ref", cfg.get("svh_pinch_index_closed_ref", 0.35))),
     )
     thumb_index_proximity = clamp01(0.70 * pinch_from_distance + 0.30 * pinch_from_index_flex)
+    effective_pinch_strength = _resolve_effective_pinch_strength(
+        thumb_index_proximity,
+        support_flex,
+        grasp_close,
+    )
 
-    preferred_mapping = None
-    if gesture in {"open", "fist"}:
-        preferred_mapping = "grasp"
-    elif gesture == "pinch":
+    if gesture == "pinch" or effective_pinch_strength >= 0.35:
         preferred_mapping = "pinch"
+    else:
+        preferred_mapping = "grasp"
 
-    command_ready = preferred_mapping is not None
-    effective_pinch_strength = thumb_index_proximity if preferred_mapping == "pinch" else 0.0
+    command_ready = True
 
     return {
         "valid": command_ready,

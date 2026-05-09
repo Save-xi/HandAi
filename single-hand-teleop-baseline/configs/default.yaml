@@ -18,6 +18,9 @@ jsonl_output_dir: "outputs"
 output_json_path: "examples/sample_output.json"
 export_last_every_n_frames: 5  # 运行期按帧间隔节流写 last-frame JSON，正常退出时仍会补写一次
 jsonl_flush_interval: 10  # JSONL 保持一个小缓冲，降低实时运行时的逐帧写盘压力
+unity_udp_enabled: false  # 默认不向 Unity 发送；只有需要实时联动预览时再打开
+unity_udp_host: "127.0.0.1"
+unity_udp_port: 18080
 recent_frames_buffer_size: 10
 enable_control_extension: false  # 默认单右手 baseline 保持关闭；只有需要可选控制层时才开启
 control_grasp_open_ref: 0.02

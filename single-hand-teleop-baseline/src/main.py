@@ -160,6 +160,9 @@ def _build_exporter(cfg: Dict[str, Any], logger) -> JsonExporter:
         jsonl_path=_build_jsonl_session_path(cfg) if bool(cfg.get("save_jsonl", False)) else None,
         export_last_every_n_frames=int(cfg.get("export_last_every_n_frames", 1)),
         jsonl_flush_interval=int(cfg.get("jsonl_flush_interval", 1)),
+        unity_udp_enabled=bool(cfg.get("unity_udp_enabled", True)),
+        unity_udp_host=str(cfg.get("unity_udp_host", "127.0.0.1")),
+        unity_udp_port=int(cfg.get("unity_udp_port", 18080)),
         logger=logger,
     )
 
@@ -374,7 +377,7 @@ def main() -> None:
             if args.print_json and frame_index % print_every_n_frames == 0:
                 exporter.print_console(payload, landmarks_preview_count=landmarks_preview_count)
             exporter.export_prepared_frame(payload, frame_index=frame_index)
-            exporter.send(payload)
+            exporter.send_prepared_frame(payload)
 
             if runtime.gui_enabled:
                 view = compose_view(frame, payload)

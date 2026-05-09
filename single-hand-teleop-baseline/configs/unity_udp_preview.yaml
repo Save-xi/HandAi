@@ -1,0 +1,77 @@
+camera_index: 0
+input_source_type: webcam
+video_file_path: ""
+input_mirrored: false
+gui_enabled: true
+headless: false
+display_width: 1280
+display_height: 720
+draw_landmarks: true
+console_print_every_n_frames: 5
+console_landmarks_preview_count: 3
+save_last_json: true
+save_jsonl: false
+jsonl_output_dir: "outputs"
+output_json_path: "examples/sample_output_svh_9ch.json"
+export_last_every_n_frames: 5
+jsonl_flush_interval: 10
+unity_udp_enabled: true
+unity_udp_host: "127.0.0.1"
+unity_udp_port: 18080
+recent_frames_buffer_size: 10
+
+enable_control_extension: true
+control_grasp_open_ref: 0.02
+control_grasp_closed_ref: 0.55
+control_pinch_open_ref: 0.45
+control_pinch_closed_ref: 0.08
+control_hand_open_ratio_open_ref: 0.95
+control_hand_open_ratio_closed_ref: 0.25
+control_pinch_index_open_ref: 0.05
+control_pinch_index_closed_ref: 0.35
+
+svh_enable_preview: true
+svh_enable_gesture_fallback: false
+svh_preview_layout: "svh_9ch"  # 供 Unity 虚拟 SVH 直接读取的 9 通道预览
+svh_preview_channel_count: 9
+svh_preview_mode: "preview"
+svh_transport: "mock"
+svh_protocol_sync_bytes: [76, 170]
+svh_grasp_open_ref: 0.02
+svh_grasp_closed_ref: 0.55
+svh_pinch_open_ref: 0.45
+svh_pinch_closed_ref: 0.08
+svh_invalid_holds_last_command: false
+svh_protocol_use_little_endian: true
+svh_hand_open_ratio_open_ref: 0.95
+svh_hand_open_ratio_closed_ref: 0.25
+svh_position_open_value: 0.0
+svh_position_closed_value: 1.0
+svh_thumb_grasp_scale: 0.85
+svh_thumb_opposition_scale: 0.75
+svh_pinch_support_scale: 0.20
+svh_open_spread_scale: 0.25
+svh_grasp_spread_scale: 0.05
+svh_pinch_spread_scale: 0.10
+svh_pinch_index_open_ref: 0.05
+svh_pinch_index_closed_ref: 0.35
+svh_9ch_open_ticks: [-5000, -5000, -2000, 2000, -2000, 2000, -2000, -2000, -2000]
+svh_9ch_closed_ticks: [-175000, -150000, -47000, 42000, -47000, 42000, -47000, -47000, -47000]
+
+control_ready_min_in_bounds_ratio: 0.90
+control_ready_palm_center_margin: 0.08
+control_ready_palm_core_oob_tolerance: 0.02
+pinch_distance_norm_threshold: 0.45
+pinch_open_ratio_min: 0.75
+pinch_support_curl_max: 0.65
+open_ratio_threshold: 0.85
+open_mean_curl_max: 0.45
+fist_ratio_threshold: 0.85
+fist_mean_curl_min: 0.45
+fist_compact_ratio_threshold: 0.65
+stable_gesture_window: 5
+stable_gesture_min_consecutive: 2
+stable_unknown_consecutive: 1
+min_detection_confidence: 0.5
+min_tracking_confidence: 0.5
+max_num_hands: 2
