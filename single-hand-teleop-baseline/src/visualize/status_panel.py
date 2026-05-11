@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+"""OpenCV 预览窗口右侧状态面板。
+
+GUI 不是控制链路必需部分，但它对调试很重要：可以实时看到检测状态、
+手势、连续控制量、SVH preview 和性能指标。
+"""
+
 from functools import lru_cache
 from pathlib import Path
 from typing import Dict
@@ -19,15 +25,20 @@ _FONT_CANDIDATES = (
     Path("/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc"),
     Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
 )
+"""优先使用中文字体，找不到时再退回通用字体。"""
 
 
 def _fmt_float(value) -> str:
+    """把 None 显示成“无”，数值显示成短小的小数。"""
+
     if value is None:
         return "无"
     return f"{float(value):.3f}"
 
 
 def _fmt_list_preview(values, max_items: int = 3) -> str:
+    """只展示列表前几个值，避免状态面板太拥挤。"""
+
     if not values:
         return "[]"
     preview = ", ".join(f"{float(v):.2f}" for v in values[:max_items])
@@ -38,6 +49,8 @@ def _fmt_list_preview(values, max_items: int = 3) -> str:
 
 @lru_cache(maxsize=4)
 def _load_font(size: int) -> ImageFont.ImageFont:
+    """缓存字体加载结果，避免每帧重新扫描字体文件。"""
+
     for candidate in _FONT_CANDIDATES:
         if candidate.exists():
             return ImageFont.truetype(str(candidate), size=size)
@@ -45,6 +58,8 @@ def _load_font(size: int) -> ImageFont.ImageFont:
 
 
 def _draw_text_rows(panel: np.ndarray, rows: list[str]) -> np.ndarray:
+    """用 PIL 绘制中文文本，再转回 OpenCV 的 BGR 图像。"""
+
     rgb = cv2.cvtColor(panel, cv2.COLOR_BGR2RGB)
     image = Image.fromarray(rgb)
     draw = ImageDraw.Draw(image)
@@ -57,6 +72,8 @@ def _draw_text_rows(panel: np.ndarray, rows: list[str]) -> np.ndarray:
 
 
 def build_status_panel(height: int, width: int, data: Dict) -> np.ndarray:
+    """根据当前 payload 构建一张状态面板图像。"""
+
     panel = np.zeros((height, width, 3), dtype=np.uint8)
     svh = get_svh_preview(data)
     control = data.get("control_representation", {})

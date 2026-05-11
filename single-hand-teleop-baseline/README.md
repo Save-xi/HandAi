@@ -1,89 +1,57 @@
-# 单右手遥操作 Baseline
+# 单右手视觉遥操作 Baseline
 
-`single-hand-teleop-baseline/` 是当前仓库里最成熟、最适合直接运行的部分。  
-如果你是第一次 clone 这个仓库，建议从这个子项目开始。当前 baseline 是一条以单右手视觉链路为核心的运行路径，输入来自 webcam 或本地视频文件，输出是一份已经冻结的逐帧 payload contract。
+这个子项目的目标很简单：
 
-## 当前阶段
+**用普通摄像头看右手，把右手动作变成一份稳定的逐帧数据，供 Unity 预览或后续机械手控制链路使用。**
 
-- 当前主目标是单右手视觉 baseline。
-- baseline 的标准输入入口是 webcam 或本地视频文件。
-- 导出的逐帧 payload contract 已经固定，供下游稳定消费。
-- `control_representation` 和 `svh_preview` 是建立在 baseline 之上的可选扩展。
-- Unity 集成、真实硬件传输链路、真实 SVH 控制都不是安装或启动 baseline 的前置条件。
+先不用急着理解 SVH、协议、ticks、Unity 关节这些词。你可以把当前项目先看成三层：
 
-Baseline 主链路：
+```text
+摄像头/视频
+  -> MediaPipe 检测右手
+  -> 提取手部特征和手势
+  -> 输出 JSON / JSONL / 可选 Unity UDP 预览
+```
 
-`输入 -> MediaPipe 手部检测 -> 右手筛选 -> 特征提取 -> 手势稳定 -> JSON / JSONL / OpenCV 可视化`
+当前最成熟、最适合直接运行的代码就在这个目录里：`single-hand-teleop-baseline/`。
 
-可选扩展链路：
+## 现在已经做到什么
 
-`baseline payload -> control_representation -> svh_preview -> mock 传输`
+- 可以从摄像头或本地视频读取画面。
+- 可以用 MediaPipe 检测手部 21 个关键点。
+- 会只选择“右手”作为当前控制对象。
+- 会识别几个基础手势：`open`、`fist`、`pinch`、`unknown`。
+- 会提取连续控制特征，比如捏合距离、手掌张开程度、每根手指弯曲程度。
+- 可以导出冻结格式的逐帧 payload，方便后续程序稳定读取。
+- 可以可选生成 `control_representation`，也就是与硬件无关的控制中间层。
+- 可以可选生成 `svh_preview`，也就是给 SVH / Unity 用的预览控制量。
+- 可以通过 UDP 把 9 通道预览数据发给本机 Unity 场景。
+- 有测试覆盖当前主要行为。
 
-## 范围说明
+还没做到的事情也很重要：
 
-当前范围：
+- 还没有接真实 SVH 硬件。
+- 还没有完成真实 TCP / 串口 / RS485 传输。
+- `svh_preview` 只是预览和联调用，不是可以直接下发给实体机械手的安全命令。
+- 当前主线只做单右手，不做双手或多手控制。
 
-- 仅支持单右手主流程
-- 运行路径以右手为中心
-- 输入来自 webcam 或本地视频
-- 基于 MediaPipe 的手部感知
-- 基于规则的手势分类与稳定
-- 导出带有冻结 contract 的 JSON / JSONL
-- 可选的 `control_representation`
-- 可选的 `svh_preview`
+## 推荐理解顺序
 
-不属于当前 baseline 启动路径的内容：
+如果你是现在回来看这个项目，建议按这个顺序读：
 
-- 双手 / 多手主流程
-- Unity runtime 不是 baseline 启动前提
-- 真实 TCP / 串口 / RS485 传输
-- 真实 SVH 硬件控制
-- ROS / 数据库 / Web 前端
+1. 先看本 README，把整体链路和运行方式搞清楚。
+2. 再跑默认 baseline，确认摄像头、MediaPipe、JSON 输出都正常。
+3. 再开 `--enable-control`，看连续控制量。
+4. 再开 `configs/svh_9ch_preview.yaml`，看 SVH 9 通道预览数据。
+5. 最后才看 Unity UDP 或真机校准文档。
 
-这些方向后续都可以继续扩展，但应建立在 baseline 之上，而不是默认混进 baseline 的启动前提里。
+不用一上来读协议文档。那是后期接硬件时才需要啃的骨头。
 
-## 关键文件
+## 环境安装
 
-配置：
+推荐 Python 版本是 `3.10`。
 
-- [configs/default.yaml](configs/default.yaml)
-- [configs/svh_9ch_preview.yaml](configs/svh_9ch_preview.yaml)
-- [configs/unity_udp_preview.yaml](configs/unity_udp_preview.yaml)
-
-示例：
-
-- [examples/sample_output.json](examples/sample_output.json)
-- [examples/sample_output_svh_9ch.json](examples/sample_output_svh_9ch.json)
-- [examples/sample_session.jsonl](examples/sample_session.jsonl)
-
-Schema 与 payload contract：
-
-- [schemas/frame_payload.schema.json](schemas/frame_payload.schema.json)
-- [src/output/frame_payload_contract.py](src/output/frame_payload_contract.py)
-
-文档与测试：
-
-- [docs/downstream_preview_contract.md](docs/downstream_preview_contract.md)
-- [docs/svh_real_hardware_calibration_table.md](docs/svh_real_hardware_calibration_table.md)
-- [CONTRIBUTING.md](CONTRIBUTING.md)
-- [tests/test_cli_smoke.py](tests/test_cli_smoke.py)
-- [tests/test_json_schema.py](tests/test_json_schema.py)
-
-仓库级工作流：
-
-- [../.github/workflows/single-hand-teleop-baseline-ci.yml](../.github/workflows/single-hand-teleop-baseline-ci.yml)
-
-## 环境
-
-推荐 Python 版本：
-
-- Python `3.10`
-
-你既可以在子项目目录里安装依赖，也可以在仓库根目录安装依赖。
-
-### 方式 A：在 `single-hand-teleop-baseline/` 目录下运行
-
-Conda：
+如果你用 Conda：
 
 ```bash
 cd single-hand-teleop-baseline
@@ -91,297 +59,362 @@ conda env create -f environment.yml
 conda activate single-right-hand-baseline
 ```
 
-Pip：
+如果你直接用 pip：
 
 ```bash
 cd single-hand-teleop-baseline
 python -m pip install -r requirements.txt
 ```
 
-### 方式 B：在仓库根目录运行
+主要依赖包括：
 
-Conda：
+- `mediapipe`
+- `opencv-contrib-python`
+- `numpy`
+- `Pillow`
+- `PyYAML`
+- `pytest`
+
+## 最快跑起来
+
+进入子项目目录：
 
 ```bash
-conda env create -f single-hand-teleop-baseline/environment.yml
-conda activate single-right-hand-baseline
+cd single-hand-teleop-baseline
+（我自己本地是cd /d D:\VR\HandAi\single-hand-teleop-baseline）
 ```
 
-Pip：
-
-```bash
-python -m pip install -r single-hand-teleop-baseline/requirements.txt
-```
-
-## 最小命令
-
-### 当前目录是 `single-hand-teleop-baseline/`
-
-查看 CLI 帮助：
+查看命令行帮助：
 
 ```bash
 python src/main.py --help
 ```
 
-运行默认 baseline：
+运行默认摄像头 baseline：
 
 ```bash
 python src/main.py --config configs/default.yaml
 ```
 
-运行最小 smoke test：
+默认会打开 OpenCV 窗口。窗口中按 `q` 退出。
+
+如果你不想开窗口，只想处理和输出数据：
 
 ```bash
-pytest -q tests/test_cli_smoke.py
+python src/main.py --config configs/default.yaml --headless
 ```
 
-### 当前目录是仓库根目录
-
-查看 CLI 帮助：
+如果要从视频文件读取：
 
 ```bash
-python single-hand-teleop-baseline/src/main.py --help
+python src/main.py --config configs/default.yaml --video-file path/to/demo.mp4 --headless
 ```
 
-运行默认 baseline：
-
-```bash
-python single-hand-teleop-baseline/src/main.py --config single-hand-teleop-baseline/configs/default.yaml
-```
-
-运行最小 smoke test：
-
-```bash
-pytest -q single-hand-teleop-baseline/tests/test_cli_smoke.py
-```
-
-## 常用运行参数
-
-- `--camera-index 1`
-- `--video-file path/to/demo.mp4`
-- `--input-mirrored`
-- `--no-gui`
-- `--headless`
-- `--enable-control`
-- `--preview-svh`
-- `--print-json`
-- `--save-jsonl`
-- `--max-frames 300`
-
-在 `single-hand-teleop-baseline/` 目录下的示例命令：
+如果要把每隔几帧的 JSON 打印到控制台：
 
 ```bash
 python src/main.py --config configs/default.yaml --print-json
-python src/main.py --config configs/default.yaml --headless --video-file path/to/demo.mp4 --max-frames 300
+```
+
+如果要保存逐帧 JSONL 日志：
+
+```bash
+python src/main.py --config configs/default.yaml --save-jsonl
+```
+
+输出会写到：
+
+- `examples/sample_output.json`：最近一帧的 JSON
+- `outputs/session_*.jsonl`：开启 `--save-jsonl` 后的逐帧日志
+
+## 常用模式
+
+### 1. 默认 baseline
+
+```bash
+python src/main.py --config configs/default.yaml
+```
+
+适合检查：
+
+- 摄像头能不能打开
+- 是否检测到右手
+- `open / fist / pinch` 是否大致正确
+- JSON 输出是否正常
+
+默认配置有意保持保守：
+
+- 不要求 Unity
+- 不要求真实 SVH
+- 不启用控制扩展
+- 不启用 SVH 预览扩展
+
+### 2. 无界面处理
+
+```bash
+python src/main.py --config configs/default.yaml --headless
+```
+
+适合：
+
+- 跑视频文件
+- 只记录 JSON / JSONL
+- 在没有图形界面的环境里做 smoke test
+
+### 3. 打开控制表示
+
+```bash
 python src/main.py --config configs/default.yaml --enable-control --print-json
+```
+
+会额外输出 `control_representation`。
+
+你可以重点看这些字段：
+
+- `command_ready`：这一帧是否适合下游消费
+- `preferred_mapping`：当前更像 `grasp` 还是 `pinch`
+- `grasp_close`：抓握闭合程度，范围 `[0, 1]`
+- `effective_pinch_strength`：有效捏合强度，范围 `[0, 1]`
+- `finger_flex`：五根手指各自的弯曲程度
+
+### 4. 打开 SVH 9 通道预览
+
+```bash
 python src/main.py --config configs/svh_9ch_preview.yaml --print-json
 ```
 
-## Unity 仿真联动
+会额外输出 `svh_preview`，并使用更接近 SVH / Unity 参考实现的 9 通道顺序：
 
-这一节只说明“本地 Unity 虚拟手联动预览”怎么开。  
-它属于可选扩展，不是 baseline 启动前提。
+1. `thumb_flexion`
+2. `thumb_opposition`
+3. `index_finger_distal`
+4. `index_finger_proximal`
+5. `middle_finger_distal`
+6. `middle_finger_proximal`
+7. `ring_finger`
+8. `pinky`
+9. `finger_spread`
 
-### 预期链路
+重点看：
 
-联动链路是：
+- `svh_preview.valid`
+- `svh_preview.target_channels`
+- `svh_preview.target_positions`
+- `svh_preview.target_ticks_preview`
 
-`21 个视觉关键点 -> 连续手部特征 -> 9 个 SVH 预览通道 -> Unity 20 个关节展开`
+注意：`target_ticks_preview` 只是 preview ticks，不是已经验证过的真机编码器命令。
 
-注意：
-
-- Unity 虚拟手的运动不等于 21 个关键点一一直接映射。
-- 机械手本身存在自由度和关节耦合限制，所以不可能完全等同于真人手。
-- 如果中指、无名指、小指的表现和真人有差异，优先先判断是否是机械结构限制，而不是先怀疑 Python 检测失效。
-
-### 前置条件
-
-- 已安装 Unity Editor，并能打开本地 Unity 工程 `RoboticArm`
-- 已安装本项目 Python 依赖
-- 本机可以同时运行 Unity 和 Python
-
-### Unity 侧操作
-
-1. 用 Unity Hub 打开 Unity 工程 `RoboticArm`
-2. 打开场景：`Assets/Scenes/Hnad.unity`
-3. 在层级面板中选中挂载了 `RobotControlScript` 的对象
-4. 在 `Inspector` 里确认以下参数：
-
-- `Enable Baseline Udp Preview = true`
-- `Baseline Udp Listen Port = 18080`
-- `Apply Baseline Preview To Hardware = false`
-- `Log Baseline Preview Packets = false`
-- `Enable Legacy Gesture Snapping = false`
-
-说明：
-
-- `Log Baseline Preview Packets` 默认建议关闭，否则 Unity Console 会每帧刷日志，影响实时性观察。
-- `Enable Legacy Gesture Snapping` 默认必须关闭。它是旧的离散手势模板吸附逻辑，会把连续动作压回固定姿态，干扰当前 UDP 连续预览链。
-
-5. 点击 Unity 的 `Play`
-
-### Python 侧操作
-
-在 `single-hand-teleop-baseline/` 目录下运行：
+### 5. Unity UDP 预览
 
 ```bash
 python src/main.py --config configs/unity_udp_preview.yaml
 ```
 
-这份配置会默认启用：
+这份配置会启用：
 
-- `unity_udp_enabled: true`
-- `unity_udp_host: 127.0.0.1`
-- `unity_udp_port: 18080`
-- `enable_control_extension: true`
-- `svh_enable_preview: true`
-- `svh_preview_layout: svh_9ch`
+- `control_representation`
+- `svh_preview`
+- `svh_9ch` 布局
+- UDP 发送到 `127.0.0.1:18080`
 
-### 联动成功时你会看到什么
+Unity 侧需要有对应脚本监听端口 `18080`。这条链路适合看虚拟手是否能跟随右手动作，不代表真实硬件已经可控。
 
-- OpenCV 预览窗口正常运行
-- Unity 场景里的虚拟手开始跟着当前右手动作更新
-- `open / fist / pinch` 会比较明显
-- 中间连续动作也会跟着变化，不再只剩几种离散姿态
+## 输入镜像和左右手
 
-### 如果没动，优先检查这些
+MediaPipe 的左右手标签会受镜像视角影响。
 
-1. Unity 场景是否真的是 `Assets/Scenes/Hnad.unity`
-2. `RobotControlScript` 上的 `Enable Baseline Udp Preview` 是否开启
-3. Unity 监听端口是否是 `18080`
-4. Python 侧是否真的用了 `configs/unity_udp_preview.yaml`
-5. `Enable Legacy Gesture Snapping` 是否被错误打开
-6. `Log Baseline Preview Packets` 是否开着导致 Console 过度刷屏，影响观察
+默认情况下，项目按“普通摄像头画面”处理。如果你的输入已经是自拍镜像视角，运行时加：
 
-### 如果动作“不像真人手”
+```bash
+python src/main.py --config configs/default.yaml --input-mirrored
+```
 
-先区分两类原因：
+这个选项会影响右手筛选。如果你发现自己伸右手却一直检测不到右手，优先试一下它。
 
-1. 代码映射问题
+## 输出数据长什么样
 
-- 完全不动
-- 只有拇指和食指动
-- 明显只会固定几种姿态
-- 一开 `Enable Legacy Gesture Snapping` 就吸到模板手势
-
-2. 机械手自由度限制
-
-- 中指、无名指、小指跟随存在耦合
-- 某些手指不可能像真人那样完全独立
-- 半握、分指、捏合的视觉效果与真人不同，但整体趋势一致
-
-如果已经确认是第二类，那更像是机械手设计约束，而不是 baseline 检测主链路故障。
-
-## 运行模式
-
-| 模式 | 进入方式 | 启用内容 | 额外环境要求 |
-|---|---|---|---|
-| Baseline | `configs/default.yaml` | 检测、右手筛选、特征、手势、可视化、JSON / JSONL | 实时模式需要摄像头；也可以配合 `--video-file` 读取视频 |
-| Baseline 无界面 | `--no-gui` 或 `--headless` | 同一条 baseline 链路，但不打开 OpenCV 窗口 | 不需要 GUI |
-| control 扩展 | `enable_control_extension: true` 或 `--enable-control` | baseline + `control_representation` | 不需要硬件 |
-| SVH 预览扩展 | `svh_enable_preview: true` 或 `--preview-svh` | baseline + `control_representation` + `svh_preview` + mock 传输 | 不需要真实 SVH |
-| Unity UDP 预览 | `configs/unity_udp_preview.yaml` | baseline + `control_representation` + `svh_preview` + Unity 本地 UDP 联动 | 需要本地 Unity 工程与场景 |
-
-默认行为：
-
-- [configs/default.yaml](configs/default.yaml) 默认运行 baseline-only 模式
-- 默认启动目标是单右手 webcam / video baseline
-- `control_representation` 和 `svh_preview` 默认关闭
-- 扩展失败时会退化为无效占位对象，而不是拖垮 baseline 主循环
-- 不支持的非 mock SVH transport 会打 warning，并保持在 preview-only 模式
-
-## Payload 契约
-
-导出的逐帧 payload 使用一份固定的 canonical schema。
-
-Canonical 顶层字段：
+每一帧最终都会被整理成一份固定格式的 payload。顶层主要字段是：
 
 - `timestamp`
 - `frame_index`
 - `detected`
 - `handedness`
 - `confidence`
-- `control_ready`
 - `gesture_raw`
 - `gesture_stable`
 - `pinch_distance_norm`
 - `hand_open_ratio`
 - `finger_curl`
-- `landmarks_2d`
-- `landmarks_3d`
+- `control_ready`
 - `control_representation`
 - `svh_preview`
 - `fps`
 - `latency_ms`
 
-已弃用别名：
+最常看的几个字段：
 
-- `gesture` -> `gesture_stable`
-- `svh` -> `svh_preview`
+- `detected`：这一帧有没有检测到目标右手
+- `gesture_stable`：去抖后的稳定手势
+- `control_ready`：下游是否应该消费这一帧
+- `finger_curl`：五指弯曲程度
+- `control_representation`：硬件无关的连续控制层
+- `svh_preview`：给 SVH / Unity 看的预览层
 
-参考文件：
+完整 contract 在这里：
 
 - [schemas/frame_payload.schema.json](schemas/frame_payload.schema.json)
 - [src/output/frame_payload_contract.py](src/output/frame_payload_contract.py)
 
-示例 payload 文件：
+示例数据在这里：
 
-- [examples/sample_output.json](examples/sample_output.json) 用于默认 baseline 模式
-- [examples/sample_output_svh_9ch.json](examples/sample_output_svh_9ch.json) 用于 `svh_9ch` preview 模式
+- [examples/sample_output.json](examples/sample_output.json)
+- [examples/sample_output_svh_9ch.json](examples/sample_output_svh_9ch.json)
+- [examples/sample_session.jsonl](examples/sample_session.jsonl)
 
-开启 `--save-jsonl` 后，运行期 JSONL 日志会写入 `outputs/`。
+## 代码地图
 
-## 这条 Baseline 不是什么
+核心入口：
 
-- Unity runtime 不是启动、测试或验证 baseline 的必需条件
-- 真实 SVH 硬件控制不是 baseline 启动前提
-- 双手或更广义的多手行为不属于当前支持的 baseline 主路径
-- preview 类扩展不能被当成生产可用的机器人控制或游戏引擎集成证明
+- [src/main.py](src/main.py)：主循环、命令行参数、运行模式、扩展链路
 
-## 扩展说明
+输入：
 
-`control_representation`：
+- [src/capture/webcam.py](src/capture/webcam.py)：摄像头输入
+- [src/capture/video_file.py](src/capture/video_file.py)：视频文件输入
 
-- 可选扩展层
-- 与硬件无关的中间表示
-- 不要求 baseline 启动时必须启用
+感知：
 
-`svh_preview`：
+- [src/perception/mediapipe_hand.py](src/perception/mediapipe_hand.py)：MediaPipe 手部检测
+- [src/perception/hand_filter.py](src/perception/hand_filter.py)：选择右手
+- [src/perception/landmark_quality.py](src/perception/landmark_quality.py)：判断当前关键点质量是否适合控制
 
-- 可选的 preview-only 扩展
-- 适合 JSON / JSONL 记录和后续集成联调
-- 不等于真实硬件安全控制链路
+特征与手势：
 
-关于下游字段语义，请见 [docs/downstream_preview_contract.md](docs/downstream_preview_contract.md)。
+- [src/features/hand_features.py](src/features/hand_features.py)：提取 pinch、张开比例、五指 curl
+- [src/features/geometry_utils.py](src/features/geometry_utils.py)：几何工具函数
+- [src/gesture/rule_based_gesture.py](src/gesture/rule_based_gesture.py)：规则手势分类和去抖
 
-## 未来扩展方向
+控制和 SVH 预览：
 
-可能的后续工作包括：
+- [src/control/control_representation.py](src/control/control_representation.py)：把视觉特征变成控制中间表示
+- [src/svh/svh_adapter.py](src/svh/svh_adapter.py)：把控制中间表示变成 SVH preview
+- [src/svh/svh_layout.py](src/svh/svh_layout.py)：SVH 9 通道顺序和 preview ticks 参考值
+- [src/svh/svh_protocol.py](src/svh/svh_protocol.py)：协议 preview skeleton
+- [src/svh/svh_transport_mock.py](src/svh/svh_transport_mock.py)：mock 传输层
 
-- 更广泛的双手或多手感知实验
-- Unity 或其他下游 runtime 适配器
-- 超出当前 mock preview 路径的真实传输和硬件控制层
+输出和可视化：
 
-这些方向与默认 baseline 有意保持解耦，这样单右手视觉链路仍然能保持易安装、易运行、易验证。
+- [src/output/json_exporter.py](src/output/json_exporter.py)：JSON、JSONL、UDP 输出
+- [src/output/frame_payload_contract.py](src/output/frame_payload_contract.py)：payload 标准化和校验
+- [src/visualize/status_panel.py](src/visualize/status_panel.py)：OpenCV 状态面板
 
-## 验证
+配置：
 
-在 `single-hand-teleop-baseline/` 目录下的最小验证：
+- [configs/default.yaml](configs/default.yaml)：默认 baseline
+- [configs/svh_9ch_preview.yaml](configs/svh_9ch_preview.yaml)：SVH 9 通道预览
+- [configs/unity_udp_preview.yaml](configs/unity_udp_preview.yaml)：Unity UDP 联动预览
+
+## 测试
+
+最小检查：
 
 ```bash
 python src/main.py --help
 pytest -q tests/test_cli_smoke.py
 ```
 
-这个子项目常用的更完整验证：
+完整测试：
 
 ```bash
 python -m compileall -q src
 pytest -q
 ```
 
-如果本地也安装了 CI 才需要的工具，还可以运行：
+如果本地装了 ruff：
 
 ```bash
 python -m ruff check src tests
 ```
+
+当前测试主要覆盖：
+
+- CLI 能否正常启动
+- 配置路径解析
+- 手势规则
+- 特征提取
+- 控制表示
+- payload contract
+- JSON / JSONL / UDP 输出
+- SVH preview 映射
+- 扩展失败时是否安全降级
+
+## 常见问题
+
+### 摄像头打不开
+
+试试换相机索引：
+
+```bash
+python src/main.py --config configs/default.yaml --camera-index 1
+```
+
+### 伸右手却识别不到右手
+
+试试镜像输入参数：
+
+```bash
+python src/main.py --config configs/default.yaml --input-mirrored
+```
+
+### 没检测到手，但是程序还在跑
+
+这是正常的。payload 会输出：
+
+- `detected=false`
+- `gesture_stable="unknown"`
+- `control_ready=false`
+- `svh_preview.valid=false`
+
+这比直接崩掉更适合实时系统。
+
+### Unity 没反应
+
+先确认：
+
+- Python 用的是 `configs/unity_udp_preview.yaml`
+- Unity 监听端口是 `18080`
+- Unity 侧开启了 UDP preview
+- 本机防火墙没有拦截本地 UDP
+- Python 侧确实检测到了右手，并且 `svh_preview.valid=true`
+
+### 动作不像真人手
+
+先别急着怀疑检测坏了。SVH / Unity 虚拟手不是 21 个关键点一一映射到真人手，它更像：
+
+```text
+21 个视觉关键点 -> 连续手部特征 -> 9 个 SVH 预览通道 -> Unity 关节展开
+```
+
+中指、无名指、小指的联动和真人不同，可能是机械结构和自由度限制，也可能是映射参数还需要调。
+
+## 后续真正要做的事
+
+如果继续推进，这几件事最关键：
+
+- 清理运行时调试输出。
+- 用真实视频和摄像头多录几段 JSONL，观察 `gesture_stable` 和连续控制量是否稳定。
+- 调 Unity 侧 9 通道到 20 关节的展开效果。
+- 逐项确认 SVH 真机协议、通道方向、零位、限位、homing 和安全策略。
+- 在真机接入前实现真正的 transport、ACK、timeout、watchdog、急停和速率限制。
+
+更多下游和真机相关细节放在：
+
+- [docs/README.md](docs/README.md)
+- [docs/downstream_preview_contract.md](docs/downstream_preview_contract.md)
+- [docs/svh_real_hardware_calibration_table.md](docs/svh_real_hardware_calibration_table.md)
+
+## 一句话总结
+
+当前项目已经完成了“单右手视觉理解 -> 连续控制表示 -> SVH / Unity 预览输出”的 baseline。
+
+它适合继续做仿真联动和后续硬件接入准备，但还不能被称为真实 SVH 硬件控制系统。

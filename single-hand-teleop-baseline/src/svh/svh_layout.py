@@ -1,8 +1,16 @@
 from __future__ import annotations
 
+"""SVH preview 的通道布局和参考 ticks。
+
+这里维护的是 preview 阶段采用的 9 通道顺序与参考开合刻度。
+它们用于 Unity / mock 预览和真机前校准规划，不代表已经完成真实设备标定。
+"""
+
 from typing import Dict, List, Tuple
 
 SVH_9CH_LAYOUT = "svh_9ch"
+"""更接近 SVH / Unity C# 参考实现的 9 通道布局名。"""
+
 SVH_9CH_NAMES = [
     "thumb_flexion",
     "thumb_opposition",
@@ -44,6 +52,11 @@ SVH_9CH_CLOSED_TICKS = [
 
 
 def get_svh_9ch_tick_refs(cfg: Dict) -> Tuple[List[int], List[int]]:
+    """读取 9 通道 open/closed ticks，并做长度检查。
+
+    这里强制 9 个值，是为了让 tick 列表和 SVH_9CH_NAMES 永远一一对应。
+    """
+
     open_ticks = cfg.get("svh_9ch_open_ticks", SVH_9CH_OPEN_TICKS)
     closed_ticks = cfg.get("svh_9ch_closed_ticks", SVH_9CH_CLOSED_TICKS)
     open_values = [int(v) for v in open_ticks]

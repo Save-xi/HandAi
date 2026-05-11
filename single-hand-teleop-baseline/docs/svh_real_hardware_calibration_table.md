@@ -1,70 +1,93 @@
-# SVH 真机接入前的校准对照表
+# SVH 真机接入前校准表
 
-## 1. 文档目的
+这份文档写给准备把当前 preview 链路继续推进到真实 SVH 灵巧手的人。
 
-这份文档只服务于一个目标：
+先把边界说清楚：
 
-- 把当前 `single-hand-teleop-baseline` 里的 `svh preview / skeleton` 与未来真实 SVH 接入之间仍然缺少的校准项拆清楚
+**当前项目已经有 SVH 风格的 preview / skeleton，但还没有完成真实硬件接入。**
 
-它不是：
-
-- 真机联调说明书
-- 最终官方协议文档
-- 对官方 SDK 的替代品
-
-当前 baseline 仍然只覆盖：
+换句话说，现在可以做：
 
 - 单右手视觉理解
 - `control_representation`
-- `svh_preview / skeleton`
-- `mock transport`
+- `svh_preview`
+- Unity / mock preview 联调
+- 协议形状和通道顺序的前置整理
 
-与真实硬件相关的 TCP/IP、串口服务、RS485、实体手 homing、限位、故障恢复和状态反馈，都还没有完成接入。
+现在还不能声称已经完成：
 
-## 2. 证据来源与可追溯性
+- 真实 SVH 协议实现
+- 真实 TCP / 串口 / RS485 发送
+- 实体手 homing / fault / limit / watchdog
+- 真实通道标定
+- 安全可用的真机控制系统
 
-当前判断主要来自两类材料：
+## 读这份文档前先确认
 
-1. 论文和说明性文字
-2. 本地 Unity / C# 参考实现
+建议先完成这些前置检查：
 
-需要特别强调：
+1. 默认 baseline 能跑通。
+2. `configs/svh_9ch_preview.yaml` 能输出 `svh_preview.valid=true` 的帧。
+3. Unity / mock preview 能看到动作趋势。
+4. 你已经理解 [下游 Preview Contract](downstream_preview_contract.md) 里的 `control_ready` / `svh_preview.valid` 门控逻辑。
 
-- 论文文字更偏高层描述，不等于逐字节协议规范
-- 本地 Unity / C# 代码是项目侧参考实现，不等于最终官方权威实现
-- 因此这里很多结论都只能写成“当前假设”或“联调前默认值”，不能写成“已经最终确认”
+如果这些还没跑通，先不要进入真机阶段。否则很容易把视觉问题、映射问题、协议问题和硬件问题混在一起。
 
-## 3. 当前已经基本对齐的主假设
+## 当前状态总览
 
-下面这些内容目前可以作为“方向基本找对了”的工程假设，但仍不应当被写成最终协议事实：
-
-| 项目 | 当前 baseline | 当前更准确的表述 |
+| 模块 | 当前状态 | 真机前结论 |
 | --- | --- | --- |
-| sync bytes | `0x4C 0xAA` | 可作为当前 preview 阶段主假设 |
-| 控制状态地址 | `0x09` | 可作为当前 preview 阶段主假设 |
-| 全通道目标位置地址 | `0x03` | 可作为当前 preview 阶段主假设 |
-| checksum 形式 | `CHECK1=sum`、`CHECK2=xor` preview | 仅可作为联调前参考默认值 |
-| 链路思路 | `TCP/IP -> 串口服务 -> RS485 -> SVH` | 仅可作为联调前链路假设 |
-| 9 通道名称和顺序 | 已与 Unity / C# 参考实现对齐 | 可作为 preview 和真机前校准的首选顺序，但不能替代实测 |
+| 单右手视觉检测 | 已实现 | 可以作为上游输入继续使用 |
+| 连续控制表示 | 已实现 | 可以继续调参，但不绑定硬件 |
+| SVH 9 通道 preview | 已实现 | 可作为真机前映射草案 |
+| preview ticks | 已实现 | 只能当参考刻度，不能直接下发 |
+| mock transport | 已实现 | 只记录命令，不做真实 I/O |
+| TCP / 串口 / RS485 | 未实现 | 真机前必须单独实现和验证 |
+| homing / fault / limit | 未实现 | 真机前必须补齐 |
+| watchdog / 急停 | 未实现 | 真机前必须补齐 |
 
-## 4. 关于 `40 / 64` 长度的当前理解
+## 证据来源和可信度
 
-当前 baseline 在 [svh_protocol.py](/D:/VR/HandAi/single-hand-teleop-baseline/src/svh/svh_protocol.py) 里采用的是“基于本地 C# 参考代码推断出的 framing 假设”：
+当前协议和通道判断主要来自：
 
-- command payload: `40`
-- command frame: `48`
-- response payload: `64`
-- response frame: `72`
+1. 论文或说明性材料。
+2. 本地 Unity / C# 参考实现。
+3. 当前 Python baseline 的 preview 代码和测试。
 
-更准确的表述应该是：
+需要保持谨慎：
 
-- 这是基于当前参考实现推断出来的 framing 假设
-- 与论文里的“包长度”描述之间仍可能存在解释差异
-- 真机接入前，仍需要通过真实收发进一步确认
+- 论文描述通常是高层结构，不等于逐字节协议规范。
+- 本地 Unity / C# 代码是参考实现，不等于官方最终协议。
+- Python 里的 `svh_protocol.py` 是 preview skeleton，不是真机驱动。
+- 所有 ticks、checksum、长度、字节序都需要真实设备收发确认。
 
-## 5. 9 通道顺序假设
+## 当前主假设
 
-当前仓库在 `svh_9ch` 模式下使用的顺序是：
+下面这些可以作为“联调前假设”，不能写成“已经最终确认”：
+
+| 项目 | 当前假设 | 可信度 |
+| --- | --- | --- |
+| sync bytes | `0x4C 0xAA` | 中等 |
+| 控制状态地址 | `0x09` | 中等 |
+| 全通道目标地址 | `0x03` | 中等 |
+| command payload | `40` bytes | 中等偏低 |
+| command frame | `48` bytes | 中等偏低 |
+| response payload | `64` bytes | 中等偏低 |
+| response frame | `72` bytes | 中等偏低 |
+| checksum | `CHECK1=sum`、`CHECK2=xor` preview | 低，需要实测 |
+| 字节序 | 默认 little endian | 低，需要实测 |
+| 链路 | `TCP/IP -> 串口服务 -> RS485 -> SVH` | 中等，需要现场确认 |
+| 9 通道顺序 | 与 Unity / C# 参考实现对齐 | 中等，可作优先校准顺序 |
+
+相关代码：
+
+- [../src/svh/svh_protocol.py](../src/svh/svh_protocol.py)
+- [../src/svh/svh_layout.py](../src/svh/svh_layout.py)
+- [../src/svh/svh_adapter.py](../src/svh/svh_adapter.py)
+
+## 9 通道顺序
+
+当前 `svh_9ch` layout 使用这个顺序：
 
 1. `thumb_flexion`
 2. `thumb_opposition`
@@ -76,144 +99,185 @@
 8. `pinky`
 9. `finger_spread`
 
-更准确的理解是：
+当前判断：
 
-- 当前 9 通道顺序已经与参考 Unity / C# 实现对齐
-- 这很适合作为 preview 层和真机前校准的首选顺序
-- 但它仍不能替代设备实测确认
+- 这个顺序已经和 Unity / C# 参考实现对齐。
+- 它适合继续作为 preview 和真机前校准的首选顺序。
+- 它仍然不等于真实设备通道已经实测确认。
 
-同时要注意：
+真机前必须逐通道确认：
 
-- 这些名称是当前软件层的 preview 命名
-- 它们不等价于已经证明每个通道都和真实机械关节一一对应
+- 通道是否存在。
+- 正方向是否正确。
+- open / close 的物理方向是否一致。
+- 相邻通道是否存在耦合或串扰。
+- 该通道安全最小值和最大值是多少。
 
-## 6. ticks 语义声明
+## preview 映射链路
 
-当前 [svh_layout.py](/D:/VR/HandAi/single-hand-teleop-baseline/src/svh/svh_layout.py) 与 [svh_9ch_preview.yaml](/D:/VR/HandAi/single-hand-teleop-baseline/configs/svh_9ch_preview.yaml) 中的：
+当前 `svh_preview` 的生成过程是：
+
+```text
+MediaPipe 21 点
+  -> hand_features
+  -> control_representation
+  -> svh_adapter 计算每个通道 alpha
+  -> normalized target_positions
+  -> target_ticks_preview
+```
+
+更短地说：
+
+```text
+视觉特征 -> 控制中间层 -> 9 通道 alpha -> 归一化位置 -> preview ticks
+```
+
+这里有两个关键点：
+
+- `target_positions` 是 Unity / preview 更应该直接消费的值。
+- `target_ticks_preview` 是最后一层参考换算，不是硬件安全命令。
+
+## ticks 语义
+
+当前配置里有两组 ticks：
 
 - `svh_9ch_open_ticks`
 - `svh_9ch_closed_ticks`
 
-都应该被理解为：
+它们出现在：
 
-- 当前 preview 阶段的参考刻度
-- 来源于参考实现的 home-setting 风格区间
-- 不是已经绑定真实 homing 零位的最终编码器命令值
-- 也不是已经过真实 SVH 安全验证的最终上下限
+- [../configs/svh_9ch_preview.yaml](../configs/svh_9ch_preview.yaml)
+- [../configs/unity_udp_preview.yaml](../configs/unity_udp_preview.yaml)
+- [../src/svh/svh_layout.py](../src/svh/svh_layout.py)
 
-## 7. 当前 preview 映射的优先级
+当前只能这样理解：
 
-当前 `svh_9ch` 模式里的命令合成顺序是：
+- 它们是 preview 阶段参考刻度。
+- 它们更像来源于参考实现的 home-setting 风格区间。
+- 它们没有绑定到真实设备的 homing 零位。
+- 它们没有经过真实 SVH 安全限位验证。
+- 它们不能直接作为真机闭合上限。
 
-1. 先从 `control_representation` 或 `gesture_fallback` 计算每个通道的 `alpha`
-2. 再把 `alpha` 映射成归一化 `target_positions`
-3. 最后再映射成 `target_ticks_preview`
+真机前必须替换或重新确认：
 
-也就是：
+- 每个通道的 home / zero。
+- 每个通道的 open 参考值。
+- 每个通道的 closed 安全上限。
+- 每个通道的正负方向。
+- 每个通道的速度和步进限制。
 
-```text
-alpha -> normalized position -> preview ticks
-```
+## 真机前优先校准的配置
 
-所以更准确的说法是：
-
-- scale 先作用在 `alpha`
-- `open_ticks / closed_ticks` 在最后一层负责把 `alpha` 映射到 ticks
-
-## 8. 真机前最需要继续校准的参数
-
-如果未来继续沿用这个 baseline，下面这些配置项最值得优先按设备重新校准：
-
-| 配置项 | 当前作用 | 真机前建议处理方式 |
+| 配置项 | 当前作用 | 真机前建议 |
 | --- | --- | --- |
-| `svh_preview_layout` | 选择 `compact5` 或 `svh_9ch` | 真机侧建议优先围绕 `svh_9ch` 校准 |
-| `svh_9ch_open_ticks` | 9 通道 open 参考 ticks | 替换为真实设备的 home/open 参考值 |
-| `svh_9ch_closed_ticks` | 9 通道 closed 参考 ticks | 替换为真实设备的安全闭合上限 |
-| `svh_thumb_grasp_scale` | 调整 grasp 时拇指 flexion 强度 | 按真实抓握姿态重新校准 |
-| `svh_thumb_opposition_scale` | 调整拇指对掌程度 | 按 open / grasp / pinch 三类姿态重新校准 |
-| `svh_pinch_support_scale` | 调整 pinch 时支撑手指参与度 | 按真实 pinch 稳定性重新校准 |
-| `svh_open_spread_scale` | open 时的 spread 基线 | 按张手姿态重新校准 |
-| `svh_grasp_spread_scale` | grasp 时的 spread 基线 | 按抓握姿态重新校准 |
-| `svh_pinch_spread_scale` | pinch 时的 spread 基线 | 按 pinch 姿态重新校准 |
-| `svh_protocol_sync_bytes` | preview sync header | 当前可先保持不变，真机前再确认 |
-| `svh_protocol_use_little_endian` | preview 字节序 | 必须通过真实收发确认 |
-| `svh_enable_gesture_fallback` | continuous features 失效时是否允许 fallback | 真机阶段建议继续保持 `false` |
+| `svh_preview_layout` | 选择 `compact5` 或 `svh_9ch` | 真机前优先围绕 `svh_9ch` 做校准 |
+| `svh_9ch_open_ticks` | 9 通道 open 参考 ticks | 替换为实测 open / home 参考值 |
+| `svh_9ch_closed_ticks` | 9 通道 closed 参考 ticks | 替换为实测安全闭合上限 |
+| `svh_thumb_grasp_scale` | 抓握时拇指 flexion 强度 | 按真实抓握姿态调 |
+| `svh_thumb_opposition_scale` | 拇指对掌程度 | 按 open / grasp / pinch 三类姿态调 |
+| `svh_pinch_support_scale` | pinch 时支撑手指参与度 | 按真实 pinch 稳定性调 |
+| `svh_open_spread_scale` | open 时 spread 基线 | 按张手姿态调 |
+| `svh_grasp_spread_scale` | grasp 时 spread 基线 | 按抓握姿态调 |
+| `svh_pinch_spread_scale` | pinch 时 spread 基线 | 按 pinch 姿态调 |
+| `svh_protocol_sync_bytes` | preview sync header | 当前可先保持，真机前实测确认 |
+| `svh_protocol_use_little_endian` | preview 字节序 | 必须实测确认 |
+| `svh_enable_gesture_fallback` | 特征失效时是否用手势兜底 | 真机阶段建议保持 `false` |
 
-## 9. Packet / 协议层仍需确认的部分
-
-当前 [svh_protocol.py](/D:/VR\\HandAi\\single-hand-teleop-baseline/src/svh/svh_protocol.py) 仍然只是更贴近论文和 Unity / C# 驱动的 preview skeleton。下面这些都还需要真机前继续确认：
+## 协议层待确认项
 
 | 项目 | 当前状态 | 真机前必须确认 |
 | --- | --- | --- |
-| `0x09 SetControlState` payload | 只把首字节写入 40-byte payload preview | 控制状态位含义、保留位、是否还有额外字段 |
-| `0x03 SetControlCommand AllChannels` payload | 预览时按 9 个 `int32` 打包 | 真实字节序、真实通道顺序、padding 规则 |
-| 地址高 4 位语义 | 只在注释里保留“可能用于 channel selector” | 单通道命令时高 4 位到底如何编码 |
-| `length` 字段 | 当前跟随 payload / frame 假设 | 论文里的“包长度”到底指 payload 还是整帧 |
-| `CHECK1 / CHECK2` | 已做 `sum/xor` preview | 计算范围、截断规则、是否包含地址和长度等 |
-| `index` / sequence | 尚未做真实收发序号语义 | 是否要求递增、回环、重传相关规则 |
-| response parsing | 还没有解析真实返回帧 | 状态、fault、位置、电流、编码器值等真实结构 |
+| `0x09 SetControlState` | 只构造 preview skeleton | 控制状态位、保留位、enable / disable 语义 |
+| `0x03 SetControlCommand AllChannels` | preview 中按 9 个 `int32` 打包 | 真实通道顺序、字节序、padding 规则 |
+| 地址高 4 位 | 注释里保留 channel selector 可能性 | 单通道命令时如何编码 |
+| length 字段 | 跟随当前 payload / frame 假设 | length 指 payload 还是整帧 |
+| `CHECK1 / CHECK2` | preview 中使用 sum / xor | 计算范围、截断规则、是否包含 header / addr / length |
+| sequence / index | 尚未实现 | 是否需要递增、回环、重传 |
+| response parsing | 尚未实现 | 状态、fault、位置、电流、编码器值等结构 |
 
-## 10. 链路与时序仍需确认的部分
+建议真机前先写独立协议小工具，不要一开始就把视觉 pipeline 接进去。先能稳定发一条安全小命令，再考虑接上实时视觉。
 
-就算 packet 字节已经对了，真实链路仍然需要单独校准：
+## 链路与时序待确认项
 
 | 层级 | 当前状态 | 真机前必须确认 |
 | --- | --- | --- |
-| TCP 客户端 | 尚未实现 | 连接、重连、超时、阻塞策略 |
-| 串口服务 | 只知道链路存在 | IP、端口、波特率、串口参数、缓冲策略 |
-| RS485 | 尚未接入 | 半双工时序、收发切换、设备地址冲突 |
-| 初始化顺序 | 只有 preview `SetControlState` 概念 | 上电、清 fault、enable channels、homing 的真实顺序 |
-| 发送节奏 | 当前只受摄像头帧率驱动 | 真实刷新频率、去抖、节流、丢包策略 |
-| 安全策略 | 当前更保守，默认不发 fallback | 真机仍需速度/步进限制、急停、越界保护 |
+| TCP 客户端 | 未实现 | 连接、重连、超时、阻塞策略 |
+| 串口服务 | 只知道链路可能存在 | IP、端口、波特率、串口参数、缓冲策略 |
+| RS485 | 未接入 | 半双工收发切换、设备地址、总线冲突 |
+| 初始化顺序 | 只有 preview 控制状态概念 | 上电、清 fault、enable、homing 的真实顺序 |
+| 发送节奏 | 当前跟随摄像头帧率 | 真实刷新频率、节流、丢帧策略 |
+| 安全策略 | 默认 invalid 不输出 preview 命令 | 仍需软硬限位、急停、速度限制 |
 
-## 11. 建议的责任分工
+## 建议责任分工
 
-为了避免之后出现“都以为别人确认过了”的情况，建议至少按下面几类角色拆责任：
-
-| 角色 | 主要负责确认内容 |
+| 角色 | 主要负责 |
 | --- | --- |
-| 视觉 / 映射侧 | `control_representation` 是否稳定、`open/fist/pinch` 映射是否符合操作意图、各类 scale 如何调 |
-| 协议 / 链路侧 | sync bytes、地址、长度、endianness、checksum、TCP / 串口服务 / RS485 收发 |
-| 硬件 / 标定侧 | homing、零位、正负方向、机械限位、安全闭合范围、各通道 open/closed ticks |
-| 集成验收侧 | 单通道小步进、全通道联动、fault 恢复、无效帧下的安全性 |
+| 视觉 / 映射侧 | `control_representation` 稳定性、手势阈值、scale 调参 |
+| 协议 / 链路侧 | sync、地址、长度、字节序、checksum、TCP / 串口 / RS485 |
+| 硬件 / 标定侧 | homing、零位、方向、机械限位、安全闭合范围 |
+| 集成验收侧 | 单通道小步进、全通道联动、fault 恢复、invalid 帧安全性 |
 
-## 12. 真机接入前的最小验收清单
+这几个责任最好不要混在一个“看起来能动了”的结论里。真实硬件阶段最怕的是：视觉侧以为协议确认了，协议侧以为硬件限位确认了，硬件侧以为软件不会发危险值。
 
-建议至少按下面顺序做验收，并明确“什么算通过”：
+## 最小真机验收顺序
 
-| 步骤 | 验收内容 | 通过判据 |
+建议按下面顺序推进，每一步单独记录通过标准。
+
+| 步骤 | 做什么 | 通过标准 |
 | --- | --- | --- |
-| 1 | 只连链路，不发运动命令 | TCP 稳定连接；如有 response，至少能收到可解析头部 |
-| 2 | 只测 `SetControlState` | 控制器状态有可观察变化；没有新增 fault |
-| 3 | 只测单通道小步进 | 指定通道朝预期方向发生小位移；无越界、无碰撞、无 fault |
-| 4 | 校准 `open_ticks / closed_ticks` | 每个通道完成 zero / home / direction / 安全上下限确认 |
-| 5 | 再测 `AllChannels` | 多通道同时响应；没有明显串扰；无 fault；姿态组合符合预期 |
-| 6 | 最后接入视觉输出 | 无手 / invalid 帧不发危险命令；`open/fist/pinch` 稳定；过渡帧不产生明显错误动作 |
+| 1 | 只连链路，不发运动命令 | TCP 稳定连接；如有 response，至少能解析头部 |
+| 2 | 只测控制状态 | enable / disable 有可观察变化；不产生 fault |
+| 3 | 单通道极小步进 | 指定通道朝预期方向小幅运动；无越界、无碰撞、无 fault |
+| 4 | 校准 open / closed ticks | 每个通道完成 zero、方向、安全上下限确认 |
+| 5 | 测全通道命令 | 多通道同时响应；无明显串扰；无 fault |
+| 6 | 加入限速和平滑 | 连续命令不会抖动、猛跳或超过速度限制 |
+| 7 | 接入视觉输出 | 无手 / invalid 帧不会发危险命令；open / fist / pinch 稳定 |
+| 8 | 故障恢复演练 | fault、断连、急停、重连都有明确行为 |
 
-## 13. 当前值得保留的 preview 设计
+建议每一步都保留日志：
 
-在进入真机前，下面这些设计值得继续保留：
+- 发出的 raw packet
+- 收到的 raw response
+- 解析后的状态
+- 通道目标值
+- 设备实际运动观察
+- 是否触发 fault
+
+## 真机阶段必须保留的保守设计
+
+当前 preview 里有几处设计值得保留到真机阶段：
 
 - `control_representation`
-  - 把视觉特征和硬件命令隔开
+  - 视觉和硬件命令之间必须有中间层。
 - `features_valid / command_ready`
-  - 把“特征可算”和“命令可发”分层
+  - “能算出特征”和“可以下发命令”要分开。
 - `svh_enable_gesture_fallback: false`
-  - 更接近硬件阶段需要的保守策略
-- `svh_9ch` + `target_ticks_preview`
-  - 足够接近 SVH，但又没有假装已经完成真机接入
+  - 真机阶段不要用离散手势兜底生成动作。
+- invalid 帧清空目标数组
+  - 无效帧应当不产生新目标。
+- `target_positions` 优先于 `target_ticks_preview`
+  - 先确认归一化语义和趋势，再把 ticks 绑定到真实设备。
 
-## 14. 当前仍不能声称已经完成的部分
+## 当前不能写进论文或汇报里的表述
 
-基于当前仓库状态，仍然不能声称：
+不要写：
 
-- 已完成真实 SVH 协议实现
-- 已完成真实 TCP/IP 到串口服务的发送
-- 已完成真实 RS485 联调
-- 已完成实体手通道标定
-- 当前 preview ticks 可以直接作为真机命令
+- 已完成真实 SVH 控制。
+- 已完成 SVH 通信协议。
+- 当前 ticks 已可直接下发。
+- 已完成实体手通道标定。
+- 已完成 TCP/IP 到 RS485 的稳定控制链路。
 
-更准确的说法应该是：
+更准确的写法：
 
-- 现在已经有一套更接近 SVH 的 `preview / skeleton`
-- 同时也已经把未来真实接入前仍需继续校准的关键点、公式和验收项拆清楚了
+- 已完成单右手视觉遥操作 baseline。
+- 已完成硬件无关的连续控制表示。
+- 已完成 SVH 风格的 9 通道 preview 映射。
+- 已整理真实 SVH 接入前所需的协议、标定和安全检查项。
+- 后续仍需在真实硬件上完成通信、标定、限位和安全闭环验证。
+
+## 最后提醒
+
+只要还没有完成真实设备上的 homing、限位、fault、watchdog、急停和 response parsing，`svh_preview` 就只能叫 preview。
+
+这个名字保守一点，但会保护项目不在最危险的地方自信过头。

@@ -1,10 +1,23 @@
 from __future__ import annotations
 
+"""从 21 个手部关键点提取连续几何特征。
+
+这一层是 CV 算法里最核心的“从点到量”步骤：
+- 计算拇指-食指捏合距离；
+- 计算整只手张开程度；
+- 估计五根手指各自弯曲程度；
+- 保留 2D / 3D landmark，供可视化、调试和下游记录使用。
+
+后续 gesture / control / SVH 模块都尽量消费这些连续量，
+而不是直接再次解析 21 个原始关键点。
+"""
+
 import math
 from typing import Dict, List, Sequence, Tuple
 
 from features.geometry_utils import clamp01, euclidean, joint_angle, polyline_length
 
+# MediaPipe Hands 的固定 21 点索引。保留具名常量能避免后续代码里到处出现魔法数字。
 WRIST = 0
 THUMB_CMC = 1
 THUMB_MCP = 2
@@ -27,10 +40,13 @@ LITTLE_PIP = 18
 LITTLE_DIP = 19
 LITTLE_TIP = 20
 PALM_CENTER_POINTS = [WRIST, INDEX_MCP, MIDDLE_MCP, RING_MCP, LITTLE_MCP]
+# 低质量帧或空帧里，控制相关 finger_curl 会统一退化成这组空值。
 EMPTY_FINGER_CURL = {"thumb": None, "index": None, "middle": None, "ring": None, "little": None}
 
 
 def _safe_ratio(num: float, den: float, default: float = 0.0) -> float:
+    """安全除法：尺度过小时返回默认值，避免实时链路里炸出除零错误。"""
+
     if den <= 1e-6:
         return default
     return num / den
@@ -60,6 +76,8 @@ def _has_complete_landmarks_3d(
 
 
 def _as_xyz(landmarks_2d: List[Tuple[float, float]], landmarks_xyz: List[Tuple[float, float, float]] | None) -> List[Tuple[float, float, float]]:
+    """优先使用 MediaPipe 3D-like 坐标；缺失时用 z=0 的 2D 退化版本。"""
+
     if _has_complete_landmarks_3d(landmarks_xyz, expected_len=len(landmarks_2d)):
         return [(float(x), float(y), float(z)) for x, y, z in landmarks_xyz]
     return [(x, y, 0.0) for x, y in landmarks_2d]
@@ -80,6 +98,8 @@ def _bend_from_angle(angle: float) -> float:
 
 
 def _chain_compression(landmarks_xyz: Sequence[Sequence[float]], joint_indices: Sequence[int]) -> float:
+    """衡量一条手指骨架链相对“完全伸直”被压缩了多少。"""
+
     chain_points = [landmarks_xyz[idx] for idx in joint_indices]
     chain_len = polyline_length(chain_points)
     if chain_len <= 1e-6:
@@ -122,6 +142,13 @@ def extract_hand_features(
     timestamp: float,
     landmarks_xyz: List[Tuple[float, float, float]] | None = None,
 ) -> Dict:
+    """提取单只手的 baseline 特征。
+
+    返回的字典还不是最终 frame payload，它只包含视觉侧基础字段。
+    后续主流程会继续补上 gesture、control_representation、svh_preview、
+    frame_index、fps、latency_ms 等字段。
+    """
+
     # 让特征提取尽量保持“总是可返回”的风格，方便测试和非摄像头路径：
     # 当 landmark 列表损坏或不完整时，退化为空帧 payload，
     # 而不是在几何代码深处抛出索引错误。
@@ -131,6 +158,7 @@ def extract_hand_features(
     landmarks_xyz = _as_xyz(landmarks_2d, landmarks_xyz)
     palm_size = _palm_size(landmarks_2d)
     palm_center = _mean_point([landmarks_2d[idx] for idx in PALM_CENTER_POINTS])
+    # pinch_distance_norm 是后续 pinch 判断和捏合控制最重要的视觉线索。
     pinch_distance_raw = euclidean(landmarks_2d[THUMB_TIP], landmarks_2d[INDEX_TIP])
     pinch_distance_norm = _safe_ratio(pinch_distance_raw, palm_size, default=1.0)
 
@@ -184,6 +212,8 @@ def invalidate_control_features(features: Dict) -> Dict:
 
 
 def empty_features(timestamp: float) -> Dict:
+    """构造“当前没有可用右手”的规范基础特征。"""
+
     return {
         "timestamp": timestamp,
         "detected": False,
