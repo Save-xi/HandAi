@@ -1,5 +1,16 @@
 from __future__ import annotations
 
+"""把 control_representation 转换成 SVH / Unity 风格的 preview 命令。
+
+这里仍然是 preview 层，不是真机驱动层。它做的是：
+- 根据控制中间层选择 grasp 或 pinch 映射；
+- 生成 compact5 或 svh_9ch 通道目标；
+- 输出归一化 target_positions；
+- 在 svh_9ch 下额外给出 target_ticks_preview 作为调试参考。
+
+真实硬件发送、ACK、限位、homing、fault 处理都不在这个模块里。
+"""
+
 from typing import Dict, List
 
 from control.control_representation import build_control_representation
@@ -10,9 +21,12 @@ from svh.svh_layout import SVH_9CH_LAYOUT, SVH_9CH_NAMES, get_svh_9ch_tick_refs
 from svh.svh_protocol import SET_ALL_CHANNELS_ADDR, SET_CONTROL_STATE_ADDR
 
 COMPACT5_LAYOUT = "compact5"
+"""轻量 5 通道预览：thumb/index/middle/ring/little。"""
 
 
 def _lerp(open_value: float, closed_value: float, alpha: float) -> float:
+    """把 [0, 1] 的闭合程度 alpha 映射到配置中的 open/closed 数值区间。"""
+
     return open_value + clamp01(alpha) * (closed_value - open_value)
 
 
@@ -21,6 +35,8 @@ def _float_list(values: List[float]) -> List[float]:
 
 
 def _blend_finger_follow(finger_flex: float, guide_close: float, *, flex_weight: float, guide_weight: float) -> float:
+    """让单指既跟随自己的 curl，也跟随整体抓握引导。"""
+
     return clamp01(flex_weight * finger_flex + guide_weight * guide_close)
 
 
@@ -33,10 +49,21 @@ def _blend_support_follow(
     support_weight: float,
     grasp_weight: float,
 ) -> float:
+    """pinch 时支撑手指的混合策略。
+
+    middle/ring/little 不应该像拇指食指那样完全闭合，但也不能完全不动。
+    support_floor 给它们一个最小参与度，grasp_close 保留半握状态的影响。
+    """
+
     return clamp01(flex_weight * finger_flex + support_weight * support_floor + grasp_weight * grasp_close)
 
 
 def _protocol_hint(cfg: Dict) -> Dict[str, str]:
+    """写入 preview 元数据，帮助下游解释通道布局和单位。
+
+    这些字段是说明性 hint，不代表真实 SVH 协议已经完成验证。
+    """
+
     layout = _layout(cfg)
     return {
         "set_control_state_addr": f"0x{SET_CONTROL_STATE_ADDR:02X}",
@@ -50,6 +77,8 @@ def _protocol_hint(cfg: Dict) -> Dict[str, str]:
 
 
 def _invalid_preview(enabled: bool, mode: str, cfg: Dict) -> Dict:
+    """生成一个“扩展存在但当前没有可用命令”的安全对象。"""
+
     return SvhCommandPreview(
         enabled=enabled,
         mode=mode,
@@ -80,6 +109,12 @@ def _channel_count(cfg: Dict) -> int:
 
 
 def _resize_positions(values: List[float], count: int, fill_value: float) -> List[float]:
+    """让输出通道数和配置保持一致。
+
+    count 小于默认映射时截断；count 大于默认映射时用 fill_value 补齐。
+    这主要服务于 preview 实验，不建议真机阶段随意改通道数。
+    """
+
     if count <= len(values):
         return _float_list(values[:count])
     return _float_list(values + [fill_value] * (count - len(values)))
@@ -101,6 +136,12 @@ def _position_alpha(position: float, cfg: Dict) -> float:
 
 
 def _target_ticks_preview(positions: List[float], cfg: Dict) -> List[int]:
+    """把归一化 target_positions 换算成 preview ticks。
+
+    这些 ticks 只用于调试和校准规划；真实硬件接入前必须重新确认零位、
+    方向、上下限和单位。
+    """
+
     if _layout(cfg) != SVH_9CH_LAYOUT:
         return []
     open_ticks, closed_ticks = get_svh_9ch_tick_refs(cfg)
@@ -202,6 +243,11 @@ def _gesture_fallback_preview(gesture: str, cfg: Dict) -> Dict:
 
 
 def _build_compact_grasp_preview(control_representation: Dict, cfg: Dict) -> Dict:
+    """生成 5 通道抓握预览。
+
+    compact5 适合快速看五指开合趋势，不追求真实 SVH 关节结构。
+    """
+
     grasp_close = clamp01(float(control_representation["grasp_close"]))
     finger_flex = control_representation["finger_flex"]
     thumb_flex = clamp01(float(finger_flex["thumb"]))
@@ -241,6 +287,12 @@ def _build_compact_grasp_preview(control_representation: Dict, cfg: Dict) -> Dic
 
 
 def _build_svh9_grasp_preview(control_representation: Dict, cfg: Dict) -> Dict:
+    """生成 9 通道抓握预览。
+
+    svh_9ch 比 compact5 更接近 Unity / C# 参考实现：拇指 flexion 和 opposition
+    分开，食指和中指拆成远端/近端，最后加 finger_spread。
+    """
+
     grasp_close = clamp01(float(control_representation["grasp_close"]))
     finger_flex = control_representation["finger_flex"]
     thumb_flex = clamp01(float(finger_flex["thumb"]))
@@ -257,6 +309,7 @@ def _build_svh9_grasp_preview(control_representation: Dict, cfg: Dict) -> Dict:
     thumb_close = clamp01(0.75 * (grasp_close * thumb_grasp_scale) + 0.25 * thumb_flex)
     thumb_opp = clamp01(max(thumb_flex, grasp_close * thumb_opposition_scale))
     spread_alpha = clamp01((1.0 - grasp_close) * open_spread_scale + grasp_close * grasp_spread_scale)
+    # alphas 的顺序必须和 SVH_9CH_NAMES 保持一致。
     alphas = [
         thumb_close,
         thumb_opp,
@@ -290,6 +343,11 @@ def _build_grasp_preview(control_representation: Dict, cfg: Dict) -> Dict:
 
 
 def _build_compact_pinch_preview(control_representation: Dict, cfg: Dict) -> Dict:
+    """生成 5 通道捏合预览。
+
+    重点让拇指和食指跟随 pinch_close，其他手指只给较弱支撑参与。
+    """
+
     pinch_close = clamp01(
         float(
             control_representation.get(
@@ -349,6 +407,11 @@ def _build_compact_pinch_preview(control_representation: Dict, cfg: Dict) -> Dic
 
 
 def _build_svh9_pinch_preview(control_representation: Dict, cfg: Dict) -> Dict:
+    """生成 9 通道捏合预览。
+
+    与抓握不同，pinch 会突出 thumb/index 通道，同时让支撑手指保持低幅度跟随。
+    """
+
     pinch_close = clamp01(
         float(
             control_representation.get(
@@ -371,6 +434,7 @@ def _build_svh9_pinch_preview(control_representation: Dict, cfg: Dict) -> Dict:
     thumb_opposition_scale = float(cfg.get("svh_thumb_opposition_scale", 0.75))
 
     support_value = clamp01(max(support_flex, pinch_close * pinch_support_scale))
+    # alphas 的顺序必须和 SVH_9CH_NAMES 保持一致。
     alphas = [
         clamp01(0.85 * pinch_close + 0.15 * thumb_flex),
         clamp01(0.75 * pinch_close + 0.15 * thumb_flex + 0.10 * thumb_opposition_scale * grasp_close),
@@ -404,6 +468,12 @@ def _build_pinch_preview(control_representation: Dict, cfg: Dict) -> Dict:
 
 
 def build_svh_command_preview(payload: Dict, cfg: Dict) -> Dict:
+    """从完整 payload 构造 SVH preview 对象。
+
+    优先使用 control_representation。只有在显式启用 gesture_fallback 且连续特征
+    不可用时，才会退回离散手势模板。真机阶段建议保持 fallback 关闭。
+    """
+
     enabled = bool(cfg.get("svh_enable_preview", False))
     mode = str(cfg.get("svh_preview_mode", "preview" if enabled else "disabled"))
     if not enabled:

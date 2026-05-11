@@ -1,5 +1,13 @@
 from __future__ import annotations
 
+"""基于连续几何特征的轻量手势规则。
+
+这里不是训练模型，而是把 hand_features 提供的连续量粗分成几个
+可解释的控制上下文：open / fist / pinch / unknown。
+这些标签主要用于 UI、调试和选择控制映射；真正的连续控制仍依赖
+pinch_distance、hand_open_ratio、finger_curl 等数值。
+"""
+
 from typing import Dict, Iterable, List
 
 
@@ -11,6 +19,8 @@ def _mean(values: Iterable[float]) -> float:
 
 
 def _tail_count(values: List[str], target: str) -> int:
+    """统计列表尾部连续命中 target 的次数，用于简单去抖。"""
+
     count = 0
     for value in reversed(values):
         if value != target:
@@ -20,9 +30,16 @@ def _tail_count(values: List[str], target: str) -> int:
 
 
 def infer_gesture_raw(features: Dict, cfg: Dict) -> str:
+    """对单帧特征做即时手势判断。
+
+    raw 手势会比较灵敏，也可能抖动；主循环随后会通过 GestureStabilizer
+    得到 gesture_stable。
+    """
+
     if not features.get("detected", False):
         return "unknown"
 
+    # 这些阈值全部放在 config 里，方便后续用真实视频或摄像头数据调参。
     pinch_threshold = float(cfg.get("pinch_distance_norm_threshold", 0.45))
     pinch_open_ratio_min = float(cfg.get("pinch_open_ratio_min", 0.75))
     pinch_support_curl_max = float(cfg.get("pinch_support_curl_max", 0.65))
@@ -71,16 +88,25 @@ def infer_gesture(features: Dict, cfg: Dict) -> str:
 
 
 class GestureStabilizer:
-    """只依赖连续命中的、与顺序无关的手势去抖器。"""
+    """只依赖连续命中的手势去抖器。
+
+    设计目的不是做复杂时序模型，而是避免 open / fist / pinch 在相邻帧里
+    因轻微噪声来回跳。known 手势需要连续命中若干帧；unknown 通常允许
+    更快生效，因为“丢手/失效”应该尽快反映给下游。
+    """
 
     def __init__(self, confirm_frames: int = 2, unknown_confirm_frames: int = 1) -> None:
         self.confirm_frames = max(1, confirm_frames)
         self.unknown_confirm_frames = max(1, unknown_confirm_frames)
+        # 当前已经确认的稳定手势。
         self.stable_gesture = "unknown"
+        # 正在观察但还没达到确认帧数的新候选。
         self.candidate_gesture: str | None = None
         self.candidate_count = 0
 
     def update(self, raw_gesture: str | None) -> str:
+        """输入当前帧 raw 手势，返回更新后的 stable 手势。"""
+
         raw = raw_gesture or "unknown"
 
         if raw == self.stable_gesture:
@@ -104,6 +130,12 @@ class GestureStabilizer:
 
 
 def infer_stable_gesture(history: List[Dict], cfg: Dict) -> str:
+    """旧版基于 history 窗口的稳定手势推断。
+
+    主循环当前使用 GestureStabilizer 逐帧更新；这个函数保留给测试和未来
+    批处理/离线窗口逻辑参考。
+    """
+
     if not history:
         return "unknown"
 

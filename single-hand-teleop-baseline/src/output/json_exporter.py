@@ -1,5 +1,15 @@
 from __future__ import annotations
 
+"""JSON / JSONL / UDP 的统一导出器。
+
+主循环只需要把已经 normalize 过的 payload 交给 JsonExporter。
+这里再负责：
+- 写最近一帧 JSON，方便外部程序或人工检查；
+- 追加 JSONL 会话日志，方便离线分析；
+- 可选发送 Unity UDP preview；
+- 在 I/O 失败时安全停用对应输出通道。
+"""
+
 import json
 import logging
 import socket
@@ -10,6 +20,12 @@ from output.frame_payload_contract import prepare_frame_payload
 
 
 class JsonExporter:
+    """逐帧 payload 导出器。
+
+    这个类刻意把多个输出通道放在一起管理，是为了主循环保持简单：
+    生成 payload -> normalize -> export/send。各输出通道的失败状态也集中在这里。
+    """
+
     def __init__(
         self,
         output_path: str,  
@@ -25,7 +41,9 @@ class JsonExporter:
         self.output_path = output_path
         self.save_last_json = save_last_json
         self.jsonl_path = jsonl_path
+        # last-frame JSON 不一定每帧写盘；实时运行时节流可以减少磁盘压力。
         self.export_last_every_n_frames = max(1, int(export_last_every_n_frames))
+        # JSONL 可以批量 flush；崩溃风险和实时性能之间做一个可配置折中。
         self.jsonl_flush_interval = max(1, int(jsonl_flush_interval))
         self.unity_udp_enabled = bool(unity_udp_enabled)
         self.unity_udp_host = str(unity_udp_host)
@@ -35,6 +53,7 @@ class JsonExporter:
         self._jsonl_handle: TextIO | None = None
         self._unity_udp_failed = False
         self._unity_udp_socket: socket.socket | None = None
+        # pending/dirty 状态用于 close() 时补写和补 flush，避免最后几帧丢失。
         self._jsonl_pending_lines = 0
         self._last_frame_dirty = False
         self._latest_prepared_payload: Dict[str, Any] | None = None
@@ -44,6 +63,8 @@ class JsonExporter:
         self._unity_udp_send_count = 0
 
     def to_json_str(self, obj: Dict[str, Any]) -> str:
+        """生成缩进后的 canonical JSON 字符串，主要用于人工检查。"""
+
         prepared = prepare_frame_payload(obj, include_deprecated_aliases=False)
         return json.dumps(prepared, ensure_ascii=False, indent=2)
 
@@ -57,6 +78,12 @@ class JsonExporter:
         return value
 
     def to_console_obj(self, obj: Dict[str, Any], landmarks_preview_count: int = 3) -> Dict[str, Any]:
+        """生成适合控制台打印的精简对象。
+
+        landmark 和 SVH 目标数组可能很长，控制台只显示数量和前几个值，
+        避免实时打印时刷出一大屏。
+        """
+
         obj = prepare_frame_payload(obj, include_deprecated_aliases=False)
         console_obj: Dict[str, Any] = {}
         for key, value in obj.items():
@@ -95,6 +122,8 @@ class JsonExporter:
             self.logger.debug(message, *args)
 
     def _write_last_prepared_frame(self, prepared: Dict[str, Any]) -> None:
+        """把最近一帧写成完整 JSON 文件。"""
+
         path = Path(self.output_path)
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("w", encoding="utf-8") as f:
@@ -103,6 +132,8 @@ class JsonExporter:
         self._last_frame_dirty = False
 
     def _ensure_jsonl_handle(self) -> TextIO | None:
+        """懒打开 JSONL 文件句柄。"""
+
         if not self.jsonl_path or self._jsonl_failed:
             return None
         if self._jsonl_handle is None:
@@ -119,6 +150,8 @@ class JsonExporter:
         self._jsonl_pending_lines = 0
 
     def _ensure_unity_udp_socket(self) -> socket.socket | None:
+        """懒创建 UDP socket。"""
+
         if not self.unity_udp_enabled or self._unity_udp_failed:
             return None
         if self._unity_udp_socket is None:
@@ -126,6 +159,8 @@ class JsonExporter:
         return self._unity_udp_socket
 
     def _append_prepared_jsonl(self, prepared: Dict[str, Any], *, force_flush: bool) -> None:
+        """追加一行 canonical payload 到 JSONL。"""
+
         handle = self._ensure_jsonl_handle()
         if handle is None:
             return
@@ -137,6 +172,12 @@ class JsonExporter:
             self._flush_jsonl_handle()
 
     def save_last_frame(self, obj: Dict[str, Any]) -> None:
+        """立即保存 last-frame JSON。
+
+        这个方法保留给测试和手动调用；实时主循环通常用 export_prepared_frame
+        做节流写盘。
+        """
+
         if not self.save_last_json:
             return
         try:
@@ -148,6 +189,12 @@ class JsonExporter:
             self._warn(f"保存最后一帧 JSON 失败：{exc}")
 
     def append_jsonl(self, obj: Dict[str, Any]) -> None:
+        """立即追加并 flush 一行 JSONL。
+
+        这个方法保留给测试和手动调用；实时主循环通常用 export_prepared_frame
+        按 jsonl_flush_interval 批量 flush。
+        """
+
         if not self.jsonl_path or self._jsonl_failed:
             return
         try:
@@ -161,6 +208,12 @@ class JsonExporter:
             self._warn(f"追加 JSONL 日志失败；本次运行将停用 JSONL：{exc}")
 
     def export_prepared_frame(self, prepared: Dict[str, Any], *, frame_index: int) -> None:
+        """导出一帧已经准备好的 canonical payload。
+
+        prepared 这个名字表示调用方已经做过 normalize/validate，避免这里重复
+        进行昂贵或可能改变数据的处理。
+        """
+
         if self.save_last_json:
             self._latest_prepared_payload = prepared
             self._last_frame_dirty = True
@@ -185,19 +238,24 @@ class JsonExporter:
         self.send_prepared_frame(prepared)
 
     def send_prepared_frame(self, prepared: Dict[str, Any]) -> None:
+        """通过 UDP 发送 canonical payload 给 Unity preview。
+
+        UDP 是无连接、尽力而为的预览通道；发送失败后会停用本次运行的 UDP，
+        避免实时循环反复刷同一个 I/O 错误。
+        """
+
         if not self.unity_udp_enabled:
             return
         if self._unity_udp_failed:
             return
 
         udp_socket = self._ensure_unity_udp_socket()
-        print (f"UDP Socket: {udp_socket}")
         if udp_socket is None:
             return
 
         try:
             payload = json.dumps(prepared, ensure_ascii=False).encode("utf-8")
-            suc = udp_socket.sendto(payload, (self.unity_udp_host, self.unity_udp_port))
+            udp_socket.sendto(payload, (self.unity_udp_host, self.unity_udp_port))
             self._unity_udp_send_count += 1
         except OSError as exc:
             self._unity_udp_failed = True
@@ -207,6 +265,8 @@ class JsonExporter:
             self._warn(f"发送 Unity UDP 预览数据失败；本次运行将停用该通道：{exc}")
 
     def close(self) -> None:
+        """收尾导出器：补写最后一帧、flush JSONL、关闭 socket。"""
+
         if self.save_last_json and self._last_frame_dirty and self._latest_prepared_payload is not None:
             try:
                 self._write_last_prepared_frame(self._latest_prepared_payload)

@@ -1,5 +1,16 @@
 from __future__ import annotations
 
+"""单右手遥操作 baseline 的运行入口。
+
+这个文件负责把各个模块串成一条实时 pipeline：
+
+摄像头/视频 -> MediaPipe 检测 -> 右手筛选 -> 特征提取 -> 手势稳定
+-> 可选 control 表示 -> 可选 SVH preview -> JSON/JSONL/UDP/GUI 输出。
+
+注意：这里尽量只做“编排”。具体算法逻辑分别放在 perception、
+features、gesture、control、svh、output 等子模块里，方便单独测试和替换。
+"""
+
 import argparse
 import logging
 import time
@@ -31,6 +42,13 @@ from visualize.overlay_2d import compose_view
 
 @dataclass(frozen=True)
 class RuntimeMode:
+    """一次运行里真正生效的模式开关。
+
+    配置文件和 CLI 参数会先合并成 cfg，然后再收敛成 RuntimeMode。
+    这样主循环不用到处判断原始配置字段，也能避免“SVH preview 开了但
+    control 没开”这类组合状态在代码里散落。
+    """
+
     gui_enabled: bool
     headless: bool
     input_source_type: str
@@ -41,6 +59,11 @@ class RuntimeMode:
 
 
 ExtensionDiagnostics = List[Dict[str, str]]
+"""扩展链路的非致命错误记录。
+
+baseline 的设计目标是：control / SVH preview 失败时，主感知链路仍然运行。
+这里记录的诊断信息主要给测试、日志和后续调试使用。
+"""
 
 
 def parse_args() -> argparse.Namespace:
@@ -67,6 +90,12 @@ def _resolve_user_path(path_str: str) -> str:
 
 
 def _apply_cli_overrides(cfg: Dict[str, Any], args: argparse.Namespace) -> Dict[str, Any]:
+    """把命令行参数覆盖到配置字典上。
+
+    配置文件保留默认运行方式，CLI 用来做一次性实验覆盖。比如临时换摄像头、
+    临时读取视频、临时启用 SVH preview，都不需要改 yaml。
+    """
+
     cfg = dict(cfg)
     if args.camera_index is not None:
         cfg["camera_index"] = args.camera_index
@@ -91,7 +120,10 @@ def _apply_cli_overrides(cfg: Dict[str, Any], args: argparse.Namespace) -> Dict[
 
 
 def _build_runtime_mode(cfg: Dict[str, Any]) -> RuntimeMode:
+    """把松散配置收敛成主循环实际使用的运行模式。"""
+
     svh_preview_enabled = bool(cfg.get("svh_enable_preview", False))
+    # SVH preview 依赖 control_representation；因此 preview 开启时隐式开启 control。
     control_extension_enabled = bool(cfg.get("enable_control_extension", False) or svh_preview_enabled)
     gui_enabled = bool(cfg.get("gui_enabled", True)) and not bool(cfg.get("headless", False))
     headless = not gui_enabled
@@ -109,11 +141,18 @@ def _build_runtime_mode(cfg: Dict[str, Any]) -> RuntimeMode:
 
 
 def _build_jsonl_session_path(cfg: Dict[str, Any]) -> str:
+    """为本次运行生成 JSONL 会话日志路径。"""
+
     output_dir = Path(str(cfg.get("jsonl_output_dir", "outputs")))
     return str(output_dir / f"session_{datetime.now():%Y%m%d_%H%M%S}.jsonl")
 
 
 def _build_input_source(cfg: Dict[str, Any], runtime: RuntimeMode, logger) -> InputSource | None:
+    """根据运行模式创建输入源。
+
+    返回 None 表示输入源无法安全打开，调用方应直接退出，而不是进入主循环。
+    """
+
     source_type = runtime.input_source_type
     if source_type == "video_file":
         if not runtime.video_file_path:
@@ -145,6 +184,8 @@ def _build_input_source(cfg: Dict[str, Any], runtime: RuntimeMode, logger) -> In
 
 
 def _build_detector(cfg: Dict[str, Any], runtime: RuntimeMode) -> MediaPipeHandDetector:
+    """创建 MediaPipe 手部检测器，并把镜像视角信息传进去。"""
+
     return MediaPipeHandDetector(
         max_num_hands=int(cfg.get("max_num_hands", 2)),
         min_detection_confidence=float(cfg.get("min_detection_confidence", 0.5)),
@@ -154,6 +195,12 @@ def _build_detector(cfg: Dict[str, Any], runtime: RuntimeMode) -> MediaPipeHandD
 
 
 def _build_exporter(cfg: Dict[str, Any], logger) -> JsonExporter:
+    """创建统一导出器。
+
+    JsonExporter 同时负责 last-frame JSON、可选 JSONL、可选 Unity UDP。
+    主循环只把规范化后的 payload 交给它，不关心具体输出通道。
+    """
+
     return JsonExporter(
         output_path=str(cfg.get("output_json_path", "examples/sample_output.json")),
         save_last_json=bool(cfg.get("save_last_json", True)),
@@ -168,6 +215,12 @@ def _build_exporter(cfg: Dict[str, Any], logger) -> JsonExporter:
 
 
 def _build_svh_transport(cfg: Dict[str, Any], runtime: RuntimeMode, logger):
+    """创建 SVH preview 传输层。
+
+    当前只有 mock transport。真实 TCP / 串口 / RS485 还没有接入，
+    因此这里不能把非 mock 配置伪装成可用硬件链路。
+    """
+
     if not runtime.svh_preview_enabled:
         return None
     svh_transport_name = str(cfg.get("svh_transport", "mock"))
@@ -184,6 +237,8 @@ def _build_svh_transport(cfg: Dict[str, Any], runtime: RuntimeMode, logger):
 
 
 def _log_runtime_mode(runtime: RuntimeMode, cfg: Dict[str, Any], logger) -> None:
+    """启动时集中打印运行模式，方便排查“我到底开了哪些扩展”。"""
+
     if runtime.gui_enabled:
         logger.info("GUI 已启用。请在 OpenCV 窗口中按 q 退出。")
     else:
@@ -203,12 +258,26 @@ def _log_runtime_mode(runtime: RuntimeMode, cfg: Dict[str, Any], logger) -> None
         logger.info("本次运行已启用逐帧 JSONL 日志。")
 
 
-def _build_baseline_payload(frame, detector: MediaPipeHandDetector, cfg: Dict[str, Any], stabilizer: GestureStabilizer, *, draw_landmarks: bool) -> Dict[str, Any]:
+def _build_baseline_payload(
+    frame,
+    detector: MediaPipeHandDetector,
+    cfg: Dict[str, Any],
+    stabilizer: GestureStabilizer,
+    *,
+    draw_landmarks: bool,
+) -> Dict[str, Any]:
+    """从单帧图像生成 baseline payload。
+
+    这一层只做视觉 baseline：检测右手、提取几何特征、判断并稳定手势。
+    control_representation 和 svh_preview 在后续扩展链路里再补上。
+    """
+
     detections = detector.detect(frame)
     right = select_right_hand(detections)
     ts = now_ts()
 
     if right is None:
+        # 没有右手时仍返回规范形状，保证下游不会因为字段缺失崩掉。
         payload = empty_features(ts)
     else:
         payload = extract_hand_features(
@@ -220,6 +289,8 @@ def _build_baseline_payload(frame, detector: MediaPipeHandDetector, cfg: Dict[st
         )
         quality = assess_control_readiness(right.landmarks_2d, cfg)
         if not bool(quality["control_ready"]):
+            # 低质量帧仍保留 detected / landmarks，便于调试；
+            # 但清空面向控制的连续特征，避免下游误用不稳定数据。
             payload = invalidate_control_features(payload)
         if draw_landmarks:
             detector.draw_landmarks(frame, right.landmarks_2d)
@@ -230,6 +301,8 @@ def _build_baseline_payload(frame, detector: MediaPipeHandDetector, cfg: Dict[st
 
 
 def _summarize_exception(exc: Exception, *, max_length: int = 160) -> str:
+    """把异常压成单行摘要，避免实时日志被长 traceback 淹没。"""
+
     detail = str(exc).strip()
     summary = type(exc).__name__ if not detail else f"{type(exc).__name__}: {detail}"
     if len(summary) <= max_length:
@@ -245,6 +318,8 @@ def _record_extension_failure(
     logger,
     fallback_summary: str,
 ) -> None:
+    """记录扩展失败，但不让扩展失败中断 baseline 主循环。"""
+
     summary = _summarize_exception(exc)
     diagnostics.append({"extension": extension_name, "error": summary})
     logger.warning("%s 扩展失败（%s）；%s", extension_name, summary, fallback_summary)
@@ -264,6 +339,14 @@ def _apply_extension_chain(
     svh_transport,
     logger,
 ) -> ExtensionDiagnostics:
+    """依次运行可选扩展层，并在失败时退回规范占位对象。
+
+    设计原则：
+    - baseline 视觉链路优先保持可运行；
+    - control / SVH preview 都是可选层；
+    - 扩展失败时 payload 仍要满足 frozen contract。
+    """
+
     diagnostics: ExtensionDiagnostics = []
     if runtime.control_extension_enabled:
         try:
@@ -281,6 +364,7 @@ def _apply_extension_chain(
         control_representation = empty_control_representation()
 
     payload["control_representation"] = control_representation
+    # 顶层 control_ready 是给下游快速门控用的镜像字段。
     payload["control_ready"] = bool(control_representation.get("command_ready", False))
 
     if runtime.svh_preview_enabled:
@@ -314,6 +398,8 @@ def _apply_extension_chain(
 
 
 def main() -> None:
+    """实时运行主循环。"""
+
     args = parse_args()
     cfg = _apply_cli_overrides(load_config(args.config), args)
     runtime = _build_runtime_mode(cfg)
@@ -330,6 +416,7 @@ def main() -> None:
     try:
         detector = _build_detector(cfg, runtime)
         exporter = _build_exporter(cfg, logger)
+        # history 当前只保留最近帧摘要，方便未来做时序模型或更复杂去抖。
         history = RecentFrameBuffer(maxlen=int(cfg.get("recent_frames_buffer_size", 10)))
         svh_transport = _build_svh_transport(cfg, runtime, logger)
         stabilizer = GestureStabilizer(
@@ -353,6 +440,7 @@ def main() -> None:
                 break
 
             t0 = time.perf_counter()
+            # 1. 先生成纯视觉 baseline payload。
             payload = _build_baseline_payload(
                 frame,
                 detector,
@@ -360,6 +448,7 @@ def main() -> None:
                 stabilizer,
                 draw_landmarks=draw_landmarks,
             )
+            # 2. 再按运行模式追加 control / SVH preview 扩展字段。
             _apply_extension_chain(
                 payload,
                 cfg,
@@ -371,6 +460,7 @@ def main() -> None:
             dt = timer.tick()
             payload["fps"] = 1.0 / dt if dt > 1e-6 else 0.0
             payload["latency_ms"] = (time.perf_counter() - t0) * 1000.0
+            # 3. 最后统一规范化，保证导出前字段形状和范围符合 contract。
             payload = normalize_frame_payload(payload, include_deprecated_aliases=False)
             history.append(payload)
 

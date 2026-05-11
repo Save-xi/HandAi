@@ -1,5 +1,14 @@
 from __future__ import annotations
 
+"""SVH 协议 preview skeleton。
+
+这个模块只把当前理解到的协议假设整理成结构化 preview：
+sync、address、payload 长度、endianness、checksum 参考值等。
+
+它没有实现真实 socket / serial / RS485 传输，也不应被当成最终硬件协议。
+真实接入前必须用设备实测确认 packet 长度、padding、checksum 和 response。
+"""
+
 from functools import reduce
 from operator import xor
 from typing import Dict, Iterable
@@ -22,6 +31,8 @@ def _endianness_label(use_little_endian: bool) -> str:
 
 
 def _resolve_sync_bytes(cfg: Dict | None = None) -> bytes:
+    """从配置读取 sync bytes；未配置时使用当前 preview 默认值。"""
+
     if cfg is None:
         return SYNC_BYTES
     configured = cfg.get("svh_protocol_sync_bytes")
@@ -34,6 +45,11 @@ def _resolve_sync_bytes(cfg: Dict | None = None) -> bytes:
 
 
 def _resolve_endianness(use_little_endian: bool | None, cfg: Dict | None = None) -> bool:
+    """解析字节序。
+
+    显式参数优先于配置；都没有时使用当前 preview 默认 little endian。
+    """
+
     if use_little_endian is not None:
         return bool(use_little_endian)
     if cfg is None:
@@ -42,16 +58,22 @@ def _resolve_endianness(use_little_endian: bool | None, cfg: Dict | None = None)
 
 
 def _pad_payload(payload: bytes, size: int = COMMAND_PAYLOAD_SIZE_BYTES) -> bytes:
+    """把 payload 补齐到当前 preview 假设的命令 payload 长度。"""
+
     if len(payload) > size:
         raise ValueError(f"payload 长度 {len(payload)} 超过了 preview payload 大小 {size}")
     return payload + bytes(size - len(payload))
 
 
 def _check1(payload: bytes) -> int:
+    """preview checksum 1：当前假设为 payload 字节和的低 8 位。"""
+
     return sum(payload) & 0xFF
 
 
 def _check2(payload: bytes) -> int:
+    """preview checksum 2：当前假设为 payload 字节异或。"""
+
     return reduce(xor, payload, 0) & 0xFF
 
 
@@ -69,6 +91,7 @@ def build_set_control_state_packet(
 
     little_endian = _resolve_endianness(use_little_endian, cfg)
     sync_bytes = _resolve_sync_bytes(cfg)
+    # control_state 当前只占用首字节，其余 payload 按 preview 假设补零。
     payload = int(control_state).to_bytes(1, _endianness_label(little_endian), signed=False)
     padded_payload = _pad_payload(payload)
     return {
@@ -112,6 +135,7 @@ def build_set_all_channels_packet(
     check1_preview_hex = None
     check2_preview_hex = None
     if tick_values:
+        # 当前只预览 9 个 int32 目标槽位；真实设备是否完全一致仍需验证。
         packed = b"".join(int(v).to_bytes(4, _endianness_label(little_endian), signed=True) for v in tick_values[:9])
         padded_payload = _pad_payload(packed)
         payload_preview_hex = padded_payload.hex(" ")

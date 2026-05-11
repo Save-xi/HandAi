@@ -1,11 +1,27 @@
 from __future__ import annotations
 
+"""逐帧 payload 的规范化与校验。
+
+这个模块是下游稳定消费的“合同层”：
+- normalize_* 负责把运行期对象修成稳定形状和值域；
+- validate_* 负责发现字段缺失、类型错误和值域错误；
+- prepare_frame_payload 是导出前的统一入口。
+
+如果未来要改 payload 字段，优先从这里和 schema 同步改起。
+"""
+
 from copy import deepcopy
 from typing import Any, Dict, List, TypedDict
 
 FINGER_NAMES = ("thumb", "index", "middle", "ring", "little")
+"""所有手指映射字段都应使用这一组固定键名。"""
+
 CONTROL_PREFERRED_MAPPINGS = ("grasp", "pinch")
+"""控制层当前只区分抓握和捏合两类映射。"""
+
 SVH_PREVIEW_COMMAND_SOURCES = ("control_representation", "gesture_fallback")
+"""SVH preview 的来源必须可追溯，避免下游误判命令可信度。"""
+
 FRAME_PAYLOAD_REQUIRED_FIELDS = (
     "timestamp",
     "frame_index",
@@ -25,6 +41,8 @@ FRAME_PAYLOAD_REQUIRED_FIELDS = (
     "fps",
     "latency_ms",
 )
+"""canonical frame payload 的顶层必填字段。"""
+
 CONTROL_REPRESENTATION_REQUIRED_FIELDS = (
     "valid",
     "features_valid",
@@ -39,6 +57,8 @@ CONTROL_REPRESENTATION_REQUIRED_FIELDS = (
     "support_flex",
     "finger_flex",
 )
+"""control_representation 必填字段；即使无效也必须保留同样形状。"""
+
 SVH_PREVIEW_REQUIRED_FIELDS = (
     "enabled",
     "mode",
@@ -49,6 +69,8 @@ SVH_PREVIEW_REQUIRED_FIELDS = (
     "target_ticks_preview",
     "protocol_hint",
 )
+"""svh_preview 必填字段；无效帧通过 valid=false 和空目标数组表达。"""
+
 PROTOCOL_HINT_REQUIRED_FIELDS = (
     "set_control_state_addr",
     "set_all_channels_addr",
@@ -58,6 +80,8 @@ PROTOCOL_HINT_REQUIRED_FIELDS = (
     "position_units",
     "target_tick_units",
 )
+"""protocol_hint 是 preview 元数据，不是真实硬件协议证明。"""
+
 DEPRECATED_ALIASES = {
     "gesture": "gesture_stable",
     "svh": "svh_preview",
@@ -65,6 +89,11 @@ DEPRECATED_ALIASES = {
 
 
 class FingerMap(TypedDict):
+    """五指数值映射。
+
+    value 为 None 表示这一帧没有可靠控制特征；不是 0。
+    """
+
     thumb: float | None
     index: float | None
     middle: float | None
@@ -129,6 +158,11 @@ def _normalize_landmarks_2d(landmarks: Any) -> List[List[float]]:
 
 
 def _normalize_landmarks_3d(landmarks: Any, landmarks_2d: List[List[float]]) -> List[List[float]]:
+    """保证 3D 点数与 2D 点数一致。
+
+    MediaPipe 或测试数据缺失 3D 时，用 z=0 退化，避免下游同时处理两种长度。
+    """
+
     if not isinstance(landmarks, list) or len(landmarks) != len(landmarks_2d):
         return [[float(x), float(y), 0.0] for x, y in landmarks_2d]
     normalized: List[List[float]] = []
@@ -140,6 +174,12 @@ def _normalize_landmarks_3d(landmarks: Any, landmarks_2d: List[List[float]]) -> 
 
 
 def _normalize_control_representation(control: Any) -> Dict[str, Any]:
+    """规范化控制中间层。
+
+    这里会把兼容字段拉齐，比如 valid 与 command_ready、pinch_strength 与
+    effective_pinch_strength，避免同一 payload 内部自相矛盾。
+    """
+
     normalized = dict(control or {})
     normalized["valid"] = bool(normalized.get("command_ready", normalized.get("valid", False)))
     normalized["features_valid"] = bool(normalized.get("features_valid", False))
@@ -163,6 +203,12 @@ def _normalize_control_representation(control: Any) -> Dict[str, Any]:
 
 
 def _normalize_svh_preview(preview: Any) -> Dict[str, Any]:
+    """规范化 SVH preview 对象。
+
+    重点保证：无效 preview 必须清空目标数组；有效 preview 的 channels、
+    positions 和可选 ticks 长度必须匹配。
+    """
+
     normalized = dict(preview or {})
     normalized["enabled"] = bool(normalized.get("enabled", False))
     normalized["mode"] = str(normalized.get("mode", "preview" if normalized["enabled"] else "disabled"))
@@ -210,6 +256,8 @@ def _normalize_svh_preview(preview: Any) -> Dict[str, Any]:
 
 
 def get_stable_gesture(payload: Dict[str, Any]) -> str:
+    """读取稳定手势，并兼容旧字段 gesture。"""
+
     value = payload.get("gesture_stable", payload.get("gesture"))
     if value is None:
         return "unknown"
@@ -217,6 +265,8 @@ def get_stable_gesture(payload: Dict[str, Any]) -> str:
 
 
 def get_svh_preview(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """读取 SVH preview，并兼容旧字段 svh。"""
+
     preview = payload.get("svh_preview", payload.get("svh", {}))
     return dict(preview or {})
 
@@ -226,6 +276,12 @@ def normalize_frame_payload(
     *,
     include_deprecated_aliases: bool = False,
 ) -> FramePayload:
+    """把运行期 payload 规范化为 canonical 形状。
+
+    normalize 不负责判断算法是否正确；它只负责让输出字段稳定、值域安全、
+    弃用别名按配置处理。
+    """
+
     normalized: Dict[str, Any] = deepcopy(payload)
     landmarks_2d = _normalize_landmarks_2d(normalized.get("landmarks_2d", []))
     normalized["gesture_raw"] = str(normalized.get("gesture_raw") or "unknown")
@@ -293,6 +349,12 @@ def validate_frame_payload(
     *,
     allow_deprecated_aliases: bool = False,
 ) -> List[str]:
+    """返回 payload contract 错误列表。
+
+    这里不直接抛异常，是为了测试和调用方可以决定如何展示错误。
+    assert_valid_frame_payload 会把错误列表转成异常。
+    """
+
     errors: List[str] = []
 
     for field in FRAME_PAYLOAD_REQUIRED_FIELDS:
@@ -437,6 +499,8 @@ def assert_valid_frame_payload(
     *,
     allow_deprecated_aliases: bool = False,
 ) -> None:
+    """校验失败时抛出 ValueError，适合导出前的硬检查。"""
+
     errors = validate_frame_payload(payload, allow_deprecated_aliases=allow_deprecated_aliases)
     if errors:
         raise ValueError("frame payload contract 非法：" + "; ".join(errors))
@@ -447,6 +511,8 @@ def prepare_frame_payload(
     *,
     include_deprecated_aliases: bool = False,
 ) -> FramePayload:
+    """导出前统一入口：先 normalize，再 validate。"""
+
     normalized = normalize_frame_payload(
         payload,
         include_deprecated_aliases=include_deprecated_aliases,
