@@ -82,6 +82,7 @@ def main() -> None:
         input_mirrored=bool(args.input_mirrored or pipeline_cfg.get("input_mirrored", False)),
         static_image_mode=bool(pipeline_cfg.get("static_image_mode", True)),
     )
+    prefer_any_hand = bool(args.prefer_any_hand or pipeline_cfg.get("prefer_any_hand", False))
     predictions = {}
     detected_count = 0
     try:
@@ -91,7 +92,7 @@ def main() -> None:
                 continue
             start = time.perf_counter()
             detections = detector.detect(frame)
-            selected = _choose_detection(detections, prefer_any_hand=bool(args.prefer_any_hand))
+            selected = _choose_detection(detections, prefer_any_hand=prefer_any_hand)
             latency_ms = (time.perf_counter() - start) * 1000.0
             sample_id = image_path.stem
             if selected is None:

@@ -126,6 +126,8 @@ dataset/evaluation/rgb/*.jpg
 outputs/current_pipeline_predictions.json
 ```
 
+注意：FreiHAND 评估默认启用 `current_pipeline.prefer_any_hand: true`。也就是说评估视觉关键点能力时，不会因为 MediaPipe 把某些样本标成 `Left` 就直接判失败；只要检测到一只手并输出 21 个 2D 点，就纳入 2D 指标。项目实际运行时仍然可以继续使用右手筛选策略。
+
 评估预测结果：
 
 ```bash
