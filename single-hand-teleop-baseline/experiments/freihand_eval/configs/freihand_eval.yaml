@@ -34,6 +34,8 @@ runtime:
   max_samples:
 
 current_pipeline:
+  # FreiHAND 评估关注单手关键点检测能力，不按项目运行期的“只控右手”策略扣分。
+  prefer_any_hand: true
   input_mirrored: false
   static_image_mode: true
   image_extension: .jpg
