@@ -9,3 +9,7 @@ venv/
 .env
 *.log
 *.json.tmp
+dataset/
+outputs/
+experiments/freihand_eval/reports/
+experiments/freihand_eval/outputs/

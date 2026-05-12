@@ -63,6 +63,7 @@ class MediaPipeHandDetector:
         min_detection_confidence: float = 0.5,
         min_tracking_confidence: float = 0.5,
         input_mirrored: bool = False,
+        static_image_mode: bool = False,
     ) -> None:
         if not hasattr(mp, "solutions") or not hasattr(mp.solutions, "hands"):
             raise RuntimeError(
@@ -72,7 +73,7 @@ class MediaPipeHandDetector:
         self.input_mirrored = input_mirrored
         self.mp_hands = mp.solutions.hands
         self.hands = self.mp_hands.Hands(
-            static_image_mode=False,
+            static_image_mode=static_image_mode,
             max_num_hands=max_num_hands,
             min_detection_confidence=min_detection_confidence,
             min_tracking_confidence=min_tracking_confidence,
