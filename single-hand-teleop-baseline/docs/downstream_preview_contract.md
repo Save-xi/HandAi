@@ -15,6 +15,8 @@
 
 它们会退化成安全的 invalid / disabled 状态，而不是从 payload 里消失。这样下游代码不用每次猜字段在不在。
 
+检测成功时，`landmarks_2d` 和 `landmarks_3d` 都必须恰好包含 21 个点；未检测到右手时两者必须同时为空。contract 不再接受“检测成功但只有部分 landmark”的模糊状态。
+
 ## 当前 contract 不能保证什么
 
 这份 baseline 不会输出可以直接下发给真实 SVH 硬件的安全命令。
@@ -49,7 +51,7 @@ else:
 | 字段 | 含义 | 下游建议 |
 | --- | --- | --- |
 | `frame_index` | 当前帧编号 | 用于排序、排查丢帧 |
-| `timestamp` | 当前帧时间戳 | 用于日志和延迟分析 |
+| `timestamp` | 检测与右手筛选结束附近的兼容时间戳 | 用于旧日志兼容，不应解释为采集时刻 |
 | `detected` | 是否检测到目标右手 | false 时不要产生新动作 |
 | `handedness` | 当前手标签 | 当前主线应关注 `Right` |
 | `gesture_raw` | 当前帧即时手势 | 可用于调试，不建议直接驱动 |
@@ -58,12 +60,29 @@ else:
 | `control_representation` | 连续控制中间层 | 适合控制逻辑或调参 |
 | `svh_preview` | SVH / Unity 预览层 | 适合虚拟手或 socket preview |
 | `fps` | 当前处理帧率 | 性能诊断 |
-| `latency_ms` | 当前帧处理耗时 | 性能诊断 |
+| `latency_ms` | 旧版 Python 视觉与 preview 处理耗时 | 不含采集、序列化、UDP、Unity 或真机 |
+| `timing` | 可选的阶段时戳对象 | 同机 Python/Unity 延迟诊断首选 |
 
 完整字段列表以 schema 为准：
 
 - [../schemas/frame_payload.schema.json](../schemas/frame_payload.schema.json)
 - [../src/output/frame_payload_contract.py](../src/output/frame_payload_contract.py)
+
+### 可选 `timing` v1
+
+新版本实时主循环会附带：
+
+| 字段 | 边界 |
+| --- | --- |
+| `source_read_start_unix_ms` | 调用输入源 `read()` 前 |
+| `source_read_end_unix_ms` | 输入源返回后 |
+| `detection_end_unix_ms` | MediaPipe 检测和右手筛选后 |
+| `baseline_end_unix_ms` | 特征、质量门控和稳定手势完成后 |
+| `preview_end_unix_ms` | `control_representation` 与 `svh_preview` 完成后 |
+| `payload_ready_unix_ms` | contract 规范化与发送准备前 |
+| `udp_send_attempt_unix_ms` | UDP 明确启用时，紧邻发送尝试前；否则为 `null` |
+
+旧 payload 没有 `timing` 仍然合法。`timing` 使用 Unix epoch 毫秒；只有 Python 和 Unity 位于同一台电脑，或者跨设备时钟已经同步时，才能直接相减。Unity 当前记录的是“接收”和“目标应用”时间，不代表画面已经渲染，也不代表实体手已经响应。
 
 ## `control_representation`
 

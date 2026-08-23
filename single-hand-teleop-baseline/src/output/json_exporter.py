@@ -33,7 +33,7 @@ class JsonExporter:
         jsonl_path: str | None = None,
         export_last_every_n_frames: int = 1,
         jsonl_flush_interval: int = 1,
-        unity_udp_enabled: bool = True,
+        unity_udp_enabled: bool = False,
         unity_udp_host: str = "127.0.0.1",
         unity_udp_port: int = 18080,
         logger: logging.Logger | None = None,

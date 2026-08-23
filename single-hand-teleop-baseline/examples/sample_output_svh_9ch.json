@@ -1,5 +1,5 @@
 {
-  "timestamp": 1777454447.707079,
+  "timestamp": 1779033024.3323243,
   "detected": false,
   "handedness": null,
   "confidence": null,
@@ -55,7 +55,7 @@
       "target_tick_units": "encoder_ticks_preview"
     }
   },
-  "frame_index": 565,
-  "fps": 10.506695917256641,
-  "latency_ms": 12.365999999929045
+  "frame_index": 714,
+  "fps": 34.17389729498428,
+  "latency_ms": 11.666100001093582
 }

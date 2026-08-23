@@ -206,6 +206,10 @@ python src/main.py --config configs/svh_9ch_preview.yaml --print-json
 
 ### 5. Unity UDP 预览
 
+如果你是隔一段时间回来看这个联动，或者准备在新对话里续接上下文，先看：
+
+- [docs/unity_handoff.md](docs/unity_handoff.md)
+
 ```bash
 python src/main.py --config configs/unity_udp_preview.yaml
 ```
@@ -410,6 +414,8 @@ python src/main.py --config configs/default.yaml --input-mirrored
 更多下游和真机相关细节放在：
 
 - [docs/README.md](docs/README.md)
+- [docs/ai_scope_and_proposal_alignment.md](docs/ai_scope_and_proposal_alignment.md)
+- [docs/unity_handoff.md](docs/unity_handoff.md)
 - [docs/downstream_preview_contract.md](docs/downstream_preview_contract.md)
 - [docs/svh_real_hardware_calibration_table.md](docs/svh_real_hardware_calibration_table.md)
 

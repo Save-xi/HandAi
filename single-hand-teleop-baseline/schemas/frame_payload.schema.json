@@ -235,6 +235,73 @@
     },
     "latency_ms": {
       "type": "number"
+    },
+    "timing": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Optional phase timing diagnostics. Unix epoch milliseconds are directly comparable only when producer and consumer clocks are synchronized.",
+      "required": [
+        "schema_version",
+        "clock",
+        "source_read_start_unix_ms",
+        "source_read_end_unix_ms",
+        "detection_end_unix_ms",
+        "baseline_end_unix_ms",
+        "preview_end_unix_ms",
+        "payload_ready_unix_ms",
+        "udp_send_attempt_unix_ms"
+      ],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "clock": { "const": "unix_epoch_ms" },
+        "source_read_start_unix_ms": { "type": "number", "minimum": 0.0 },
+        "source_read_end_unix_ms": { "type": "number", "minimum": 0.0 },
+        "detection_end_unix_ms": { "type": "number", "minimum": 0.0 },
+        "baseline_end_unix_ms": { "type": "number", "minimum": 0.0 },
+        "preview_end_unix_ms": { "type": "number", "minimum": 0.0 },
+        "payload_ready_unix_ms": { "type": "number", "minimum": 0.0 },
+        "udp_send_attempt_unix_ms": {
+          "type": ["number", "null"],
+          "minimum": 0.0
+        }
+      }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "detected": { "const": true }
+        }
+      },
+      "then": {
+        "properties": {
+          "handedness": { "const": "Right" },
+          "confidence": { "type": "number" },
+          "landmarks_2d": {
+            "minItems": 21,
+            "maxItems": 21
+          },
+          "landmarks_3d": {
+            "minItems": 21,
+            "maxItems": 21
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "handedness": { "type": "null" },
+          "confidence": { "type": "null" },
+          "control_ready": { "const": false },
+          "landmarks_2d": { "maxItems": 0 },
+          "landmarks_3d": { "maxItems": 0 },
+          "svh_preview": {
+            "properties": {
+              "valid": { "const": false }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

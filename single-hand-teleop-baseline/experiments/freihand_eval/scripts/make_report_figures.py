@@ -160,7 +160,22 @@ def render_latency_card(metrics: Dict[str, Any]) -> str:
     latency = metrics.get("latency_ms", {})
     mean = latency.get("mean")
     p95 = latency.get("p95")
+    threshold = latency.get("threshold_ms")
+    over_count = int(latency.get("over_threshold_count", 0) or 0)
+    sample_count = int(latency.get("count", 0) or 0)
     fps = None if mean in (None, 0) else 1000.0 / float(mean)
+    if p95 is None or threshold is None:
+        conclusion = "结论：本次运行没有足够的检测器耗时数据。"
+    elif float(p95) <= float(threshold):
+        conclusion = (
+            f"结论：检测器加手选择的 P95 为 {num(p95, 3)} ms；"
+            f"超过 {num(threshold, 1)} ms 的样本为 {over_count}/{sample_count}。"
+        )
+    else:
+        conclusion = (
+            f"结论：检测器加手选择的 P95 为 {num(p95, 3)} ms，"
+            f"高于阶段阈值 {num(threshold, 1)} ms。"
+        )
     lines = [
         '<svg xmlns="http://www.w3.org/2000/svg" width="860" height="360" viewBox="0 0 860 360">',
         '<rect width="860" height="360" fill="#f7f9fc"/>',
@@ -174,7 +189,7 @@ def render_latency_card(metrics: Dict[str, Any]) -> str:
         svg_text(340, 205, f"{num(p95, 3)} ms", size=34, weight="700", color="#7c3aed"),
         svg_text(610, 150, "估算 FPS", size=16, color="#667085"),
         svg_text(610, 205, f"{num(fps, 1)}", size=34, weight="700", color="#0f766e"),
-        svg_text(45, 305, "结论：当前管线平均耗时约 19 ms/frame，满足初期实时遥操作 baseline 的速度要求。", size=17, color="#344054"),
+        svg_text(45, 305, conclusion, size=17, color="#344054"),
         "</svg>",
     ]
     return "\n".join(lines)
@@ -184,6 +199,12 @@ def render_dashboard(metrics: Dict[str, Any]) -> str:
     counts = metrics.get("sample_counts", {})
     latency = metrics.get("latency_ms", {})
     pck_all = metrics.get("pck_2d_at_thresholds_all_gt", {})
+    summary = (
+        "本次离线评估：完整率 "
+        f"{pct(metrics.get('keypoint_complete_rate'))}，全数据 PCK@20px "
+        f"{pct(get_threshold(pck_all, 20))}，检测器加手选择平均耗时 "
+        f"{num(latency.get('mean'), 3)} ms/frame。"
+    )
     cards = [
         ("完整率", pct(metrics.get("keypoint_complete_rate")), "输出 21 个 2D 点", "#1d4ed8"),
         ("PCK@20px", pct(get_threshold(pck_all, 20)), "全数据口径", "#16a34a"),
@@ -194,7 +215,7 @@ def render_dashboard(metrics: Dict[str, Any]) -> str:
         '<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="520" viewBox="0 0 1180 520">',
         '<rect width="1180" height="520" fill="#f7f9fc"/>',
         svg_text(50, 60, "当前 CV 管线 FreiHAND 2D 评估总览", size=32, weight="700"),
-        svg_text(50, 94, f"evaluation RGB：{counts.get('ground_truth_samples', 0)} 张；完整输出：{counts.get('evaluated_2d_samples', 0)} 张", size=16, color="#5b6472"),
+        svg_text(50, 94, f"本次 split：{counts.get('ground_truth_samples', 0)} 张；完整输出：{counts.get('evaluated_2d_samples', 0)} 张", size=16, color="#5b6472"),
     ]
     for i, (title, value, subtitle, color) in enumerate(cards):
         x = 50 + i * 275
@@ -210,7 +231,7 @@ def render_dashboard(metrics: Dict[str, Any]) -> str:
     lines.extend(
         [
             svg_text(50, 380, "推荐汇报口径", size=20, weight="700"),
-            svg_text(50, 416, "当前 MediaPipe 单右手管线在 FreiHAND evaluation RGB 图像上，完整率 85.7%，全数据 PCK@20px 80.8%，平均耗时约 19.1 ms/frame。", size=18, color="#344054"),
+            svg_text(50, 416, summary, size=18, color="#344054"),
             "</svg>",
         ]
     )

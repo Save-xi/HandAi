@@ -11,5 +11,7 @@ venv/
 *.json.tmp
 dataset/
 outputs/
+output/
+tmp/
 experiments/freihand_eval/reports/
 experiments/freihand_eval/outputs/

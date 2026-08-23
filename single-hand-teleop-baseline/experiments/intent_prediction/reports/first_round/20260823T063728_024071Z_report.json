@@ -1,0 +1,884 @@
+{
+  "schema_version": "intent-first-round-report-v1",
+  "status": "completed",
+  "created_at_utc": "2026-08-23T08:17:31.971434+00:00",
+  "data_root": "D:\\VR\\HandAi\\datasets\\H2O\\processed\\cross_subject_v1",
+  "dataset": "h2o_pose_only_right_hand",
+  "synthetic": false,
+  "research_claims_allowed": true,
+  "warning": null,
+  "config_path": "D:\\VR\\HandAi\\single-hand-teleop-baseline\\experiments\\intent_prediction\\configs\\h2o_first_round.json",
+  "config_sha256": "ae04822824fd02db85cc08c127a90bde2050ee48b888e26c679b9456c3e0cc80",
+  "history_frames": 30,
+  "horizon_ms": [
+    50,
+    100,
+    150
+  ],
+  "effective_horizon_frames": [
+    1.5,
+    3.0,
+    4.5
+  ],
+  "window_counts": {
+    "train": 25364,
+    "val": 13310,
+    "test": 14352
+  },
+  "sequence_counts": {
+    "train": 105,
+    "val": 60,
+    "test": 52
+  },
+  "sequence_overlap": {
+    "train_val": 0,
+    "train_test": 0,
+    "val_test": 0
+  },
+  "models_requested": [
+    "hold_last",
+    "linear",
+    "kalman",
+    "gru",
+    "tcn",
+    "transformer"
+  ],
+  "best_model_by_mae": "hold_last",
+  "environment": {
+    "python": "3.10.20",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "numpy": "2.2.6",
+    "torch_available": true
+  },
+  "results": {
+    "hold_last": {
+      "status": "completed",
+      "metrics": {
+        "samples": 14352,
+        "mae": 0.019952033141365812,
+        "rmse": 0.05513829747616347,
+        "p95_abs_error": 0.07573529779911037,
+        "range_violation_rate": 0.0,
+        "per_horizon_ms": {
+          "50": {
+            "mae": 0.01223337416206768,
+            "rmse": 0.039350713386624034,
+            "p95_abs_error": 0.04062168151140202
+          },
+          "100": {
+            "mae": 0.02081239511344195,
+            "rmse": 0.05727857838998519,
+            "p95_abs_error": 0.07564575374126432
+          },
+          "150": {
+            "mae": 0.026810330148587806,
+            "rmse": 0.06550863576121685,
+            "p95_abs_error": 0.10712660253047927
+          }
+        },
+        "per_channel": {
+          "thumb_flexion": {
+            "mae": 0.023515583887146505,
+            "rmse": 0.07336717404280756
+          },
+          "thumb_opposition": {
+            "mae": 0.025158690548574933,
+            "rmse": 0.07289765937326934
+          },
+          "index_finger_distal": {
+            "mae": 0.027690427985809958,
+            "rmse": 0.0764990709414204
+          },
+          "index_finger_proximal": {
+            "mae": 0.02609692643985252,
+            "rmse": 0.0708686502691406
+          },
+          "middle_finger_distal": {
+            "mae": 0.020412390395121275,
+            "rmse": 0.03699833078350464
+          },
+          "middle_finger_proximal": {
+            "mae": 0.019315323625670122,
+            "rmse": 0.03541492425577648
+          },
+          "ring_finger": {
+            "mae": 0.01801787653352355,
+            "rmse": 0.03604016259931671
+          },
+          "pinky": {
+            "mae": 0.0134260155217648,
+            "rmse": 0.03757947830049889
+          },
+          "finger_spread": {
+            "mae": 0.005935063334828641,
+            "rmse": 0.021368162574239898
+          }
+        }
+      },
+      "details": {
+        "device": "numpy_cpu",
+        "parameter_count": 0,
+        "batch_inference_ms": 0.8206999991671182,
+        "approx_ms_per_window": 5.7183667723461414e-05
+      },
+      "improvement_vs_hold_percent": 0.0
+    },
+    "linear": {
+      "status": "completed",
+      "metrics": {
+        "samples": 14352,
+        "mae": 0.0261220577535333,
+        "rmse": 0.06651936784667747,
+        "p95_abs_error": 0.10929956883192052,
+        "range_violation_rate": 0.0,
+        "per_horizon_ms": {
+          "50": {
+            "mae": 0.015100835582848554,
+            "rmse": 0.04454894774473651,
+            "p95_abs_error": 0.05755214765667915
+          },
+          "100": {
+            "mae": 0.026866249962389524,
+            "rmse": 0.06775539113347619,
+            "p95_abs_error": 0.10880667008459559
+          },
+          "150": {
+            "mae": 0.03639908771536182,
+            "rmse": 0.0818478901582146,
+            "p95_abs_error": 0.15310286879539484
+          }
+        },
+        "per_channel": {
+          "thumb_flexion": {
+            "mae": 0.03183156331437945,
+            "rmse": 0.08765059548392162
+          },
+          "thumb_opposition": {
+            "mae": 0.035060150579994606,
+            "rmse": 0.08972856885311799
+          },
+          "index_finger_distal": {
+            "mae": 0.03725484034610733,
+            "rmse": 0.09175753036225467
+          },
+          "index_finger_proximal": {
+            "mae": 0.0355780889056135,
+            "rmse": 0.08701024872475976
+          },
+          "middle_finger_distal": {
+            "mae": 0.024757466161467987,
+            "rmse": 0.04362529978502126
+          },
+          "middle_finger_proximal": {
+            "mae": 0.023010152992062168,
+            "rmse": 0.0409967712759541
+          },
+          "ring_finger": {
+            "mae": 0.02233651588019053,
+            "rmse": 0.043499581349027296
+          },
+          "pinky": {
+            "mae": 0.017596038142369735,
+            "rmse": 0.04510208234449231
+          },
+          "finger_spread": {
+            "mae": 0.007673703459614375,
+            "rmse": 0.024270404288330008
+          }
+        }
+      },
+      "details": {
+        "device": "numpy_cpu",
+        "parameter_count": 0,
+        "batch_inference_ms": 10.15449999977136,
+        "approx_ms_per_window": 0.0007075320512661204
+      },
+      "improvement_vs_hold_percent": -30.924290113449153
+    },
+    "kalman": {
+      "status": "completed",
+      "metrics": {
+        "samples": 14352,
+        "mae": 0.027070823674487085,
+        "rmse": 0.06968110197557342,
+        "p95_abs_error": 0.11539253890514373,
+        "range_violation_rate": 0.0,
+        "per_horizon_ms": {
+          "50": {
+            "mae": 0.015772719926966987,
+            "rmse": 0.04622383274173875,
+            "p95_abs_error": 0.060297642648219976
+          },
+          "100": {
+            "mae": 0.027765021659487545,
+            "rmse": 0.07119423874748876,
+            "p95_abs_error": 0.11354862104285511
+          },
+          "150": {
+            "mae": 0.037674729437006706,
+            "rmse": 0.08579688556946645,
+            "p95_abs_error": 0.15927760750055311
+          }
+        },
+        "per_channel": {
+          "thumb_flexion": {
+            "mae": 0.0329345090146896,
+            "rmse": 0.09198524226297611
+          },
+          "thumb_opposition": {
+            "mae": 0.0363566343183005,
+            "rmse": 0.0939753275696617
+          },
+          "index_finger_distal": {
+            "mae": 0.03856046021805792,
+            "rmse": 0.09564819466299951
+          },
+          "index_finger_proximal": {
+            "mae": 0.036991664443187314,
+            "rmse": 0.09150732689051257
+          },
+          "middle_finger_distal": {
+            "mae": 0.025573707650012253,
+            "rmse": 0.045448043286670466
+          },
+          "middle_finger_proximal": {
+            "mae": 0.02356178274898437,
+            "rmse": 0.04199595180013973
+          },
+          "ring_finger": {
+            "mae": 0.023437913215079643,
+            "rmse": 0.04650773941084036
+          },
+          "pinky": {
+            "mae": 0.018162029046887566,
+            "rmse": 0.04705157133334748
+          },
+          "finger_spread": {
+            "mae": 0.008058712415184553,
+            "rmse": 0.02604388514795983
+          }
+        }
+      },
+      "details": {
+        "device": "numpy_cpu",
+        "parameter_count": 0,
+        "batch_inference_ms": 15.866699999605771,
+        "approx_ms_per_window": 0.0011055392976313944
+      },
+      "improvement_vs_hold_percent": -35.67952440075968
+    },
+    "gru": {
+      "status": "completed",
+      "metrics": {
+        "samples": 14352,
+        "mae": 0.02195582531189263,
+        "rmse": 0.05293566697077582,
+        "p95_abs_error": 0.07432800959795707,
+        "range_violation_rate": 0.0,
+        "per_horizon_ms": {
+          "50": {
+            "mae": 0.015287920601084063,
+            "rmse": 0.03884595852794741,
+            "p95_abs_error": 0.046466296911239616
+          },
+          "100": {
+            "mae": 0.022599496188355175,
+            "rmse": 0.055263793472993226,
+            "p95_abs_error": 0.07447500377893444
+          },
+          "150": {
+            "mae": 0.027980059146238655,
+            "rmse": 0.06199563815255071,
+            "p95_abs_error": 0.09708424657583237
+          }
+        },
+        "per_channel": {
+          "thumb_flexion": {
+            "mae": 0.025082672863375167,
+            "rmse": 0.07025575894007734
+          },
+          "thumb_opposition": {
+            "mae": 0.02807891759175263,
+            "rmse": 0.06950044218226838
+          },
+          "index_finger_distal": {
+            "mae": 0.028845765099098294,
+            "rmse": 0.07314484209550683
+          },
+          "index_finger_proximal": {
+            "mae": 0.026455848191133505,
+            "rmse": 0.06793860161914547
+          },
+          "middle_finger_distal": {
+            "mae": 0.020825913576969883,
+            "rmse": 0.03445727032544721
+          },
+          "middle_finger_proximal": {
+            "mae": 0.020501563959989998,
+            "rmse": 0.03362760165999617
+          },
+          "ring_finger": {
+            "mae": 0.019231728807874562,
+            "rmse": 0.03383102284816805
+          },
+          "pinky": {
+            "mae": 0.018972523992037416,
+            "rmse": 0.039441027286151654
+          },
+          "finger_spread": {
+            "mae": 0.009607493724802215,
+            "rmse": 0.021665804481365496
+          }
+        }
+      },
+      "details": {
+        "device": "cuda",
+        "torch_version": "2.7.0+cu126",
+        "cuda_available": true,
+        "deterministic_algorithms": true,
+        "cublas_workspace_config": ":4096:8",
+        "parameter_count": 172699,
+        "epochs_completed": 18,
+        "best_val_loss": 0.014942967667224083,
+        "training_seconds": 16.767520900000818,
+        "latency_single_window": {
+          "samples": 100.0,
+          "p50_ms": 0.6034999987605261,
+          "p95_ms": 0.7871150015489548,
+          "max_ms": 1.0963999993691687
+        },
+        "history": [
+          {
+            "epoch": 1.0,
+            "train_loss": 0.05023564061185498,
+            "val_loss": 0.03197926739825511
+          },
+          {
+            "epoch": 2.0,
+            "train_loss": 0.019765732224464906,
+            "val_loss": 0.02148636297975645
+          },
+          {
+            "epoch": 3.0,
+            "train_loss": 0.015972762177243742,
+            "val_loss": 0.021852806391044723
+          },
+          {
+            "epoch": 4.0,
+            "train_loss": 0.01433388903156038,
+            "val_loss": 0.019304816691578554
+          },
+          {
+            "epoch": 5.0,
+            "train_loss": 0.013424323710465052,
+            "val_loss": 0.01789598262327941
+          },
+          {
+            "epoch": 6.0,
+            "train_loss": 0.012880671532767942,
+            "val_loss": 0.016614921503804572
+          },
+          {
+            "epoch": 7.0,
+            "train_loss": 0.01210741210271227,
+            "val_loss": 0.015653833747749753
+          },
+          {
+            "epoch": 8.0,
+            "train_loss": 0.011764569956344575,
+            "val_loss": 0.016237438566686066
+          },
+          {
+            "epoch": 9.0,
+            "train_loss": 0.01171316331892235,
+            "val_loss": 0.015690664445476187
+          },
+          {
+            "epoch": 10.0,
+            "train_loss": 0.011324839835243024,
+            "val_loss": 0.015446179980379938
+          },
+          {
+            "epoch": 11.0,
+            "train_loss": 0.011172132930669747,
+            "val_loss": 0.01770489577520261
+          },
+          {
+            "epoch": 12.0,
+            "train_loss": 0.011438715059566932,
+            "val_loss": 0.014942967667224083
+          },
+          {
+            "epoch": 13.0,
+            "train_loss": 0.011127586206551974,
+            "val_loss": 0.01575886538625883
+          },
+          {
+            "epoch": 14.0,
+            "train_loss": 0.011118973313497831,
+            "val_loss": 0.016560222511057293
+          },
+          {
+            "epoch": 15.0,
+            "train_loss": 0.010963814610965225,
+            "val_loss": 0.015673040199512652
+          },
+          {
+            "epoch": 16.0,
+            "train_loss": 0.010857691206690116,
+            "val_loss": 0.01666361891757627
+          },
+          {
+            "epoch": 17.0,
+            "train_loss": 0.010831037944130173,
+            "val_loss": 0.018546182799113145
+          },
+          {
+            "epoch": 18.0,
+            "train_loss": 0.01063305628864176,
+            "val_loss": 0.015334998040406172
+          }
+        ],
+        "checkpoint": "D:\\VR\\HandAi\\single-hand-teleop-baseline\\experiments\\intent_prediction\\outputs\\first_round\\20260823T063728_024071Z\\checkpoints\\gru.pt"
+      },
+      "improvement_vs_hold_percent": -10.043047524677728
+    },
+    "tcn": {
+      "status": "completed",
+      "metrics": {
+        "samples": 14352,
+        "mae": 0.021692792164543555,
+        "rmse": 0.05268107274904801,
+        "p95_abs_error": 0.07383990064263343,
+        "range_violation_rate": 0.0,
+        "per_horizon_ms": {
+          "50": {
+            "mae": 0.015078378691721416,
+            "rmse": 0.03847008855759146,
+            "p95_abs_error": 0.046191948652267445
+          },
+          "100": {
+            "mae": 0.022293544351000172,
+            "rmse": 0.05492908040358233,
+            "p95_abs_error": 0.07387482225894924
+          },
+          "150": {
+            "mae": 0.02770645345090908,
+            "rmse": 0.061876770199803754,
+            "p95_abs_error": 0.09885372300632295
+          }
+        },
+        "per_channel": {
+          "thumb_flexion": {
+            "mae": 0.02486106299240864,
+            "rmse": 0.06946908657978575
+          },
+          "thumb_opposition": {
+            "mae": 0.02700667245639194,
+            "rmse": 0.07012679162229986
+          },
+          "index_finger_distal": {
+            "mae": 0.02802375243156138,
+            "rmse": 0.07276788469685062
+          },
+          "index_finger_proximal": {
+            "mae": 0.026303868936769323,
+            "rmse": 0.06798117868903872
+          },
+          "middle_finger_distal": {
+            "mae": 0.022429508754595234,
+            "rmse": 0.03540206872703679
+          },
+          "middle_finger_proximal": {
+            "mae": 0.020880831308269735,
+            "rmse": 0.03350546692554529
+          },
+          "ring_finger": {
+            "mae": 0.018860197027062632,
+            "rmse": 0.0333203409194911
+          },
+          "pinky": {
+            "mae": 0.017001155657442483,
+            "rmse": 0.03664134142303316
+          },
+          "finger_spread": {
+            "mae": 0.009868079916390637,
+            "rmse": 0.022103765220408793
+          }
+        }
+      },
+      "details": {
+        "device": "cuda",
+        "torch_version": "2.7.0+cu126",
+        "cuda_available": true,
+        "deterministic_algorithms": true,
+        "cublas_workspace_config": ":4096:8",
+        "parameter_count": 186555,
+        "epochs_completed": 22,
+        "best_val_loss": 0.014897958665056214,
+        "training_seconds": 5891.4460464,
+        "latency_single_window": {
+          "samples": 100.0,
+          "p50_ms": 7.645899999261019,
+          "p95_ms": 12.518530001761969,
+          "max_ms": 15.885299999354174
+        },
+        "history": [
+          {
+            "epoch": 1.0,
+            "train_loss": 0.051220002338146865,
+            "val_loss": 0.031762287274260524
+          },
+          {
+            "epoch": 2.0,
+            "train_loss": 0.01878700006040578,
+            "val_loss": 0.021872010607353554
+          },
+          {
+            "epoch": 3.0,
+            "train_loss": 0.014967335939132402,
+            "val_loss": 0.021659506776228066
+          },
+          {
+            "epoch": 4.0,
+            "train_loss": 0.013295013209982021,
+            "val_loss": 0.01705675126717424
+          },
+          {
+            "epoch": 5.0,
+            "train_loss": 0.012192342724980682,
+            "val_loss": 0.016736686125588006
+          },
+          {
+            "epoch": 6.0,
+            "train_loss": 0.011651565915699463,
+            "val_loss": 0.015813864610255166
+          },
+          {
+            "epoch": 7.0,
+            "train_loss": 0.011280200156584286,
+            "val_loss": 0.015627203271028067
+          },
+          {
+            "epoch": 8.0,
+            "train_loss": 0.010968077493964582,
+            "val_loss": 0.015291298124001583
+          },
+          {
+            "epoch": 9.0,
+            "train_loss": 0.010962374835247061,
+            "val_loss": 0.01910553783749298
+          },
+          {
+            "epoch": 10.0,
+            "train_loss": 0.010665197696632541,
+            "val_loss": 0.015328322470770305
+          },
+          {
+            "epoch": 11.0,
+            "train_loss": 0.010486706902012005,
+            "val_loss": 0.01501424884987585
+          },
+          {
+            "epoch": 12.0,
+            "train_loss": 0.010261298194066444,
+            "val_loss": 0.016655624209491047
+          },
+          {
+            "epoch": 13.0,
+            "train_loss": 0.010420042843724008,
+            "val_loss": 0.015997594665766748
+          },
+          {
+            "epoch": 14.0,
+            "train_loss": 0.010193913296218143,
+            "val_loss": 0.015068156552619274
+          },
+          {
+            "epoch": 15.0,
+            "train_loss": 0.010045026998498113,
+            "val_loss": 0.014978934941459294
+          },
+          {
+            "epoch": 16.0,
+            "train_loss": 0.009948461194474357,
+            "val_loss": 0.014897958665056214
+          },
+          {
+            "epoch": 17.0,
+            "train_loss": 0.009944723653707679,
+            "val_loss": 0.015511148447026711
+          },
+          {
+            "epoch": 18.0,
+            "train_loss": 0.009864501410411126,
+            "val_loss": 0.015842126078685362
+          },
+          {
+            "epoch": 19.0,
+            "train_loss": 0.00988952287171254,
+            "val_loss": 0.015314582098278223
+          },
+          {
+            "epoch": 20.0,
+            "train_loss": 0.009906253384852463,
+            "val_loss": 0.016071108719410976
+          },
+          {
+            "epoch": 21.0,
+            "train_loss": 0.009692278662436516,
+            "val_loss": 0.015480831415748615
+          },
+          {
+            "epoch": 22.0,
+            "train_loss": 0.009578239789564251,
+            "val_loss": 0.016159260054388322
+          }
+        ],
+        "checkpoint": "D:\\VR\\HandAi\\single-hand-teleop-baseline\\experiments\\intent_prediction\\outputs\\first_round\\20260823T063728_024071Z\\checkpoints\\tcn.pt"
+      },
+      "improvement_vs_hold_percent": -8.724719986399236
+    },
+    "transformer": {
+      "status": "completed",
+      "metrics": {
+        "samples": 14352,
+        "mae": 0.02234325144686284,
+        "rmse": 0.05345323835940966,
+        "p95_abs_error": 0.07718420214951037,
+        "range_violation_rate": 0.0,
+        "per_horizon_ms": {
+          "50": {
+            "mae": 0.015656911674662915,
+            "rmse": 0.039303715885953244,
+            "p95_abs_error": 0.05185320824384689
+          },
+          "100": {
+            "mae": 0.022974210092507497,
+            "rmse": 0.05575862711978761,
+            "p95_abs_error": 0.0767709046602249
+          },
+          "150": {
+            "mae": 0.028398632573418108,
+            "rmse": 0.06259344608340672,
+            "p95_abs_error": 0.10184278492815788
+          }
+        },
+        "per_channel": {
+          "thumb_flexion": {
+            "mae": 0.026034336052361714,
+            "rmse": 0.07019089494722511
+          },
+          "thumb_opposition": {
+            "mae": 0.028413424280564505,
+            "rmse": 0.06990537621717814
+          },
+          "index_finger_distal": {
+            "mae": 0.029230186957031883,
+            "rmse": 0.07335998839057602
+          },
+          "index_finger_proximal": {
+            "mae": 0.027399016073283704,
+            "rmse": 0.06803256786392622
+          },
+          "middle_finger_distal": {
+            "mae": 0.021308116351099582,
+            "rmse": 0.03625463690096895
+          },
+          "middle_finger_proximal": {
+            "mae": 0.020626115924337846,
+            "rmse": 0.03517118806320252
+          },
+          "ring_finger": {
+            "mae": 0.01949917236078269,
+            "rmse": 0.03540180466307325
+          },
+          "pinky": {
+            "mae": 0.01951565860141801,
+            "rmse": 0.0403878340193592
+          },
+          "finger_spread": {
+            "mae": 0.009063236420885627,
+            "rmse": 0.021347613421926825
+          }
+        }
+      },
+      "details": {
+        "device": "cuda",
+        "torch_version": "2.7.0+cu126",
+        "cuda_available": true,
+        "deterministic_algorithms": true,
+        "cublas_workspace_config": ":4096:8",
+        "parameter_count": 422811,
+        "epochs_completed": 31,
+        "best_val_loss": 0.015196956212441335,
+        "training_seconds": 91.19961949999924,
+        "latency_single_window": {
+          "samples": 100.0,
+          "p50_ms": 4.111700000066776,
+          "p95_ms": 6.387545000688988,
+          "max_ms": 7.264399999257876
+        },
+        "history": [
+          {
+            "epoch": 1.0,
+            "train_loss": 0.04878719258766185,
+            "val_loss": 0.034051921501878864
+          },
+          {
+            "epoch": 2.0,
+            "train_loss": 0.019553509968991085,
+            "val_loss": 0.024104898270418285
+          },
+          {
+            "epoch": 3.0,
+            "train_loss": 0.016409452903843644,
+            "val_loss": 0.020765955921382855
+          },
+          {
+            "epoch": 4.0,
+            "train_loss": 0.01463221027822059,
+            "val_loss": 0.01990205791550055
+          },
+          {
+            "epoch": 5.0,
+            "train_loss": 0.013914258126331003,
+            "val_loss": 0.020409689145617516
+          },
+          {
+            "epoch": 6.0,
+            "train_loss": 0.01320757489182035,
+            "val_loss": 0.01867132961139878
+          },
+          {
+            "epoch": 7.0,
+            "train_loss": 0.012914004511960842,
+            "val_loss": 0.016639035368921792
+          },
+          {
+            "epoch": 8.0,
+            "train_loss": 0.012376167902220942,
+            "val_loss": 0.017025846176571546
+          },
+          {
+            "epoch": 9.0,
+            "train_loss": 0.01217478050200712,
+            "val_loss": 0.016562912169533237
+          },
+          {
+            "epoch": 10.0,
+            "train_loss": 0.011905285677399813,
+            "val_loss": 0.017729222781782666
+          },
+          {
+            "epoch": 11.0,
+            "train_loss": 0.01185287765340791,
+            "val_loss": 0.016535807683907174
+          },
+          {
+            "epoch": 12.0,
+            "train_loss": 0.011689574779063449,
+            "val_loss": 0.02107331006655471
+          },
+          {
+            "epoch": 13.0,
+            "train_loss": 0.011754593461489916,
+            "val_loss": 0.017804301951631938
+          },
+          {
+            "epoch": 14.0,
+            "train_loss": 0.01154456775461583,
+            "val_loss": 0.017483061339054046
+          },
+          {
+            "epoch": 15.0,
+            "train_loss": 0.011352593806451676,
+            "val_loss": 0.016957593350695722
+          },
+          {
+            "epoch": 16.0,
+            "train_loss": 0.011209395416979816,
+            "val_loss": 0.016292088715867563
+          },
+          {
+            "epoch": 17.0,
+            "train_loss": 0.01123377382332285,
+            "val_loss": 0.018855365132038348
+          },
+          {
+            "epoch": 18.0,
+            "train_loss": 0.011294261789593555,
+            "val_loss": 0.01733742533496544
+          },
+          {
+            "epoch": 19.0,
+            "train_loss": 0.010957035640989864,
+            "val_loss": 0.01663536778255838
+          },
+          {
+            "epoch": 20.0,
+            "train_loss": 0.011144854846276652,
+            "val_loss": 0.015615069151629997
+          },
+          {
+            "epoch": 21.0,
+            "train_loss": 0.010995808054402674,
+            "val_loss": 0.016417906121550245
+          },
+          {
+            "epoch": 22.0,
+            "train_loss": 0.010919375894563306,
+            "val_loss": 0.0162934382466402
+          },
+          {
+            "epoch": 23.0,
+            "train_loss": 0.010863873125311705,
+            "val_loss": 0.016272210025534337
+          },
+          {
+            "epoch": 24.0,
+            "train_loss": 0.010847505713121087,
+            "val_loss": 0.01705929344025973
+          },
+          {
+            "epoch": 25.0,
+            "train_loss": 0.010814770028797624,
+            "val_loss": 0.015196956212441335
+          },
+          {
+            "epoch": 26.0,
+            "train_loss": 0.010512895806122819,
+            "val_loss": 0.018514401894160717
+          },
+          {
+            "epoch": 27.0,
+            "train_loss": 0.01106538463553111,
+            "val_loss": 0.015683873948535463
+          },
+          {
+            "epoch": 28.0,
+            "train_loss": 0.010827165963402862,
+            "val_loss": 0.015734223236352943
+          },
+          {
+            "epoch": 29.0,
+            "train_loss": 0.010636348569020453,
+            "val_loss": 0.015690392366058393
+          },
+          {
+            "epoch": 30.0,
+            "train_loss": 0.010503496512496881,
+            "val_loss": 0.016671423917422164
+          },
+          {
+            "epoch": 31.0,
+            "train_loss": 0.010831643774532084,
+            "val_loss": 0.015829726784391387
+          }
+        ],
+        "checkpoint": "D:\\VR\\HandAi\\single-hand-teleop-baseline\\experiments\\intent_prediction\\outputs\\first_round\\20260823T063728_024071Z\\checkpoints\\transformer.pt"
+      },
+      "improvement_vs_hold_percent": -11.984835272448516
+    }
+  }
+}

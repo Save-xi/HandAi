@@ -11,10 +11,14 @@ from __future__ import annotations
 """
 
 from copy import deepcopy
+import math
 from typing import Any, Dict, List, TypedDict
 
 FINGER_NAMES = ("thumb", "index", "middle", "ring", "little")
 """所有手指映射字段都应使用这一组固定键名。"""
+
+HAND_LANDMARK_COUNT = 21
+"""MediaPipe Hands 和当前单右手 contract 固定使用 21 个关键点。"""
 
 CONTROL_PREFERRED_MAPPINGS = ("grasp", "pinch")
 """控制层当前只区分抓握和捏合两类映射。"""
@@ -82,6 +86,22 @@ PROTOCOL_HINT_REQUIRED_FIELDS = (
 )
 """protocol_hint 是 preview 元数据，不是真实硬件协议证明。"""
 
+TIMING_REQUIRED_FIELDS = (
+    "schema_version",
+    "clock",
+    "source_read_start_unix_ms",
+    "source_read_end_unix_ms",
+    "detection_end_unix_ms",
+    "baseline_end_unix_ms",
+    "preview_end_unix_ms",
+    "payload_ready_unix_ms",
+    "udp_send_attempt_unix_ms",
+)
+"""可选 timing v1 对象一旦出现，就必须使用完整字段集合。"""
+
+TIMING_EPOCH_FIELDS = TIMING_REQUIRED_FIELDS[2:]
+"""timing 中使用同一 Unix epoch 毫秒时钟的字段。"""
+
 DEPRECATED_ALIASES = {
     "gesture": "gesture_stable",
     "svh": "svh_preview",
@@ -119,10 +139,15 @@ class FramePayload(TypedDict, total=False):
     svh_preview: Dict[str, Any]
     fps: float
     latency_ms: float
+    timing: Dict[str, Any]
 
 
 def _is_number(value: Any) -> bool:
-    return isinstance(value, (int, float)) and not isinstance(value, bool)
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(float(value))
+    )
 
 
 def _maybe_float(value: Any) -> float | None:
@@ -255,6 +280,21 @@ def _normalize_svh_preview(preview: Any) -> Dict[str, Any]:
     return normalized
 
 
+def _normalize_timing(timing: Any) -> Dict[str, Any] | None:
+    """规范化可选的阶段时戳对象，同时丢弃未知键。"""
+
+    if timing is None:
+        return None
+    source = dict(timing or {})
+    normalized: Dict[str, Any] = {
+        "schema_version": int(source.get("schema_version", 1)),
+        "clock": str(source.get("clock", "unix_epoch_ms")),
+    }
+    for field in TIMING_EPOCH_FIELDS:
+        normalized[field] = _maybe_float(source.get(field))
+    return normalized
+
+
 def get_stable_gesture(payload: Dict[str, Any]) -> str:
     """读取稳定手势，并兼容旧字段 gesture。"""
 
@@ -291,6 +331,11 @@ def normalize_frame_payload(
     normalized["landmarks_3d"] = _normalize_landmarks_3d(normalized.get("landmarks_3d"), landmarks_2d)
     normalized["control_representation"] = _normalize_control_representation(normalized.get("control_representation"))
     normalized["svh_preview"] = _normalize_svh_preview(get_svh_preview(normalized))
+    timing = _normalize_timing(normalized.get("timing"))
+    if timing is None:
+        normalized.pop("timing", None)
+    else:
+        normalized["timing"] = timing
     normalized["control_ready"] = bool(
         normalized.get(
             "control_ready",
@@ -399,6 +444,29 @@ def validate_frame_payload(
         errors.append("fps 必须是数字")
     if "latency_ms" in payload and not _is_number(payload["latency_ms"]):
         errors.append("latency_ms 必须是数字")
+    timing = payload.get("timing")
+    if timing is not None:
+        if not isinstance(timing, dict):
+            errors.append("timing 必须是对象")
+        else:
+            for field in timing:
+                if field not in TIMING_REQUIRED_FIELDS:
+                    errors.append(f"timing 不允许未知字段：{field}")
+            for field in TIMING_REQUIRED_FIELDS:
+                if field not in timing:
+                    errors.append(f"timing.{field} 是必填字段")
+            if timing.get("schema_version") != 1:
+                errors.append("timing.schema_version 当前必须是 1")
+            if timing.get("clock") != "unix_epoch_ms":
+                errors.append("timing.clock 当前必须是 unix_epoch_ms")
+            for field in TIMING_EPOCH_FIELDS:
+                value = timing.get(field)
+                if field == "udp_send_attempt_unix_ms" and value is None:
+                    continue
+                if not _is_number(value):
+                    errors.append(f"timing.{field} 必须是有限数字")
+                elif float(value) < 0.0:
+                    errors.append(f"timing.{field} 不能为负数")
 
     if "finger_curl" in payload:
         _validate_finger_map("finger_curl", payload["finger_curl"], errors)
@@ -410,6 +478,29 @@ def validate_frame_payload(
         if isinstance(payload["landmarks_2d"], list) and isinstance(payload["landmarks_3d"], list):
             if len(payload["landmarks_2d"]) != len(payload["landmarks_3d"]):
                 errors.append("landmarks_3d 的点数必须与 landmarks_2d 一致")
+    detected = payload.get("detected")
+    landmarks_2d = payload.get("landmarks_2d")
+    landmarks_3d = payload.get("landmarks_3d")
+    if detected is True:
+        if payload.get("handedness") != "Right":
+            errors.append("detected=true 时 handedness 必须是 Right")
+        if not _is_number(payload.get("confidence")):
+            errors.append("detected=true 时 confidence 必须是数字")
+        if isinstance(landmarks_2d, list) and len(landmarks_2d) != HAND_LANDMARK_COUNT:
+            errors.append(f"detected=true 时 landmarks_2d 必须恰好包含 {HAND_LANDMARK_COUNT} 个点")
+        if isinstance(landmarks_3d, list) and len(landmarks_3d) != HAND_LANDMARK_COUNT:
+            errors.append(f"detected=true 时 landmarks_3d 必须恰好包含 {HAND_LANDMARK_COUNT} 个点")
+    elif detected is False:
+        if payload.get("handedness") is not None:
+            errors.append("detected=false 时 handedness 必须是 null")
+        if payload.get("confidence") is not None:
+            errors.append("detected=false 时 confidence 必须是 null")
+        if isinstance(landmarks_2d, list) and landmarks_2d:
+            errors.append("detected=false 时 landmarks_2d 必须为空")
+        if isinstance(landmarks_3d, list) and landmarks_3d:
+            errors.append("detected=false 时 landmarks_3d 必须为空")
+        if payload.get("control_ready") is True:
+            errors.append("detected=false 时 control_ready 不能为 true")
 
     control = payload.get("control_representation")
     if not isinstance(control, dict):
@@ -482,6 +573,8 @@ def validate_frame_payload(
             if preview.get("target_ticks_preview"):
                 errors.append("当 svh_preview.valid 为 false 时，svh_preview.target_ticks_preview 必须为空")
         if preview.get("valid") is True:
+            if detected is False:
+                errors.append("detected=false 时 svh_preview.valid 不能为 true")
             if preview.get("command_source") not in SVH_PREVIEW_COMMAND_SOURCES:
                 errors.append("当 svh_preview.valid 为 true 时，svh_preview.command_source 必须标明已知 preview 来源")
             if len(preview.get("target_channels", [])) != len(preview.get("target_positions", [])):

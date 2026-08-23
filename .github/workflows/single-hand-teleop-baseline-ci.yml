@@ -2,6 +2,8 @@ name: 单右手 baseline CI
 
 "on":
   push:
+    branches:
+      - main
     paths:
       - "single-hand-teleop-baseline/**"
       - ".github/workflows/single-hand-teleop-baseline-ci.yml"
@@ -11,6 +13,11 @@ name: 单右手 baseline CI
       - "single-hand-teleop-baseline/**"
       - ".github/workflows/single-hand-teleop-baseline-ci.yml"
       - "LICENSE"
+
+env:
+  # Windows Git Bash 默认编码无法稳定输出中文 CLI 帮助；同时传给 pytest 子进程。
+  PYTHONUTF8: "1"
+  PYTHONIOENCODING: "utf-8"
 
 jobs:
   baseline-ci:

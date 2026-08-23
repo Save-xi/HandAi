@@ -40,6 +40,26 @@ def _blend_finger_follow(finger_flex: float, guide_close: float, *, flex_weight:
     return clamp01(flex_weight * finger_flex + guide_weight * guide_close)
 
 
+def _finger_gated_grasp_assist(
+    finger_flex: float,
+    grasp_close: float,
+    *,
+    active_ref: float = 0.12,
+    full_ref: float = 0.45,
+) -> float:
+    """只给正在弯曲的手指叠加整体抓握引导。
+
+    三指抓握这类部分闭合动作里，整手 open ratio 会让 grasp_close 升高；
+    如果直接把它当成每根手指的闭合下限，无名指和小指会被误带进整手抓握。
+    """
+
+    denom = full_ref - active_ref
+    if abs(denom) < 1e-9:
+        return 0.0
+    activity = clamp01((finger_flex - active_ref) / denom)
+    return clamp01(grasp_close * activity)
+
+
 def _blend_support_follow(
     finger_flex: float,
     support_floor: float,
@@ -309,16 +329,20 @@ def _build_svh9_grasp_preview(control_representation: Dict, cfg: Dict) -> Dict:
     thumb_close = clamp01(0.75 * (grasp_close * thumb_grasp_scale) + 0.25 * thumb_flex)
     thumb_opp = clamp01(max(thumb_flex, grasp_close * thumb_opposition_scale))
     spread_alpha = clamp01((1.0 - grasp_close) * open_spread_scale + grasp_close * grasp_spread_scale)
+    index_assist = _finger_gated_grasp_assist(index_flex, grasp_close)
+    middle_assist = _finger_gated_grasp_assist(middle_flex, grasp_close)
+    ring_assist = _finger_gated_grasp_assist(ring_flex, grasp_close)
+    little_assist = _finger_gated_grasp_assist(little_flex, grasp_close)
     # alphas 的顺序必须和 SVH_9CH_NAMES 保持一致。
     alphas = [
         thumb_close,
         thumb_opp,
-        max(_blend_finger_follow(index_flex, grasp_close, flex_weight=0.55, guide_weight=0.45), clamp01(grasp_close * 0.62)),
-        max(_blend_finger_follow(index_flex, grasp_close, flex_weight=0.40, guide_weight=0.60), clamp01(grasp_close * 0.74)),
-        max(_blend_finger_follow(middle_flex, grasp_close, flex_weight=0.72, guide_weight=0.28), clamp01(grasp_close * 0.66)),
-        max(_blend_finger_follow(middle_flex, grasp_close, flex_weight=0.58, guide_weight=0.42), clamp01(grasp_close * 0.78)),
-        max(_blend_finger_follow(ring_flex, grasp_close, flex_weight=0.80, guide_weight=0.20), clamp01(grasp_close * 0.74)),
-        max(_blend_finger_follow(little_flex, grasp_close, flex_weight=0.84, guide_weight=0.16), clamp01(grasp_close * 0.72)),
+        _blend_finger_follow(index_flex, index_assist, flex_weight=0.60, guide_weight=0.40),
+        _blend_finger_follow(index_flex, index_assist, flex_weight=0.45, guide_weight=0.55),
+        _blend_finger_follow(middle_flex, middle_assist, flex_weight=0.68, guide_weight=0.32),
+        _blend_finger_follow(middle_flex, middle_assist, flex_weight=0.52, guide_weight=0.48),
+        _blend_finger_follow(ring_flex, ring_assist, flex_weight=0.78, guide_weight=0.22),
+        _blend_finger_follow(little_flex, little_assist, flex_weight=0.82, guide_weight=0.18),
         spread_alpha,
     ]
     grasp_fill_position = _svh9_positions_from_alphas([grasp_close], cfg)[0]

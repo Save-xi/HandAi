@@ -21,7 +21,7 @@ FreiHAND 是单手关键点姿态估计数据集，适合评估“手部关键�
 - `mpjpe_2d_px`：2D 平均关键点误差，单位 pixel。
 - `PCK@5/10/20/30px`：2D 误差小于阈值的关键点比例。
 - `per_joint_error`：每个关节的 2D 平均误差。
-- `latency_ms`：预测端记录的单帧处理时间，报告平均值和 P95。
+- `latency_ms`：当前脚本记录 `detector.detect + 手选择` 的单样本耗时；不包含图片读取、控制映射、JSON、UDP 或 Unity。报告平均值、P95、P99 和最大值。
 
 本模块不再计算 3D MPJPE / 3D PCK。当前项目的 MediaPipe `z` 不是 FreiHAND 相机坐标系下的真实 3D 坐标，强行对齐会让指标失真；答辩阶段只保留可信的 2D 视觉感知指标。
 
@@ -109,6 +109,27 @@ outputs/freihand_2d_keypoints.json
 ```
 
 运行当前项目里的 MediaPipe 单右手 CV 管线，生成 FreiHAND predictions：
+
+### 推荐：一条命令生成不可覆盖的验收包
+
+正式阶段结果优先使用：
+
+```bash
+python scripts/run_phase1_offline_acceptance.py \
+  --config configs/freihand_eval.yaml \
+  --split evaluation \
+  --require-full-split
+```
+
+它会运行 compileall、pytest、全量预测、评估、表格和 SVG，并把 Git 状态、环境版本、配置、命令、结果和 SHA-256 保存到独立 run 目录：
+
+```text
+outputs/phase1_acceptance/<run_id>/
+```
+
+该目录不会覆盖历史结果。旧的逐步命令仍适合开发调试，但默认 `reports/` 路径会被下一次直接运行覆盖，不应混作正式实验记录。
+
+### 逐步调试命令
 
 ```bash
 python scripts/run_current_pipeline_predictions.py --config configs/freihand_eval.yaml

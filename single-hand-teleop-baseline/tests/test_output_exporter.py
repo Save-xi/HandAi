@@ -10,6 +10,14 @@ from utils.config import load_config
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
+def _landmarks_2d() -> list[list[float]]:
+    return [[0.1 + index * 0.01, 0.2 + index * 0.01] for index in range(21)]
+
+
+def _landmarks_3d() -> list[list[float]]:
+    return [[x, y, -index * 0.001] for index, (x, y) in enumerate(_landmarks_2d())]
+
+
 def _sample_payload(frame_index: int) -> dict:
     return normalize_frame_payload(
         {
@@ -24,8 +32,8 @@ def _sample_payload(frame_index: int) -> dict:
             "pinch_distance_norm": 0.1,
             "hand_open_ratio": 0.8,
             "finger_curl": {"thumb": 0.1, "index": 0.1, "middle": 0.1, "ring": 0.1, "little": 0.1},
-            "landmarks_2d": [[0.1, 0.2], [0.2, 0.3], [0.3, 0.4]],
-            "landmarks_3d": [[0.1, 0.2, -0.01], [0.2, 0.3, -0.02], [0.3, 0.4, -0.03]],
+            "landmarks_2d": _landmarks_2d(),
+            "landmarks_3d": _landmarks_3d(),
             "control_representation": {
                 "valid": True,
                 "features_valid": True,
@@ -147,6 +155,18 @@ def test_default_config_exposes_exporter_tuning(monkeypatch):
     assert cfg["unity_udp_enabled"] is False
     assert cfg["unity_udp_host"] == "127.0.0.1"
     assert cfg["unity_udp_port"] == 18080
+
+
+def test_exporter_constructor_keeps_unity_udp_disabled_by_default(tmp_path):
+    exporter = JsonExporter(str(tmp_path / "last.json"), save_last_json=False)
+    try:
+        assert exporter.unity_udp_enabled is False
+        assert exporter._unity_udp_socket is None
+        exporter.send_prepared_frame(_sample_payload(0))
+        assert exporter._unity_udp_socket is None
+        assert exporter._unity_udp_send_count == 0
+    finally:
+        exporter.close()
 
 
 def test_send_prepared_frame_can_broadcast_over_unity_udp(tmp_path):

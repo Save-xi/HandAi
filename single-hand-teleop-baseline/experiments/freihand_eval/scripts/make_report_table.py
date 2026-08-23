@@ -18,6 +18,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Create a PPT-ready Markdown table from eval_metrics.json.")
     parser.add_argument("--config", default="../configs/freihand_eval.yaml", help="Path to freihand_eval.yaml")
     parser.add_argument("--metrics", default=None, help="Override eval_metrics.json path")
+    parser.add_argument("--output", default=None, help="Write the Markdown table to this path")
     return parser.parse_args()
 
 
@@ -42,7 +43,11 @@ def main() -> None:
     args = parse_args()
     config = load_config(resolve_config_arg(args.config))
     metrics_path = resolve_cli_path(args.metrics) if args.metrics else resolve_path(config, config.data["paths"]["eval_metrics_json"])
-    output_path = resolve_path(config, config.data["paths"]["ppt_table_md"])
+    output_path = (
+        resolve_cli_path(args.output)
+        if args.output
+        else resolve_path(config, config.data["paths"]["ppt_table_md"])
+    )
     metrics = read_json(metrics_path)
     write_text(output_path, render_ppt_table(metrics))
     print(f"PPT table saved to {output_path}")
