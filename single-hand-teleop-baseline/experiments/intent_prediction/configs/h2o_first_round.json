@@ -1,0 +1,52 @@
+{
+  "seed": 20260823,
+  "history_frames": 30,
+  "horizon_ms": [50, 100, 150],
+  "stride": 2,
+  "max_windows": {
+    "train": 60000,
+    "val": 20000,
+    "test": 20000
+  },
+  "models": [
+    "hold_last",
+    "linear",
+    "kalman",
+    "gru",
+    "tcn",
+    "transformer"
+  ],
+  "classical": {
+    "linear_fit_frames": 8,
+    "kalman_process_variance": 0.002,
+    "kalman_measurement_variance": 0.008
+  },
+  "training": {
+    "device": "auto",
+    "epochs": 40,
+    "patience": 6,
+    "batch_size": 256,
+    "learning_rate": 0.001,
+    "weight_decay": 0.0001,
+    "gradient_clip": 1.0
+  },
+  "architecture": {
+    "gru": {
+      "hidden_size": 128,
+      "layers": 2,
+      "dropout": 0.1
+    },
+    "tcn": {
+      "channels": [64, 96, 128],
+      "kernel_size": 3,
+      "dropout": 0.1
+    },
+    "transformer": {
+      "d_model": 128,
+      "nhead": 4,
+      "layers": 3,
+      "dim_feedforward": 256,
+      "dropout": 0.1
+    }
+  }
+}

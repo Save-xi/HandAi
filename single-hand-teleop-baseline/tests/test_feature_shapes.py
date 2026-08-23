@@ -147,3 +147,40 @@ def test_finger_curl_uses_joint_geometry_and_z_to_separate_open_and_fist():
 
     assert open_feat["finger_curl"]["thumb"] < 0.05
     assert fist_feat["finger_curl"]["thumb"] > open_feat["finger_curl"]["thumb"] + 0.15
+
+
+def test_tip_to_palm_proximity_helps_partial_grasp_curl():
+    """三指抓握里，指尖靠近掌心也应被识别成闭合线索。"""
+
+    xyz = [
+        (0.0, 0.0, 0.0),
+        (-1.0, 0.5, 0.0),
+        (-1.4, 1.0, 0.0),
+        (-1.1, 1.0, -0.1),
+        (-0.35, 0.95, -0.2),
+        (-0.8, 1.0, 0.0),
+        (-0.75, 1.75, 0.0),
+        (-0.35, 1.55, -0.1),
+        (0.0, 1.10, -0.2),
+        (0.0, 1.0, 0.0),
+        (0.0, 1.85, 0.0),
+        (0.35, 1.60, -0.1),
+        (0.45, 1.05, -0.2),
+        (0.8, 1.0, 0.0),
+        (0.8, 2.0, 0.0),
+        (0.8, 3.0, 0.0),
+        (0.8, 4.0, 0.0),
+        (1.6, 1.0, 0.0),
+        (1.6, 1.9, 0.0),
+        (1.6, 2.8, 0.0),
+        (1.6, 3.7, 0.0),
+    ]
+    xy = [(x, y) for x, y, _ in xyz]
+
+    feat = extract_hand_features(xy, "Right", 0.9, 123.0, landmarks_xyz=xyz)
+
+    assert feat["finger_curl"]["thumb"] > 0.45
+    assert feat["finger_curl"]["index"] > 0.65
+    assert feat["finger_curl"]["middle"] > 0.65
+    assert feat["finger_curl"]["ring"] < 0.10
+    assert feat["finger_curl"]["little"] < 0.10

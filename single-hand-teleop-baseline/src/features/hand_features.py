@@ -42,6 +42,7 @@ LITTLE_TIP = 20
 PALM_CENTER_POINTS = [WRIST, INDEX_MCP, MIDDLE_MCP, RING_MCP, LITTLE_MCP]
 # 低质量帧或空帧里，控制相关 finger_curl 会统一退化成这组空值。
 EMPTY_FINGER_CURL = {"thumb": None, "index": None, "middle": None, "ring": None, "little": None}
+HAND_LANDMARK_COUNT = LITTLE_TIP + 1
 
 
 def _safe_ratio(num: float, den: float, default: float = 0.0) -> float:
@@ -60,9 +61,9 @@ def _mean_point(points: List[Tuple[float, float]]) -> Tuple[float, float]:
 
 
 def _has_complete_landmarks_2d(landmarks_2d: Sequence[Sequence[float]]) -> bool:
-    if len(landmarks_2d) <= LITTLE_TIP:
+    if len(landmarks_2d) != HAND_LANDMARK_COUNT:
         return False
-    return all(len(point) >= 2 for point in landmarks_2d[: LITTLE_TIP + 1])
+    return all(len(point) >= 2 for point in landmarks_2d)
 
 
 def _has_complete_landmarks_3d(
@@ -108,6 +109,26 @@ def _chain_compression(landmarks_xyz: Sequence[Sequence[float]], joint_indices: 
     return clamp01(1.0 - clamp01(direct / chain_len))
 
 
+def _tip_to_palm_curl(
+    landmarks_2d: Sequence[Sequence[float]],
+    *,
+    tip: int,
+    palm_center: Tuple[float, float],
+    palm_size: float,
+) -> float:
+    """用指尖靠近掌心的程度补充 curl 判断。
+
+    真实摄像头里，三指抓握常会出现“关节角不夸张，但指尖已经收回掌心附近”的情况。
+    单看 PIP/DIP 角度会偏保守，因此这里额外把 tip->palm 距离转成闭合线索。
+    """
+
+    tip_distance = euclidean(landmarks_2d[tip], palm_center)
+    ratio = _safe_ratio(tip_distance, palm_size, default=10.0)
+    open_ref = 1.45
+    closed_ref = 0.70
+    return clamp01((open_ref - ratio) / (open_ref - closed_ref))
+
+
 def _long_finger_curl(
     landmarks_xyz: List[Tuple[float, float, float]],
     *,
@@ -133,6 +154,12 @@ def _thumb_curl(landmarks_xyz: List[Tuple[float, float, float]]) -> float:
     ip_bend = _bend_from_angle(joint_angle(landmarks_xyz[THUMB_MCP], landmarks_xyz[THUMB_IP], landmarks_xyz[THUMB_TIP]))
     compression = _chain_compression(landmarks_xyz, [THUMB_CMC, THUMB_MCP, THUMB_IP, THUMB_TIP])
     return clamp01(0.40 * mcp_bend + 0.40 * ip_bend + 0.20 * compression)
+
+
+def _merge_curl_with_tip_proximity(angle_curl: float, tip_palm_curl: float, *, proximity_weight: float = 0.80) -> float:
+    """融合关节弯曲和指尖回收两类线索。"""
+
+    return clamp01(max(angle_curl, proximity_weight * tip_palm_curl))
 
 
 def extract_hand_features(
@@ -177,12 +204,32 @@ def extract_hand_features(
         default=0.0,
     )
 
+    tip_palm_curl = {
+        "thumb": _tip_to_palm_curl(landmarks_2d, tip=THUMB_TIP, palm_center=palm_center, palm_size=palm_size),
+        "index": _tip_to_palm_curl(landmarks_2d, tip=INDEX_TIP, palm_center=palm_center, palm_size=palm_size),
+        "middle": _tip_to_palm_curl(landmarks_2d, tip=MIDDLE_TIP, palm_center=palm_center, palm_size=palm_size),
+        "ring": _tip_to_palm_curl(landmarks_2d, tip=RING_TIP, palm_center=palm_center, palm_size=palm_size),
+        "little": _tip_to_palm_curl(landmarks_2d, tip=LITTLE_TIP, palm_center=palm_center, palm_size=palm_size),
+    }
+
     finger_curl = {
-        "thumb": _thumb_curl(landmarks_xyz),
-        "index": _long_finger_curl(landmarks_xyz, mcp=INDEX_MCP, pip=INDEX_PIP, dip=INDEX_DIP, tip=INDEX_TIP),
-        "middle": _long_finger_curl(landmarks_xyz, mcp=MIDDLE_MCP, pip=MIDDLE_PIP, dip=MIDDLE_DIP, tip=MIDDLE_TIP),
-        "ring": _long_finger_curl(landmarks_xyz, mcp=RING_MCP, pip=RING_PIP, dip=RING_DIP, tip=RING_TIP),
-        "little": _long_finger_curl(landmarks_xyz, mcp=LITTLE_MCP, pip=LITTLE_PIP, dip=LITTLE_DIP, tip=LITTLE_TIP),
+        "thumb": _merge_curl_with_tip_proximity(_thumb_curl(landmarks_xyz), tip_palm_curl["thumb"], proximity_weight=0.70),
+        "index": _merge_curl_with_tip_proximity(
+            _long_finger_curl(landmarks_xyz, mcp=INDEX_MCP, pip=INDEX_PIP, dip=INDEX_DIP, tip=INDEX_TIP),
+            tip_palm_curl["index"],
+        ),
+        "middle": _merge_curl_with_tip_proximity(
+            _long_finger_curl(landmarks_xyz, mcp=MIDDLE_MCP, pip=MIDDLE_PIP, dip=MIDDLE_DIP, tip=MIDDLE_TIP),
+            tip_palm_curl["middle"],
+        ),
+        "ring": _merge_curl_with_tip_proximity(
+            _long_finger_curl(landmarks_xyz, mcp=RING_MCP, pip=RING_PIP, dip=RING_DIP, tip=RING_TIP),
+            tip_palm_curl["ring"],
+        ),
+        "little": _merge_curl_with_tip_proximity(
+            _long_finger_curl(landmarks_xyz, mcp=LITTLE_MCP, pip=LITTLE_PIP, dip=LITTLE_DIP, tip=LITTLE_TIP),
+            tip_palm_curl["little"],
+        ),
     }
 
     return {

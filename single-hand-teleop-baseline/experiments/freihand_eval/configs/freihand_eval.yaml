@@ -29,6 +29,14 @@ projection:
 metrics:
   pck_2d_thresholds_px: [5, 10, 20, 30]
   joint_count: 21
+  latency_threshold_ms: 50.0
+
+phase1_acceptance:
+  # 这是离线阶段回归下限，不等于最终项目验收指标。
+  minimum_complete_rate: 0.90
+  minimum_pck20_all_gt: 0.80
+  maximum_mpjpe_2d_px: 10.0
+  maximum_detection_p95_ms: 50.0
 
 runtime:
   max_samples:

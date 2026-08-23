@@ -91,6 +91,7 @@ def evaluate_predictions(
     *,
     joint_count: int = 21,
     pck_2d_thresholds_px: list[float] | None = None,
+    latency_threshold_ms: float = 50.0,
 ) -> Dict[str, Any]:
     """对齐 sample id 后计算 2D FreiHAND 关键点评估指标。"""
 
@@ -161,7 +162,15 @@ def evaluate_predictions(
         },
         "latency_ms": {
             "mean": _mean_or_none(latencies),
+            "median": _percentile_or_none(latencies, 50),
             "p95": _percentile_or_none(latencies, 95),
+            "p99": _percentile_or_none(latencies, 99),
+            "max": None if not latencies else float(max(latencies)),
             "count": len(latencies),
+            "threshold_ms": float(latency_threshold_ms),
+            "over_threshold_count": sum(value > latency_threshold_ms for value in latencies),
+            "over_threshold_rate": None
+            if not latencies
+            else float(sum(value > latency_threshold_ms for value in latencies) / len(latencies)),
         },
     }

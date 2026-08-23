@@ -4,6 +4,14 @@ from output.frame_payload_contract import normalize_frame_payload
 from visualize.status_panel import build_status_panel
 
 
+def _landmarks_2d() -> list[list[float]]:
+    return [[0.1 + index * 0.01, 0.2 + index * 0.01] for index in range(21)]
+
+
+def _landmarks_3d() -> list[list[float]]:
+    return [[x, y, -index * 0.001] for index, (x, y) in enumerate(_landmarks_2d())]
+
+
 def _sample_payload() -> dict:
     return normalize_frame_payload(
         {
@@ -18,8 +26,8 @@ def _sample_payload() -> dict:
             "pinch_distance_norm": 0.16,
             "hand_open_ratio": 0.81,
             "finger_curl": {"thumb": 0.03, "index": 0.22, "middle": 0.01, "ring": 0.01, "little": 0.02},
-            "landmarks_2d": [[0.1, 0.2], [0.2, 0.3], [0.3, 0.4]],
-            "landmarks_3d": [[0.1, 0.2, 0.0], [0.2, 0.3, -0.01], [0.3, 0.4, -0.02]],
+            "landmarks_2d": _landmarks_2d(),
+            "landmarks_3d": _landmarks_3d(),
             "control_representation": {
                 "valid": True,
                 "features_valid": True,

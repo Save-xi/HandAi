@@ -187,6 +187,28 @@ def test_svh_9ch_support_fingers_follow_their_own_flex_more_directly():
     assert high_support["target_positions"][7] > low_support["target_positions"][7]
 
 
+def test_svh_9ch_partial_grasp_keeps_unused_fingers_open():
+    cfg = _svh_cfg()
+    cfg["svh_preview_layout"] = "svh_9ch"
+    cfg["svh_preview_channel_count"] = 9
+
+    preview = build_svh_command_preview(
+        _payload(
+            "unknown",
+            0.55,
+            0.30,
+            {"thumb": 0.45, "index": 0.75, "middle": 0.75, "ring": 0.05, "little": 0.05},
+        ),
+        cfg,
+    )
+
+    assert preview["valid"] is True
+    assert preview["target_positions"][2] > 0.65
+    assert preview["target_positions"][4] > 0.65
+    assert preview["target_positions"][6] < 0.15
+    assert preview["target_positions"][7] < 0.15
+
+
 def test_svh_9ch_layout_emits_nine_channels_in_driver_order():
     cfg = _svh_cfg()
     cfg["svh_preview_layout"] = "svh_9ch"

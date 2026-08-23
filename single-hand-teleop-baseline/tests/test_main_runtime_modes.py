@@ -3,7 +3,7 @@ import logging
 from pathlib import Path
 
 from features.hand_features import extract_hand_features
-from main import _apply_cli_overrides, _apply_extension_chain, _build_runtime_mode
+from main import _apply_cli_overrides, _apply_extension_chain, _build_exporter, _build_runtime_mode
 
 
 def _args(**overrides):
@@ -41,6 +41,14 @@ def test_runtime_mode_defaults_to_baseline_only():
     assert runtime.headless is False
     assert runtime.control_extension_enabled is False
     assert runtime.svh_preview_enabled is False
+
+
+def test_exporter_defaults_do_not_enable_unity_udp():
+    exporter = _build_exporter({}, logging.getLogger("test-runtime"))
+    try:
+        assert exporter.unity_udp_enabled is False
+    finally:
+        exporter.close()
 
 
 def test_cli_overrides_enable_preview_headless_and_video_file(monkeypatch):

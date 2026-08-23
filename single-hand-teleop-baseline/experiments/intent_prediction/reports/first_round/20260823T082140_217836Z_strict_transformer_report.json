@@ -1,0 +1,273 @@
+{
+  "schema_version": "intent-first-round-report-v1",
+  "status": "completed",
+  "created_at_utc": "2026-08-23T08:23:19.709932+00:00",
+  "data_root": "D:\\VR\\HandAi\\datasets\\H2O\\processed\\cross_subject_v1",
+  "dataset": "h2o_pose_only_right_hand",
+  "synthetic": false,
+  "research_claims_allowed": true,
+  "warning": null,
+  "config_path": "D:\\VR\\HandAi\\single-hand-teleop-baseline\\experiments\\intent_prediction\\configs\\h2o_first_round.json",
+  "config_sha256": "ae04822824fd02db85cc08c127a90bde2050ee48b888e26c679b9456c3e0cc80",
+  "history_frames": 30,
+  "horizon_ms": [
+    50,
+    100,
+    150
+  ],
+  "effective_horizon_frames": [
+    1.5,
+    3.0,
+    4.5
+  ],
+  "window_counts": {
+    "train": 25364,
+    "val": 13310,
+    "test": 14352
+  },
+  "sequence_counts": {
+    "train": 105,
+    "val": 60,
+    "test": 52
+  },
+  "sequence_overlap": {
+    "train_val": 0,
+    "train_test": 0,
+    "val_test": 0
+  },
+  "models_requested": [
+    "transformer"
+  ],
+  "best_model_by_mae": "transformer",
+  "environment": {
+    "python": "3.10.20",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "numpy": "2.2.6",
+    "torch_available": true
+  },
+  "results": {
+    "transformer": {
+      "status": "completed",
+      "metrics": {
+        "samples": 14352,
+        "mae": 0.02254343146820186,
+        "rmse": 0.053818209066329746,
+        "p95_abs_error": 0.07646661847829817,
+        "range_violation_rate": 0.0,
+        "per_horizon_ms": {
+          "50": {
+            "mae": 0.015780047869255368,
+            "rmse": 0.03947523527722956,
+            "p95_abs_error": 0.049128663539886444
+          },
+          "100": {
+            "mae": 0.023182420879295184,
+            "rmse": 0.056220342345137904,
+            "p95_abs_error": 0.07673501521348951
+          },
+          "150": {
+            "mae": 0.028667825656055024,
+            "rmse": 0.0630093468282635,
+            "p95_abs_error": 0.10173697322607034
+          }
+        },
+        "per_channel": {
+          "thumb_flexion": {
+            "mae": 0.025897880476692312,
+            "rmse": 0.07074954734337628
+          },
+          "thumb_opposition": {
+            "mae": 0.028603806657978275,
+            "rmse": 0.07063385344602001
+          },
+          "index_finger_distal": {
+            "mae": 0.03011346940800481,
+            "rmse": 0.07384096294756813
+          },
+          "index_finger_proximal": {
+            "mae": 0.027962783718912886,
+            "rmse": 0.0689128142583839
+          },
+          "middle_finger_distal": {
+            "mae": 0.02247495283351935,
+            "rmse": 0.03708959169264309
+          },
+          "middle_finger_proximal": {
+            "mae": 0.021124794722414623,
+            "rmse": 0.03543856761998866
+          },
+          "ring_finger": {
+            "mae": 0.020066054781970842,
+            "rmse": 0.03597541669378754
+          },
+          "pinky": {
+            "mae": 0.017873557210238516,
+            "rmse": 0.03845842273804339
+          },
+          "finger_spread": {
+            "mae": 0.008773583404085107,
+            "rmse": 0.021602832946868003
+          }
+        }
+      },
+      "details": {
+        "device": "cuda",
+        "seed": 20260928,
+        "torch_version": "2.7.0+cu126",
+        "cuda_available": true,
+        "deterministic_algorithms": true,
+        "deterministic_warn_only": false,
+        "cublas_workspace_config": ":4096:8",
+        "cuda_sdp_backends": {
+          "flash": false,
+          "memory_efficient": false,
+          "math": true
+        },
+        "parameter_count": 422811,
+        "epochs_completed": 26,
+        "best_val_loss": 0.01507522401047953,
+        "training_seconds": 94.35033829999884,
+        "latency_single_window": {
+          "samples": 100.0,
+          "p50_ms": 15.395750000607222,
+          "p95_ms": 26.301530002092477,
+          "max_ms": 28.295299998717383
+        },
+        "history": [
+          {
+            "epoch": 1.0,
+            "train_loss": 0.04886340517348022,
+            "val_loss": 0.040053666217894954
+          },
+          {
+            "epoch": 2.0,
+            "train_loss": 0.019954445575797355,
+            "val_loss": 0.02267022175864113
+          },
+          {
+            "epoch": 3.0,
+            "train_loss": 0.016473988648882953,
+            "val_loss": 0.019514859903528223
+          },
+          {
+            "epoch": 4.0,
+            "train_loss": 0.014529933374239395,
+            "val_loss": 0.019300035892752757
+          },
+          {
+            "epoch": 5.0,
+            "train_loss": 0.01421743885189074,
+            "val_loss": 0.025192361446496333
+          },
+          {
+            "epoch": 6.0,
+            "train_loss": 0.013325861014221308,
+            "val_loss": 0.01755756792170853
+          },
+          {
+            "epoch": 7.0,
+            "train_loss": 0.012785098423948989,
+            "val_loss": 0.01689299679089094
+          },
+          {
+            "epoch": 8.0,
+            "train_loss": 0.012288335804909614,
+            "val_loss": 0.01774161992514832
+          },
+          {
+            "epoch": 9.0,
+            "train_loss": 0.012344787723316208,
+            "val_loss": 0.017917457670197284
+          },
+          {
+            "epoch": 10.0,
+            "train_loss": 0.012348680235145877,
+            "val_loss": 0.017185910329625714
+          },
+          {
+            "epoch": 11.0,
+            "train_loss": 0.01182479949829904,
+            "val_loss": 0.01602718687590399
+          },
+          {
+            "epoch": 12.0,
+            "train_loss": 0.011555885498647979,
+            "val_loss": 0.021633648643148384
+          },
+          {
+            "epoch": 13.0,
+            "train_loss": 0.011863006300022221,
+            "val_loss": 0.017124494937948945
+          },
+          {
+            "epoch": 14.0,
+            "train_loss": 0.011568822762406769,
+            "val_loss": 0.015881540097581723
+          },
+          {
+            "epoch": 15.0,
+            "train_loss": 0.011514869599505153,
+            "val_loss": 0.01738667666889688
+          },
+          {
+            "epoch": 16.0,
+            "train_loss": 0.011090243881472258,
+            "val_loss": 0.016022199249296685
+          },
+          {
+            "epoch": 17.0,
+            "train_loss": 0.011201115704760334,
+            "val_loss": 0.018802411136917833
+          },
+          {
+            "epoch": 18.0,
+            "train_loss": 0.011294445595305258,
+            "val_loss": 0.0156691707183686
+          },
+          {
+            "epoch": 19.0,
+            "train_loss": 0.010894511230178313,
+            "val_loss": 0.01606538068757838
+          },
+          {
+            "epoch": 20.0,
+            "train_loss": 0.011213816682244256,
+            "val_loss": 0.01507522401047953
+          },
+          {
+            "epoch": 21.0,
+            "train_loss": 0.010869981903753772,
+            "val_loss": 0.016210093340261997
+          },
+          {
+            "epoch": 22.0,
+            "train_loss": 0.0108858095759582,
+            "val_loss": 0.020422980310514312
+          },
+          {
+            "epoch": 23.0,
+            "train_loss": 0.010996249697966176,
+            "val_loss": 0.0155901095294621
+          },
+          {
+            "epoch": 24.0,
+            "train_loss": 0.01096603253577536,
+            "val_loss": 0.016484424398804768
+          },
+          {
+            "epoch": 25.0,
+            "train_loss": 0.010782099385040685,
+            "val_loss": 0.018392338385703328
+          },
+          {
+            "epoch": 26.0,
+            "train_loss": 0.010893254453103952,
+            "val_loss": 0.01751236122025976
+          }
+        ],
+        "checkpoint": "D:\\VR\\HandAi\\single-hand-teleop-baseline\\experiments\\intent_prediction\\outputs\\first_round\\20260823T082140_217836Z\\checkpoints\\transformer.pt",
+        "progress_log": "D:\\VR\\HandAi\\single-hand-teleop-baseline\\experiments\\intent_prediction\\outputs\\first_round\\20260823T082140_217836Z\\training_progress.jsonl"
+      }
+    }
+  }
+}

@@ -27,7 +27,7 @@ from capture.webcam import WebcamSource
 from control.control_representation import build_control_representation, empty_control_representation
 from features.hand_features import empty_features, extract_hand_features, invalidate_control_features
 from gesture.rule_based_gesture import GestureStabilizer, infer_gesture_raw
-from output.frame_payload_contract import normalize_frame_payload
+from output.frame_payload_contract import assert_valid_frame_payload, prepare_frame_payload
 from output.json_exporter import JsonExporter
 from perception.hand_filter import select_right_hand
 from perception.landmark_quality import assess_control_readiness
@@ -207,7 +207,7 @@ def _build_exporter(cfg: Dict[str, Any], logger) -> JsonExporter:
         jsonl_path=_build_jsonl_session_path(cfg) if bool(cfg.get("save_jsonl", False)) else None,
         export_last_every_n_frames=int(cfg.get("export_last_every_n_frames", 1)),
         jsonl_flush_interval=int(cfg.get("jsonl_flush_interval", 1)),
-        unity_udp_enabled=bool(cfg.get("unity_udp_enabled", True)),
+        unity_udp_enabled=bool(cfg.get("unity_udp_enabled", False)),
         unity_udp_host=str(cfg.get("unity_udp_host", "127.0.0.1")),
         unity_udp_port=int(cfg.get("unity_udp_port", 18080)),
         logger=logger,
@@ -331,6 +331,39 @@ def _record_extension_failure(
         )
 
 
+def _unix_ms() -> float:
+    """返回 Unix epoch 毫秒；用于同机 Python/Unity 阶段诊断。"""
+
+    return time.time() * 1000.0
+
+
+def _emit_prepared_frame(
+    payload: Dict[str, Any],
+    *,
+    frame_index: int,
+    exporter: JsonExporter,
+    print_json: bool,
+    print_every_n_frames: int,
+    landmarks_preview_count: int,
+) -> None:
+    """按实时优先级输出一帧：先 UDP，再控制台，最后落盘。
+
+    UDP 必须排在控制台和 JSON/JSONL I/O 前面，避免调试输出把 Unity 预览
+    无谓推迟。发送尝试时刻只在 UDP 明确启用时填写。
+    """
+
+    if exporter.unity_udp_enabled:
+        timing = payload.get("timing")
+        if isinstance(timing, dict):
+            timing["udp_send_attempt_unix_ms"] = _unix_ms()
+            assert_valid_frame_payload(payload)
+        exporter.send_prepared_frame(payload)
+
+    if print_json and frame_index % print_every_n_frames == 0:
+        exporter.print_console(payload, landmarks_preview_count=landmarks_preview_count)
+    exporter.export_prepared_frame(payload, frame_index=frame_index)
+
+
 def _apply_extension_chain(
     payload: Dict[str, Any],
     cfg: Dict[str, Any],
@@ -431,7 +464,9 @@ def main() -> None:
         frame_index = 0
 
         while True:
+            source_read_start_unix_ms = _unix_ms()
             ok, frame = source.read()
+            source_read_end_unix_ms = _unix_ms()
             if not ok or frame is None:
                 if frame_index == 0:
                     logger.warning("输入源没有产出任何帧；程序将安全退出。")
@@ -448,6 +483,7 @@ def main() -> None:
                 stabilizer,
                 draw_landmarks=draw_landmarks,
             )
+            baseline_end_unix_ms = _unix_ms()
             # 2. 再按运行模式追加 control / SVH preview 扩展字段。
             _apply_extension_chain(
                 payload,
@@ -456,18 +492,35 @@ def main() -> None:
                 svh_transport=svh_transport,
                 logger=logger,
             )
+            preview_end_unix_ms = _unix_ms()
             payload["frame_index"] = frame_index
             dt = timer.tick()
             payload["fps"] = 1.0 / dt if dt > 1e-6 else 0.0
             payload["latency_ms"] = (time.perf_counter() - t0) * 1000.0
-            # 3. 最后统一规范化，保证导出前字段形状和范围符合 contract。
-            payload = normalize_frame_payload(payload, include_deprecated_aliases=False)
+            payload["timing"] = {
+                "schema_version": 1,
+                "clock": "unix_epoch_ms",
+                "source_read_start_unix_ms": source_read_start_unix_ms,
+                "source_read_end_unix_ms": source_read_end_unix_ms,
+                # _build_baseline_payload 在 detect + 右手筛选后生成 timestamp。
+                "detection_end_unix_ms": float(payload["timestamp"]) * 1000.0,
+                "baseline_end_unix_ms": baseline_end_unix_ms,
+                "preview_end_unix_ms": preview_end_unix_ms,
+                "payload_ready_unix_ms": _unix_ms(),
+                "udp_send_attempt_unix_ms": None,
+            }
+            # 3. 最后统一规范化并校验，保证输出满足 contract。
+            payload = prepare_frame_payload(payload, include_deprecated_aliases=False)
             history.append(payload)
 
-            if args.print_json and frame_index % print_every_n_frames == 0:
-                exporter.print_console(payload, landmarks_preview_count=landmarks_preview_count)
-            exporter.export_prepared_frame(payload, frame_index=frame_index)
-            exporter.send_prepared_frame(payload)
+            _emit_prepared_frame(
+                payload,
+                frame_index=frame_index,
+                exporter=exporter,
+                print_json=bool(args.print_json),
+                print_every_n_frames=print_every_n_frames,
+                landmarks_preview_count=landmarks_preview_count,
+            )
 
             if runtime.gui_enabled:
                 view = compose_view(frame, payload)
