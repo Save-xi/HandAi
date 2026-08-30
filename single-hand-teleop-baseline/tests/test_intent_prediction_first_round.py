@@ -19,6 +19,7 @@ from intent_prediction.gating import apply_motion_gate, fit_motion_gate  # noqa:
 from intent_prediction.h2o_adapter import (  # noqa: E402
     CameraIntrinsics,
     canonicalize_h2o_camera_xy,
+    canonicalize_h2o_normalized_perspective_xy,
     h2o_frame_to_svh9,
     preprocess_h2o_pose_dataset,
     project_h2o_points_normalized,
@@ -94,6 +95,20 @@ def test_h2o_right_hand_parser_and_projection(tmp_path: Path):
     assert np.linalg.norm(canonical[9]) == pytest.approx(1.0)
 
 
+def test_normalized_perspective_fallback_uses_depth_without_requiring_intrinsics():
+    points = _open_hand_xyz()
+    legacy = canonicalize_h2o_camera_xy(points)
+    perspective_at_equal_depth = canonicalize_h2o_normalized_perspective_xy(points)
+    np.testing.assert_allclose(perspective_at_equal_depth, legacy, atol=1e-6)
+
+    varied_depth = points.copy()
+    varied_depth[4:, 2] += np.linspace(0.0, 5.0, len(varied_depth) - 4, dtype=np.float32)
+    perspective = canonicalize_h2o_normalized_perspective_xy(varied_depth)
+    np.testing.assert_allclose(perspective[0], [0.0, 0.0], atol=1e-7)
+    assert np.linalg.norm(perspective[9]) == pytest.approx(1.0)
+    assert not np.allclose(perspective, canonicalize_h2o_camera_xy(varied_depth))
+
+
 def test_h2o_frame_reuses_current_svh9_mapping():
     points = _open_hand_xyz()
     intrinsics = CameraIntrinsics(fx=100.0, fy=100.0, cx=50.0, cy=50.0, width=100.0, height=100.0)
@@ -145,6 +160,27 @@ def test_h2o_pose_only_without_intrinsics_uses_canonical_camera_plane(tmp_path: 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["diagnostics"]["takes_with_canonical_xy"] == 1
     assert manifest["diagnostics"]["takes_with_intrinsics"] == 0
+
+
+def test_h2o_pose_only_can_explicitly_use_normalized_perspective(tmp_path: Path):
+    raw_root = tmp_path / "raw"
+    cam_dir = raw_root / "subject1" / "h1" / "0" / "cam4"
+    for frame_id in range(8):
+        points = _open_hand_xyz()
+        points[4:, 2] += np.linspace(0.0, 2.0, len(points) - 4, dtype=np.float32)
+        _write_h2o_pose(cam_dir / "hand_pose" / f"{frame_id:06d}.txt", points)
+
+    manifest_path = preprocess_h2o_pose_dataset(
+        h2o_root=raw_root,
+        output_root=tmp_path / "processed",
+        mapping_config_path=PROJECT_ROOT / "configs" / "svh_9ch_preview.yaml",
+        min_segment_frames=5,
+        pose_only_projection_policy="normalized_perspective_wrist_origin_palm_scale",
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["diagnostics"]["takes_with_normalized_perspective"] == 1
+    assert manifest["diagnostics"]["takes_with_canonical_xy"] == 0
+    assert manifest["projection_policy"].endswith("normalized_perspective_wrist_origin_palm_scale")
 
 
 def test_window_builder_uses_disjoint_sequences_and_exact_horizon_interpolation(tmp_path: Path):

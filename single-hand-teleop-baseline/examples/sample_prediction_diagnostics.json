@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "mode": "shadow",
+  "enabled": true,
+  "status": "predicted",
+  "ready": true,
+  "source_frame_index": 35,
+  "source_timestamp_unix_ms": 1000000.0,
+  "history_frames_required": 30,
+  "history_frames_available": 30,
+  "history_span_ms": 966.667,
+  "observed_fps": 30.0,
+  "horizon_ms": [50, 100, 150],
+  "channel_order": [
+    "thumb_flexion",
+    "thumb_opposition",
+    "index_finger_distal",
+    "index_finger_proximal",
+    "middle_finger_distal",
+    "middle_finger_proximal",
+    "ring_finger",
+    "pinky",
+    "finger_spread"
+  ],
+  "hold_last": [
+    [0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90],
+    [0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90],
+    [0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90]
+  ],
+  "raw_prediction": [
+    [0.11, 0.21, 0.31, 0.41, 0.51, 0.61, 0.71, 0.81, 0.89],
+    [0.12, 0.22, 0.32, 0.42, 0.52, 0.62, 0.72, 0.82, 0.88],
+    [0.13, 0.23, 0.33, 0.43, 0.53, 0.63, 0.73, 0.83, 0.87]
+  ],
+  "gated_prediction": [
+    [0.106, 0.206, 0.306, 0.406, 0.506, 0.606, 0.706, 0.806, 0.894],
+    [0.111, 0.211, 0.311, 0.411, 0.511, 0.611, 0.711, 0.811, 0.889],
+    [0.117, 0.217, 0.317, 0.417, 0.517, 0.617, 0.717, 0.817, 0.883]
+  ],
+  "motion_score": 0.01,
+  "base_gate": 0.75,
+  "effective_gate_by_horizon": [0.5625, 0.5625, 0.5625],
+  "inference_started_unix_ms": 1000010.0,
+  "inference_completed_unix_ms": 1000010.8,
+  "inference_ms": 0.8,
+  "gating_completed_unix_ms": 1000011.0,
+  "gating_ms": 0.2,
+  "raw_range_violation_count": 0,
+  "device": "cuda",
+  "model_label": "residual_unweighted",
+  "selection_sha256": "9cc711e18d911907c8e678bb984f97f2318dd66484079844494b1c832014a231",
+  "checkpoint_sha256": "4b22201ae0eba6c2e8f6920fefbd03fd932dcfc690c8df7d2496271685339ad3",
+  "fallback_reason": null
+}

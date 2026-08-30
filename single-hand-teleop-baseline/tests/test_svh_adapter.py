@@ -26,6 +26,9 @@ def _svh_cfg():
         "svh_pinch_spread_scale": 0.10,
         "svh_pinch_index_open_ref": 0.05,
         "svh_pinch_index_closed_ref": 0.35,
+        "control_open_release_enabled": True,
+        "control_open_release_start_ratio": 0.85,
+        "control_open_release_full_ratio": 0.95,
     }
 
 
@@ -84,6 +87,26 @@ def test_open_and_fist_map_to_different_grasp_preview_ranges():
     assert max(open_preview["target_positions"]) < min(fist_preview["target_positions"][1:])
     assert all(0.0 <= value <= 1.0 for value in open_preview["target_positions"])
     assert all(0.0 <= value <= 1.0 for value in fist_preview["target_positions"])
+
+
+def test_real_camera_open_pose_releases_all_flexion_channels_in_svh9_preview():
+    cfg = _svh_cfg()
+    cfg["svh_preview_layout"] = "svh_9ch"
+    cfg["svh_preview_channel_count"] = 9
+
+    preview = build_svh_command_preview(
+        _payload(
+            "open",
+            0.9565,
+            0.9621,
+            {"thumb": 0.7000, "index": 0.3649, "middle": 0.2294, "ring": 0.3522, "little": 0.6891},
+        ),
+        cfg,
+    )
+
+    assert preview["valid"] is True
+    assert preview["target_positions"][:8] == [0.0] * 8
+    assert preview["target_positions"][8] == 0.25
 
 
 def test_pinch_preview_prioritizes_thumb_and_index_channels():

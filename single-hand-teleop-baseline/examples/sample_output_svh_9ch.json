@@ -1,5 +1,5 @@
 {
-  "timestamp": 1779033024.3323243,
+  "timestamp": 1787922154.2227478,
   "detected": false,
   "handedness": null,
   "confidence": null,
@@ -55,7 +55,18 @@
       "target_tick_units": "encoder_ticks_preview"
     }
   },
-  "frame_index": 714,
-  "fps": 34.17389729498428,
-  "latency_ms": 11.666100001093582
+  "frame_index": 807,
+  "fps": 29.41548489986346,
+  "latency_ms": 11.700999999447959,
+  "timing": {
+    "schema_version": 1,
+    "clock": "unix_epoch_ms",
+    "source_read_start_unix_ms": 1787922154201.809,
+    "source_read_end_unix_ms": 1787922154210.9375,
+    "detection_end_unix_ms": 1787922154222.7478,
+    "baseline_end_unix_ms": 1787922154222.7478,
+    "preview_end_unix_ms": 1787922154222.7478,
+    "payload_ready_unix_ms": 1787922154222.7478,
+    "udp_send_attempt_unix_ms": 1787922154222.7478
+  }
 }

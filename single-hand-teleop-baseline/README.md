@@ -26,6 +26,7 @@
 - 可以可选生成 `control_representation`，也就是与硬件无关的控制中间层。
 - 可以可选生成 `svh_preview`，也就是给 SVH / Unity 用的预览控制量。
 - 可以通过 UDP 把 9 通道预览数据发给本机 Unity 场景。
+- 可以默认关闭地加载与当前映射契约一致的 v2 residual GRU；UDP 后只做非阻塞后台诊断，结果写入独立 prediction 日志。
 - 有测试覆盖当前主要行为。
 
 还没做到的事情也很重要：
@@ -33,7 +34,15 @@
 - 还没有接真实 SVH 硬件。
 - 还没有完成真实 TCP / 串口 / RS485 传输。
 - `svh_preview` 只是预览和联调用，不是可以直接下发给实体机械手的安全命令。
+- 意图预测目前只处于 shadow mode；v2 离线 gate 未全部通过，没有证明延迟补偿有效，也不驱动 Unity。
+- 冻结的 36 场景延迟/抖动/丢包回放已完成：H2O primary RMSE 只改善 1.95%，retention gate 4/6，控制参考继续使用 hold-last。
+- 二审已补上 invalid 历史断点和映射公式指纹；真实日志端到端 prediction 覆盖率为 61.90%，H2O v2 仍明确属于 pose-only 代理标签。
 - 当前主线只做单右手，不做双手或多手控制。
+
+网络扰动的完整协议、指标和决策见
+[延迟、抖动、丢包冻结回放报告](docs/intent_prediction_delay_injection.md)。
+二审代码修补、覆盖率口径和 H2O 投影/去抖审计见
+[Phase 1.5 二审修补与算法复核记录](docs/phase15_second_review_remediation.md)。
 
 ## 推荐理解顺序
 
@@ -43,7 +52,8 @@
 2. 再跑默认 baseline，确认摄像头、MediaPipe、JSON 输出都正常。
 3. 再开 `--enable-control`，看连续控制量。
 4. 再开 `configs/svh_9ch_preview.yaml`，看 SVH 9 通道预览数据。
-5. 最后才看 Unity UDP 或真机校准文档。
+5. 没有摄像头时可跑无摄像头的预测影子 smoke，并先读 Phase 1.5 风险加固记录和延迟注入报告。
+6. 最后才看 Unity UDP 或真机校准文档。
 
 不用一上来读协议文档。那是后期接硬件时才需要啃的骨头。
 
@@ -74,6 +84,11 @@ python -m pip install -r requirements.txt
 - `Pillow`
 - `PyYAML`
 - `pytest`
+
+如果一个长期使用的 Conda 环境在 `pip check` 中出现本项目没有声明的 Jupyter、音频或
+网页包缺失，不要为了让那份污染清单归零而给本项目继续堆无关依赖。更稳妥的做法是从
+`environment.yml` 新建干净环境；需要同时运行 PyTorch 影子预测时，使用
+`experiments/intent_prediction/environment.yml` 对应的 `handai-intent-prediction` 环境。
 
 ## 最快跑起来
 
@@ -122,9 +137,9 @@ python src/main.py --config configs/default.yaml --print-json
 python src/main.py --config configs/default.yaml --save-jsonl
 ```
 
-输出会写到：
+运行产物会写到（`examples/` 只保留冻结示例，不再被实时运行覆盖）：
 
-- `examples/sample_output.json`：最近一帧的 JSON
+- `outputs/latest_frame.json`：最近一帧的 JSON
 - `outputs/session_*.jsonl`：开启 `--save-jsonl` 后的逐帧日志
 
 ## 常用模式
@@ -175,7 +190,12 @@ python src/main.py --config configs/default.yaml --enable-control --print-json
 - `preferred_mapping`：当前更像 `grasp` 还是 `pinch`
 - `grasp_close`：抓握闭合程度，范围 `[0, 1]`
 - `effective_pinch_strength`：有效捏合强度，范围 `[0, 1]`
-- `finger_flex`：五根手指各自的弯曲程度
+- `finger_flex`：五根手指用于下游控制的弯曲程度；预览配置可对稳定张手做连续释放校正
+
+`finger_curl` 始终保留视觉侧原始几何测量。`configs/unity_udp_preview.yaml`
+和 `configs/svh_9ch_preview.yaml` 默认启用 `control_open_release_*`，用于处理
+单目摄像头下拇指、小指已经伸直但 curl 仍偏大的常见视角误差；默认 baseline
+配置保持关闭，不改变原始测量语义。
 
 ### 4. 打开 SVH 9 通道预览
 
@@ -223,6 +243,32 @@ python src/main.py --config configs/unity_udp_preview.yaml
 
 Unity 侧需要有对应脚本监听端口 `18080`。这条链路适合看虚拟手是否能跟随右手动作，不代表真实硬件已经可控。
 
+### 6. 默认关闭的预测影子模式
+
+没有摄像头时，先在独立 PyTorch 环境运行冻结 checkpoint smoke：
+
+```powershell
+conda activate handai-intent-prediction
+python -X utf8 scripts\run_prediction_shadow_smoke.py `
+  --device auto `
+  --output outputs\prediction_shadow_smoke\latest.json
+```
+
+将来有本地右手视频时，可在 9 通道配置上显式开启：
+
+```powershell
+python -X utf8 src\main.py `
+  --config configs\svh_9ch_preview.yaml `
+  --video-file D:\path\to\right_hand_video.mp4 `
+  --prediction-shadow --headless --save-jsonl
+```
+
+预测使用按 timestamp 重采样到 30 Hz 的 30 帧历史，输出未来 `50/100/150 ms` 的
+hold-last、raw residual 和 gated residual。当前帧 UDP 发送后只做非阻塞提交；后台结果
+进入独立的 `latest_prediction_shadow.json` / `prediction_session_*.jsonl`，不改
+`svh_preview`，也不把预测发给 Unity。当前 v2 离线 gate 未全部通过，只允许研究诊断。详见
+[docs/intent_prediction_shadow_mode.md](docs/intent_prediction_shadow_mode.md)。
+
 ## 输入镜像和左右手
 
 MediaPipe 的左右手标签会受镜像视角影响。
@@ -254,6 +300,7 @@ python src/main.py --config configs/default.yaml --input-mirrored
 - `svh_preview`
 - `fps`
 - `latency_ms`
+- `prediction_diagnostics`（只在独立 prediction 结果文件中出现）
 
 最常看的几个字段：
 
@@ -263,6 +310,7 @@ python src/main.py --config configs/default.yaml --input-mirrored
 - `finger_curl`：五指弯曲程度
 - `control_representation`：硬件无关的连续控制层
 - `svh_preview`：给 SVH / Unity 看的预览层
+- `prediction_diagnostics`：后台生成的 hold/raw/gated 研究诊断，不是控制命令
 
 完整 contract 在这里：
 
@@ -273,6 +321,7 @@ python src/main.py --config configs/default.yaml --input-mirrored
 
 - [examples/sample_output.json](examples/sample_output.json)
 - [examples/sample_output_svh_9ch.json](examples/sample_output_svh_9ch.json)
+- [examples/sample_prediction_diagnostics.json](examples/sample_prediction_diagnostics.json)
 - [examples/sample_session.jsonl](examples/sample_session.jsonl)
 
 ## 代码地图
@@ -305,6 +354,13 @@ python src/main.py --config configs/default.yaml --input-mirrored
 - [src/svh/svh_layout.py](src/svh/svh_layout.py)：SVH 9 通道顺序和 preview ticks 参考值
 - [src/svh/svh_protocol.py](src/svh/svh_protocol.py)：协议 preview skeleton
 - [src/svh/svh_transport_mock.py](src/svh/svh_transport_mock.py)：mock 传输层
+- [src/svh/mapping_contract.py](src/svh/mapping_contract.py)：H2O 标签、checkpoint 与实时映射的语义指纹
+
+意图预测影子层：
+
+- [src/prediction/shadow_predictor.py](src/prediction/shadow_predictor.py)：映射/SHA 闸门、30 Hz 重采样、门控诊断和安全回退
+- [src/prediction/shadow_worker.py](src/prediction/shadow_worker.py)：容量 1 的 latest-only 非阻塞后台推理
+- [scripts/run_prediction_shadow_smoke.py](scripts/run_prediction_shadow_smoke.py)：无需摄像头的真实 checkpoint smoke
 
 输出和可视化：
 
@@ -317,6 +373,13 @@ python src/main.py --config configs/default.yaml --input-mirrored
 - [configs/default.yaml](configs/default.yaml)：默认 baseline
 - [configs/svh_9ch_preview.yaml](configs/svh_9ch_preview.yaml)：SVH 9 通道预览
 - [configs/unity_udp_preview.yaml](configs/unity_udp_preview.yaml)：Unity UDP 联动预览
+
+Unity 最小可恢复快照：
+
+- [integrations/unity_phase15_snapshot/README.md](integrations/unity_phase15_snapshot/README.md)：
+  已验收 UDP 接收器、batch 安全脚本、包清单和编辑器版本的 Git 快照
+- [integrations/unity_phase15_snapshot/snapshot_manifest.json](integrations/unity_phase15_snapshot/snapshot_manifest.json)：
+  7 个快照文件的路径、大小与 SHA-256
 
 ## 测试
 
@@ -351,6 +414,13 @@ python -m ruff check src tests
 - JSON / JSONL / UDP 输出
 - SVH preview 映射
 - 扩展失败时是否安全降级
+- 影子历史/断帧/推理失败回退，以及 UDP 前后 payload 隔离
+- Unity UDP loopback、invalid/乱序/过期/watchdog 安全策略的源码与 batch 行为回归
+- Unity 最小源码快照自身哈希及本机外部工程漂移检查
+
+当前二轮风险清理、v2 重训结果和诚实边界见：
+
+- [docs/phase15_risk_hardening.md](docs/phase15_risk_hardening.md)
 
 ## 常见问题
 
@@ -407,6 +477,7 @@ python src/main.py --config configs/default.yaml --input-mirrored
 
 - 清理运行时调试输出。
 - 用真实视频和摄像头多录几段 JSONL，观察 `gesture_stable` 和连续控制量是否稳定。
+- 用确定性回放注入延迟、抖动和丢包，比较 hold-last/raw/gated，证明或否定延迟补偿价值。
 - 调 Unity 侧 9 通道到 20 关节的展开效果。
 - 逐项确认 SVH 真机协议、通道方向、零位、限位、homing 和安全策略。
 - 在真机接入前实现真正的 transport、ACK、timeout、watchdog、急停和速率限制。
@@ -415,6 +486,7 @@ python src/main.py --config configs/default.yaml --input-mirrored
 
 - [docs/README.md](docs/README.md)
 - [docs/ai_scope_and_proposal_alignment.md](docs/ai_scope_and_proposal_alignment.md)
+- [docs/intent_prediction_shadow_mode.md](docs/intent_prediction_shadow_mode.md)
 - [docs/unity_handoff.md](docs/unity_handoff.md)
 - [docs/downstream_preview_contract.md](docs/downstream_preview_contract.md)
 - [docs/svh_real_hardware_calibration_table.md](docs/svh_real_hardware_calibration_table.md)

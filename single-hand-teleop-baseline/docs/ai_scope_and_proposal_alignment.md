@@ -46,31 +46,42 @@
 3. 单右手是否作为本项目可验收主线，双手是否明确降为扩展项；
 4. 论文/结题使用哪些指标以及哪一批数据作为真正最终测试集。
 
-## 4. timing v1 复用约束
+## 4. timing v1 与影子诊断对齐约束
 
 仓库已经有逐帧 timing 字段、JSON/JSONL contract 和 Unity UDP 诊断。后续预测器影子模式
-必须扩展现有 `timing v1`，不能另起一套互不对应的时间戳或日志。
+必须复用现有 `frame_index`、顶层 `timestamp` 和 Unix epoch 毫秒时钟。Phase 1.5 为避免
+后台推理打乱完整 baseline 会话，使用独立 prediction JSONL，但每条仍携带完整 canonical
+payload 并按 source frame 对齐，不能形成无法 join 的平行日志。
 
-建议在既有 timing 对象中增加可选预测阶段信息：
+实现审计后确认 `timing v1` 是严格冻结的 9 字段对象，因此不直接增加键。本次新增可选
+`prediction_diagnostics v1`，并强制：
 
-- 历史窗口准备完成时间；
+- `source_frame_index == frame_index`；
+- `source_timestamp_unix_ms == timestamp * 1000`；
+- 当前帧 UDP 先发送，主线程只做非阻塞提交；
+- 模型在 latest-only 后台 worker 推理；
+- 预测诊断只写独立本机 prediction JSON/JSONL，不进入 baseline 日志或 Unity 数据报。
+
+该对象记录：
+
+- 历史窗口数量、覆盖时长与观察帧率；
 - 模型推理开始/结束时间；
-- 门控完成时间；
 - 原始、门控和 hold-last 方案标识；
-- 延迟注入配置与实际释放时间；
-- packet sequence、丢弃、覆盖和乱序诊断。
+- 历史 span、观察帧率、运动分数和门控系数；
+- selection/checkpoint SHA 与确定性回退原因。
 
-字段加入前必须同步更新 schema、示例 payload、JSONL 和测试。预测器异常时仍使用当前
-hold-last/原始 preview 路径，不能让可选扩展成为 baseline 启动前提。
+schema、两类 JSONL、测试和说明已同步。后续延迟注入的释放、丢弃、覆盖和乱序诊断也沿用
+同一帧号/时钟，不得破坏 timing v1。预测器异常时仍使用当前原始 preview 路径，不能让
+可选扩展成为 baseline 启动前提。
 
 ## 5. 后续八周建议里程碑
 
 | 周次 | AI 侧任务 | 可验收交付物 | 需要协作方 |
 |---:|---|---|---|
 | 1 | 与导师确认算法和部署口径 | 一页确认纪要；冻结指标与最终测试策略 | 指导老师、项目负责人 |
-| 2 | 默认关闭的预测影子模式 | 不改变 UDP 输出的 hold/raw/gated JSONL | Unity/接口成员确认字段 |
-| 3 | H2O 与现有 JSONL 确定性回放 | replay manifest、哈希和回归测试 | 无需摄像头 |
-| 4 | 20/50/100 ms 延迟、抖动和丢包注入 | 统一 timing v1 对照表与自动 gates | 通信成员确认网络条件 |
+| 2（已完成） | 默认关闭的预测影子模式 | 不改变 UDP/baseline 的独立 hold/raw/gated prediction JSONL；30 Hz 重采样与 checkpoint smoke | Unity/接口成员确认字段 |
+| 3（已完成） | H2O 与现有 JSONL 确定性回放 | replay 配置、输入哈希和回归测试 | 无需摄像头 |
+| 4（已完成） | 0/20/50/100 ms 延迟、抖动和丢包注入 | 36 场景、逐序列 CSV 与 retention gate；结果 4/6 | 无需摄像头 |
 | 5–6 | 多种子、跨 subject 或 subject bootstrap | 均值、方差、置信区间和失败案例 | 指导老师确认论文口径 |
 | 7 | 根据目标设备决定 ONNX FP32/INT8 | 模型大小、误差变化、P50/P95 延迟 | 设备/平台成员 |
 | 8 | 实验室联调前冻结 | 模型哈希、配置、回退规则、接口清单 | Unity、通信、控制成员 |
@@ -79,12 +90,13 @@ hold-last/原始 preview 路径，不能让可选扩展成为 baseline 启动前
 
 ## 6. 下一阶段准入条件
 
-当前第二轮结果只允许进入默认关闭的影子模式。进一步改变现有 UDP 输出前，至少应满足：
+当前 v2 第二轮和网络扰动 retention gate 均未全部通过，只允许默认关闭的影子学习；现阶段
+明确不改变 UDP。未来若产生新模型并重新申请准入，至少应满足：
 
 - 影子模式对 baseline 输出零影响；
-- timing v1、schema、示例和测试同步更新；
+- timing v1 保持冻结，prediction diagnostics、schema、JSONL 和测试逐帧对齐；
 - checkpoint 缺失、输入无效、历史不足或推理异常时确定性回退；
-- 延迟注入实验在事先冻结的指标上优于 hold-last；
+- 延迟注入实验在事先冻结的指标上通过全部 retention gate（当前 4/6，未满足）；
 - 使用新的 validation/CV 协议决定 raw 与 gated，不回看 subject4 重选；
 - 有可用摄像头后完成个人视频域验证；
 - 真实硬件接入仍需独立的限位、watchdog、急停和协议验收。

@@ -20,3 +20,17 @@ def test_mock_transport_records_latest_command():
     assert result["recorded_count"] == 1
     assert transport.last_command == command
     assert transport.sent_commands[-1] == command
+
+
+def test_mock_transport_keeps_bounded_history_but_monotonic_total_count():
+    transport = MockSvhTransport(history_size=3)
+
+    result = None
+    for index in range(100):
+        result = transport.send({"valid": True, "frame": index})
+
+    assert result is not None
+    assert result["recorded_count"] == 100
+    assert result["retained_history_count"] == 3
+    assert len(transport.sent_commands) == 3
+    assert [item["frame"] for item in transport.sent_commands] == [97, 98, 99]

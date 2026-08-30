@@ -1,9 +1,13 @@
 import json
 import socket
 from pathlib import Path
+from types import SimpleNamespace
 
-from output.frame_payload_contract import normalize_frame_payload, validate_frame_payload
+from output.frame_payload_contract import normalize_frame_payload, prepare_frame_payload, validate_frame_payload
 from output.json_exporter import JsonExporter
+from main import _drain_prediction_results, _emit_prepared_debug_outputs, _send_prepared_udp
+from main import _build_jsonl_session_path
+from prediction.shadow_predictor import PredictionShadow
 from utils.config import load_config
 
 
@@ -95,6 +99,18 @@ def test_direct_exporter_methods_remain_immediately_readable(tmp_path):
     assert validate_frame_payload(saved) == []
     assert len(lines) == 1
     assert validate_frame_payload(json.loads(lines[0])) == []
+    assert list(tmp_path.glob("*.tmp")) == []
+
+
+def test_session_paths_do_not_collide_within_same_second(tmp_path):
+    cfg = {"jsonl_output_dir": str(tmp_path)}
+
+    first = _build_jsonl_session_path(cfg)
+    second = _build_jsonl_session_path(cfg)
+
+    assert first != second
+    assert Path(first).parent == tmp_path
+    assert Path(second).parent == tmp_path
 
 
 def test_export_prepared_frame_throttles_last_json_until_close(tmp_path):
@@ -155,6 +171,8 @@ def test_default_config_exposes_exporter_tuning(monkeypatch):
     assert cfg["unity_udp_enabled"] is False
     assert cfg["unity_udp_host"] == "127.0.0.1"
     assert cfg["unity_udp_port"] == 18080
+    assert cfg["prediction_shadow_enabled"] is False
+    assert cfg["prediction_shadow_horizon_ms"] == [50, 100, 150]
 
 
 def test_exporter_constructor_keeps_unity_udp_disabled_by_default(tmp_path):
@@ -192,3 +210,62 @@ def test_send_prepared_frame_can_broadcast_over_unity_udp(tmp_path):
     received = json.loads(raw.decode("utf-8"))
     assert received["frame_index"] == 7
     assert validate_frame_payload(received) == []
+
+
+def test_actual_udp_and_baseline_jsonl_stay_frozen_while_prediction_uses_separate_jsonl(tmp_path):
+    receiver = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    receiver.bind(("127.0.0.1", 0))
+    receiver.settimeout(1.0)
+    _, port = receiver.getsockname()
+    baseline_jsonl_path = tmp_path / "baseline-session.jsonl"
+    prediction_jsonl_path = tmp_path / "prediction-session.jsonl"
+    baseline_exporter = JsonExporter(
+        str(tmp_path / "last.json"),
+        save_last_json=False,
+        jsonl_path=str(baseline_jsonl_path),
+        unity_udp_enabled=True,
+        unity_udp_host="127.0.0.1",
+        unity_udp_port=port,
+    )
+    prediction_exporter = JsonExporter(
+        str(tmp_path / "latest-prediction.json"),
+        save_last_json=False,
+        jsonl_path=str(prediction_jsonl_path),
+        unity_udp_enabled=False,
+    )
+    payload = _sample_payload(8)
+
+    _send_prepared_udp(payload, exporter=baseline_exporter)
+    _emit_prepared_debug_outputs(
+        payload,
+        frame_index=8,
+        exporter=baseline_exporter,
+        print_json=False,
+        print_every_n_frames=1,
+        landmarks_preview_count=2,
+    )
+    prediction_payload = dict(payload)
+    prediction_payload["prediction_diagnostics"] = PredictionShadow.unavailable(
+        "test-only unavailable model"
+    ).observe(payload)
+    prediction_payload = prepare_frame_payload(
+        prediction_payload,
+        include_deprecated_aliases=False,
+    )
+    worker = SimpleNamespace(drain_results=lambda: [prediction_payload])
+    assert _drain_prediction_results(worker, prediction_exporter) == 1  # type: ignore[arg-type]
+    raw, _ = receiver.recvfrom(65535)
+    baseline_exporter.close()
+    prediction_exporter.close()
+    receiver.close()
+
+    udp_payload = json.loads(raw.decode("utf-8"))
+    baseline_jsonl_payload = json.loads(baseline_jsonl_path.read_text(encoding="utf-8").splitlines()[0])
+    prediction_jsonl_payload = json.loads(prediction_jsonl_path.read_text(encoding="utf-8").splitlines()[0])
+    assert "prediction_diagnostics" not in udp_payload
+    assert "prediction_diagnostics" not in baseline_jsonl_payload
+    assert prediction_jsonl_payload["prediction_diagnostics"]["status"] == "initialization_error"
+    assert udp_payload["svh_preview"] == prediction_jsonl_payload["svh_preview"]
+    assert validate_frame_payload(udp_payload) == []
+    assert validate_frame_payload(baseline_jsonl_payload) == []
+    assert validate_frame_payload(prediction_jsonl_payload) == []

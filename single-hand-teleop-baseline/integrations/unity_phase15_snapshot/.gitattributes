@@ -1,0 +1,4 @@
+# Preserve captured Unity project files byte-for-byte on every platform.
+Assets/** -text -whitespace
+Packages/** -text -whitespace
+ProjectSettings/** -text -whitespace

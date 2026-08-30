@@ -13,7 +13,9 @@ features、gesture、control、svh、output 等子模块里，方便单独测试
 
 import argparse
 import logging
+import os
 import time
+import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -32,6 +34,8 @@ from output.json_exporter import JsonExporter
 from perception.hand_filter import select_right_hand
 from perception.landmark_quality import assess_control_readiness
 from perception.mediapipe_hand import MediaPipeHandDetector
+from prediction.shadow_predictor import build_prediction_shadow
+from prediction.shadow_worker import PredictionShadowWorker
 from svh.svh_adapter import build_svh_command_preview, empty_svh_preview
 from utils.config import load_config
 from utils.logger import get_logger
@@ -79,6 +83,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-frames", default=None, type=int, help="处理到 N 帧后自动停止")
     parser.add_argument("--print-json", action="store_true", help="把逐帧 JSON 打印到控制台")
     parser.add_argument("--save-jsonl", action="store_true", help="为本次运行启用逐帧 JSONL 日志")
+    parser.add_argument(
+        "--prediction-shadow",
+        action="store_true",
+        help="启用默认关闭的 9 通道预测影子诊断；不改变 Unity UDP 或 svh_preview",
+    )
     return parser.parse_args()
 
 
@@ -116,6 +125,8 @@ def _apply_cli_overrides(cfg: Dict[str, Any], args: argparse.Namespace) -> Dict[
         cfg["gui_enabled"] = False
     if args.save_jsonl:
         cfg["save_jsonl"] = True
+    if getattr(args, "prediction_shadow", False):
+        cfg["prediction_shadow_enabled"] = True
     return cfg
 
 
@@ -140,11 +151,21 @@ def _build_runtime_mode(cfg: Dict[str, Any]) -> RuntimeMode:
     )
 
 
-def _build_jsonl_session_path(cfg: Dict[str, Any]) -> str:
+def _build_jsonl_session_path(
+    cfg: Dict[str, Any],
+    *,
+    output_dir_key: str = "jsonl_output_dir",
+    prefix: str = "session",
+) -> str:
     """为本次运行生成 JSONL 会话日志路径。"""
 
-    output_dir = Path(str(cfg.get("jsonl_output_dir", "outputs")))
-    return str(output_dir / f"session_{datetime.now():%Y%m%d_%H%M%S}.jsonl")
+    output_dir = Path(str(cfg.get(output_dir_key, "outputs")))
+    # 微秒 + PID 避免同一秒内启动两次或并行启动时互相追加到同一文件。
+    nonce = uuid.uuid4().hex[:8]
+    return str(
+        output_dir
+        / f"{prefix}_{datetime.now():%Y%m%d_%H%M%S_%f}_{os.getpid()}_{nonce}.jsonl"
+    )
 
 
 def _build_input_source(cfg: Dict[str, Any], runtime: RuntimeMode, logger) -> InputSource | None:
@@ -202,7 +223,7 @@ def _build_exporter(cfg: Dict[str, Any], logger) -> JsonExporter:
     """
 
     return JsonExporter(
-        output_path=str(cfg.get("output_json_path", "examples/sample_output.json")),
+        output_path=str(cfg.get("output_json_path", "outputs/latest_frame.json")),
         save_last_json=bool(cfg.get("save_last_json", True)),
         jsonl_path=_build_jsonl_session_path(cfg) if bool(cfg.get("save_jsonl", False)) else None,
         export_last_every_n_frames=int(cfg.get("export_last_every_n_frames", 1)),
@@ -210,6 +231,33 @@ def _build_exporter(cfg: Dict[str, Any], logger) -> JsonExporter:
         unity_udp_enabled=bool(cfg.get("unity_udp_enabled", False)),
         unity_udp_host=str(cfg.get("unity_udp_host", "127.0.0.1")),
         unity_udp_port=int(cfg.get("unity_udp_port", 18080)),
+        logger=logger,
+    )
+
+
+def _build_prediction_result_exporter(cfg: Dict[str, Any], logger) -> JsonExporter:
+    """为后台影子结果创建独立本机输出；绝不启用 UDP。"""
+
+    return JsonExporter(
+        output_path=str(
+            cfg.get(
+                "prediction_shadow_output_json_path",
+                "outputs/latest_prediction_shadow.json",
+            )
+        ),
+        save_last_json=bool(cfg.get("save_last_json", True)),
+        jsonl_path=(
+            _build_jsonl_session_path(
+                cfg,
+                output_dir_key="prediction_shadow_jsonl_output_dir",
+                prefix="prediction_session",
+            )
+            if bool(cfg.get("save_jsonl", False))
+            else None
+        ),
+        export_last_every_n_frames=1,
+        jsonl_flush_interval=int(cfg.get("jsonl_flush_interval", 1)),
+        unity_udp_enabled=False,
         logger=logger,
     )
 
@@ -228,7 +276,10 @@ def _build_svh_transport(cfg: Dict[str, Any], runtime: RuntimeMode, logger):
         from svh.svh_transport_mock import MockSvhTransport
 
         logger.info("SVH 预览扩展已启用，当前使用 mock 传输。")
-        return MockSvhTransport(logger=logger)
+        return MockSvhTransport(
+            logger=logger,
+            history_size=int(cfg.get("svh_mock_history_size", 32)),
+        )
     logger.warning(
         "不支持的 SVH transport '%s'；将继续以纯预览模式运行，不发送传输命令。",
         svh_transport_name,
@@ -256,6 +307,16 @@ def _log_runtime_mode(runtime: RuntimeMode, cfg: Dict[str, Any], logger) -> None
 
     if bool(cfg.get("save_jsonl", False)):
         logger.info("本次运行已启用逐帧 JSONL 日志。")
+    if bool(cfg.get("prediction_shadow_enabled", False)):
+        logger.info(
+            "预测影子模式已请求；UDP 后仅做非阻塞提交，后台结果写入独立 prediction JSON/JSONL，"
+            "不会改写 svh_preview 或 UDP payload。"
+        )
+        if not runtime.svh_preview_enabled:
+            logger.warning(
+                "预测影子模式需要有效的 svh_9ch preview；当前配置未启用 SVH preview，"
+                "因此只会记录 invalid_input。"
+            )
 
 
 def _build_baseline_payload(
@@ -337,6 +398,33 @@ def _unix_ms() -> float:
     return time.time() * 1000.0
 
 
+def _send_prepared_udp(payload: Dict[str, Any], *, exporter: JsonExporter) -> None:
+    """优先发送 frozen payload；影子预测必须排在这个函数之后。"""
+
+    if exporter.unity_udp_enabled:
+        timing = payload.get("timing")
+        if isinstance(timing, dict):
+            timing["udp_send_attempt_unix_ms"] = _unix_ms()
+            assert_valid_frame_payload(payload)
+        exporter.send_prepared_frame(payload)
+
+
+def _emit_prepared_debug_outputs(
+    payload: Dict[str, Any],
+    *,
+    frame_index: int,
+    exporter: JsonExporter,
+    print_json: bool,
+    print_every_n_frames: int,
+    landmarks_preview_count: int,
+) -> None:
+    """在 UDP 之后输出控制台和 JSON/JSONL。"""
+
+    if print_json and frame_index % print_every_n_frames == 0:
+        exporter.print_console(payload, landmarks_preview_count=landmarks_preview_count)
+    exporter.export_prepared_frame(payload, frame_index=frame_index)
+
+
 def _emit_prepared_frame(
     payload: Dict[str, Any],
     *,
@@ -346,22 +434,38 @@ def _emit_prepared_frame(
     print_every_n_frames: int,
     landmarks_preview_count: int,
 ) -> None:
-    """按实时优先级输出一帧：先 UDP，再控制台，最后落盘。
+    """兼容入口：按实时优先级先 UDP，再控制台，最后落盘。
 
     UDP 必须排在控制台和 JSON/JSONL I/O 前面，避免调试输出把 Unity 预览
-    无谓推迟。发送尝试时刻只在 UDP 明确启用时填写。
+    无谓推迟。实时影子模式另用后台 worker，不经过这个同步兼容入口。
     """
 
-    if exporter.unity_udp_enabled:
-        timing = payload.get("timing")
-        if isinstance(timing, dict):
-            timing["udp_send_attempt_unix_ms"] = _unix_ms()
-            assert_valid_frame_payload(payload)
-        exporter.send_prepared_frame(payload)
+    _send_prepared_udp(payload, exporter=exporter)
+    _emit_prepared_debug_outputs(
+        payload,
+        frame_index=frame_index,
+        exporter=exporter,
+        print_json=print_json,
+        print_every_n_frames=print_every_n_frames,
+        landmarks_preview_count=landmarks_preview_count,
+    )
 
-    if print_json and frame_index % print_every_n_frames == 0:
-        exporter.print_console(payload, landmarks_preview_count=landmarks_preview_count)
-    exporter.export_prepared_frame(payload, frame_index=frame_index)
+
+def _drain_prediction_results(
+    worker: PredictionShadowWorker | None,
+    exporter: JsonExporter | None,
+) -> int:
+    """把后台已完成诊断写入独立本机文件；调用本身不等待推理。"""
+
+    if worker is None or exporter is None:
+        return 0
+    results = worker.drain_results()
+    for result in results:
+        exporter.export_prepared_frame(
+            result,
+            frame_index=int(result["frame_index"]),
+        )
+    return len(results)
 
 
 def _apply_extension_chain(
@@ -446,9 +550,20 @@ def main() -> None:
 
     detector = None
     exporter = None
+    prediction_worker = None
+    prediction_result_exporter = None
     try:
         detector = _build_detector(cfg, runtime)
         exporter = _build_exporter(cfg, logger)
+        prediction_shadow = build_prediction_shadow(cfg, logger=logger)
+        if prediction_shadow is not None:
+            prediction_worker = PredictionShadowWorker(
+                prediction_shadow,
+                logger=logger,
+                input_queue_size=1,
+                result_queue_size=int(cfg.get("prediction_shadow_result_queue_size", 8)),
+            )
+            prediction_result_exporter = _build_prediction_result_exporter(cfg, logger)
         # history 当前只保留最近帧摘要，方便未来做时序模型或更复杂去抖。
         history = RecentFrameBuffer(maxlen=int(cfg.get("recent_frames_buffer_size", 10)))
         svh_transport = _build_svh_transport(cfg, runtime, logger)
@@ -513,13 +628,22 @@ def main() -> None:
             payload = prepare_frame_payload(payload, include_deprecated_aliases=False)
             history.append(payload)
 
-            _emit_prepared_frame(
+            # 4. frozen UDP 先发送；影子推理永远不能推迟或改写 Unity 包。
+            _send_prepared_udp(payload, exporter=exporter)
+            # 5. 只做 latest-only 非阻塞提交；当前帧 baseline 照常立即落盘/显示。
+            if prediction_worker is not None:
+                prediction_worker.submit(payload)
+            _emit_prepared_debug_outputs(
                 payload,
                 frame_index=frame_index,
                 exporter=exporter,
                 print_json=bool(args.print_json),
                 print_every_n_frames=print_every_n_frames,
                 landmarks_preview_count=landmarks_preview_count,
+            )
+            _drain_prediction_results(
+                prediction_worker,
+                prediction_result_exporter,
             )
 
             if runtime.gui_enabled:
@@ -535,6 +659,16 @@ def main() -> None:
     except KeyboardInterrupt:
         logger.info("用户中断运行。")
     finally:
+        if prediction_worker is not None:
+            prediction_worker.close(
+                timeout_s=float(cfg.get("prediction_shadow_worker_shutdown_timeout_s", 2.0))
+            )
+            _drain_prediction_results(
+                prediction_worker,
+                prediction_result_exporter,
+            )
+        if prediction_result_exporter is not None:
+            prediction_result_exporter.close()
         if exporter is not None:
             exporter.close()
         if detector is not None:

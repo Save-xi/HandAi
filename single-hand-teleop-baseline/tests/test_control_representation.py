@@ -11,6 +11,9 @@ def _control_cfg():
         "control_hand_open_ratio_closed_ref": 0.25,
         "control_pinch_index_open_ref": 0.05,
         "control_pinch_index_closed_ref": 0.35,
+        "control_open_release_enabled": True,
+        "control_open_release_start_ratio": 0.85,
+        "control_open_release_full_ratio": 0.95,
     }
 
 
@@ -76,6 +79,37 @@ def test_control_representation_separates_open_from_fist():
     assert open_control["grasp_close"] < fist_control["grasp_close"]
     assert open_control["effective_pinch_strength"] == 0.0
     assert fist_control["effective_pinch_strength"] == 0.0
+
+
+def test_open_release_corrects_real_camera_residual_curl_without_changing_raw_payload():
+    """回归 2026-08-28 实拍张手中拇指/小指 curl 偏大的问题。"""
+
+    finger_curl = {
+        "thumb": 0.7000,
+        "index": 0.3649,
+        "middle": 0.2294,
+        "ring": 0.3522,
+        "little": 0.6891,
+    }
+    payload = _payload("open", 0.9565, 0.9621, finger_curl)
+
+    control = build_control_representation(payload, _control_cfg())
+
+    assert payload["finger_curl"] == finger_curl
+    assert max(control["finger_flex"].values()) == 0.0
+    assert control["grasp_close"] == 0.0
+    assert control["preferred_mapping"] == "grasp"
+
+
+def test_open_release_can_be_disabled_for_unchanged_baseline_semantics():
+    cfg = _control_cfg()
+    cfg["control_open_release_enabled"] = False
+    finger_curl = {"thumb": 0.70, "index": 0.36, "middle": 0.23, "ring": 0.35, "little": 0.69}
+
+    control = build_control_representation(_payload("open", 0.9565, 0.96, finger_curl), cfg)
+
+    assert control["finger_flex"] == finger_curl
+    assert control["grasp_close"] > 0.4
 
 
 def test_control_representation_pinch_strength_rises_for_pinch_pose():

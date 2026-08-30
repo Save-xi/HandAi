@@ -184,6 +184,7 @@ def train_neural_model(
     training_config: dict[str, Any],
     checkpoint_path: Path,
     seed: int,
+    checkpoint_metadata: dict[str, Any] | None = None,
 ) -> tuple[np.ndarray, dict[str, Any]]:
     if not TORCH_AVAILABLE:
         raise RuntimeError("当前解释器没有 PyTorch")
@@ -318,6 +319,7 @@ def train_neural_model(
             "architecture": architecture,
             "training_config": training_config,
             "seed": seed,
+            "data_contract": dict(checkpoint_metadata or {}),
         },
         checkpoint_path,
     )

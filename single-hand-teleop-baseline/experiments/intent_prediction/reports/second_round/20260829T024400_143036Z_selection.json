@@ -1,0 +1,673 @@
+{
+  "schema_version": "intent-second-round-selection-v1",
+  "created_at_utc": "2026-08-29T02:45:11.401948+00:00",
+  "selection_fit_split": "validation",
+  "test_loaded": false,
+  "test_metrics_available": false,
+  "effective_config_sha256": "2d4a88314bc1fb601441e25244c26bfebca3555c745b68bd34c69cd26d02f402",
+  "data_contract": {
+    "manifest_sha256": "cbbcd0697693eb205e64e72cb104898b1458bf6885b84bba6e2a1d165eacac92",
+    "mapping_config_sha256": "38d576006e80f280ba01d64d785abf7853d24e35268cb213790c9278f346af3c",
+    "mapping_contract_version": "svh9-label-v2-open-release",
+    "mapping_contract_sha256": "453c18c3ae851c325cd3b882409800c074f97f7f7ad898865d1d4895b2e318a0",
+    "dataset_fps": 30.0
+  },
+  "validation_hold_metrics": {
+    "samples": 13310,
+    "mae": 0.02118961075963089,
+    "rmse": 0.06621824028782891,
+    "p95_abs_error": 0.07951910579577086,
+    "range_violation_rate": 0.0,
+    "per_horizon_ms": {
+      "50": {
+        "mae": 0.012579792231509047,
+        "rmse": 0.04546083657844192,
+        "p95_abs_error": 0.04053984656929966
+      },
+      "100": {
+        "mae": 0.022159138646478893,
+        "rmse": 0.06916258985499361,
+        "p95_abs_error": 0.07985768541693679
+      },
+      "150": {
+        "mae": 0.028829901400904735,
+        "rmse": 0.07940034346643647,
+        "p95_abs_error": 0.11709205843508229
+      }
+    },
+    "per_channel": {
+      "thumb_flexion": {
+        "mae": 0.024045259018775918,
+        "rmse": 0.07900667316257325
+      },
+      "thumb_opposition": {
+        "mae": 0.02648177029226314,
+        "rmse": 0.08166506649307195
+      },
+      "index_finger_distal": {
+        "mae": 0.02741809192843849,
+        "rmse": 0.0823131834477151
+      },
+      "index_finger_proximal": {
+        "mae": 0.026165231721201783,
+        "rmse": 0.07724003692589455
+      },
+      "middle_finger_distal": {
+        "mae": 0.022312528401536382,
+        "rmse": 0.053187113332592864
+      },
+      "middle_finger_proximal": {
+        "mae": 0.02113508293006337,
+        "rmse": 0.051783873815314435
+      },
+      "ring_finger": {
+        "mae": 0.020553203754224054,
+        "rmse": 0.056379842105800056
+      },
+      "pinky": {
+        "mae": 0.01576364689637554,
+        "rmse": 0.06622342283094886
+      },
+      "finger_spread": {
+        "mae": 0.00683168189379936,
+        "rmse": 0.027135036740485362
+      }
+    }
+  },
+  "selected_label": "residual_motion4",
+  "selected_model": "residual_gru",
+  "selected_validation_objective": 0.9774175336430702,
+  "selection_reason": "best_validation_gate_objective_below_hold_last",
+  "gate_parameters": {
+    "recent_frames": 8,
+    "threshold_percentile": 60.0,
+    "threshold": 0.005214414615479727,
+    "temperature_fraction": 0.25,
+    "temperature": 0.0037947634767208803,
+    "alpha_by_horizon": [
+      0.75,
+      1.0,
+      1.0
+    ]
+  },
+  "checkpoint": "D:\\VR\\HandAi\\single-hand-teleop-baseline\\experiments\\intent_prediction\\outputs\\second_round_v2_open_release\\20260829T024400_143036Z\\checkpoints\\residual_motion4.pt",
+  "checkpoint_sha256": "0146d8ecdc117d9ac9d49a22f087199ca0fe1f60173fb10a2908cabf3043fee6",
+  "ranked_validation_summaries": [
+    {
+      "label": "residual_motion4",
+      "model": "residual_gru",
+      "seed": 20261028,
+      "checkpoint": "D:\\VR\\HandAi\\single-hand-teleop-baseline\\experiments\\intent_prediction\\outputs\\second_round_v2_open_release\\20260829T024400_143036Z\\checkpoints\\residual_motion4.pt",
+      "checkpoint_sha256": "0146d8ecdc117d9ac9d49a22f087199ca0fe1f60173fb10a2908cabf3043fee6",
+      "raw_metrics": {
+        "samples": 13310,
+        "mae": 0.021197906772650096,
+        "rmse": 0.0643896436523327,
+        "p95_abs_error": 0.07600571215152722,
+        "range_violation_rate": 0.0,
+        "per_horizon_ms": {
+          "50": {
+            "mae": 0.012638111255953455,
+            "rmse": 0.04443983854001212,
+            "p95_abs_error": 0.03868063688278196
+          },
+          "100": {
+            "mae": 0.022137897061997463,
+            "rmse": 0.06759307446273617,
+            "p95_abs_error": 0.07595226317644076
+          },
+          "150": {
+            "mae": 0.02881771199999937,
+            "rmse": 0.07677470719081789,
+            "p95_abs_error": 0.10980745553970331
+          }
+        },
+        "per_channel": {
+          "thumb_flexion": {
+            "mae": 0.02394669550295379,
+            "rmse": 0.07688900644911317
+          },
+          "thumb_opposition": {
+            "mae": 0.02687442145799444,
+            "rmse": 0.07975518681291514
+          },
+          "index_finger_distal": {
+            "mae": 0.027154094407709505,
+            "rmse": 0.0798595753177997
+          },
+          "index_finger_proximal": {
+            "mae": 0.025761626606167223,
+            "rmse": 0.07494883665690943
+          },
+          "middle_finger_distal": {
+            "mae": 0.021805259156638054,
+            "rmse": 0.05130484305063853
+          },
+          "middle_finger_proximal": {
+            "mae": 0.020539491322062276,
+            "rmse": 0.050018941743988285
+          },
+          "ring_finger": {
+            "mae": 0.020290614968674684,
+            "rmse": 0.05490395644860773
+          },
+          "pinky": {
+            "mae": 0.016213173376991758,
+            "rmse": 0.06503366315216007
+          },
+          "finger_spread": {
+            "mae": 0.00819578415465914,
+            "rmse": 0.025858144447599953
+          }
+        }
+      },
+      "gated_metrics": {
+        "samples": 13310,
+        "mae": 0.020837533916239145,
+        "rmse": 0.0645821517775951,
+        "p95_abs_error": 0.07653604522347435,
+        "range_violation_rate": 0.0,
+        "per_horizon_ms": {
+          "50": {
+            "mae": 0.012369742285654822,
+            "rmse": 0.04469625723526514,
+            "p95_abs_error": 0.03858851194381707
+          },
+          "100": {
+            "mae": 0.021798736581838455,
+            "rmse": 0.06771858250519683,
+            "p95_abs_error": 0.07633985504508
+          },
+          "150": {
+            "mae": 0.028344122881224152,
+            "rmse": 0.0770000075150571,
+            "p95_abs_error": 0.1111532271374017
+          }
+        },
+        "per_channel": {
+          "thumb_flexion": {
+            "mae": 0.023710095139730426,
+            "rmse": 0.07713226002024491
+          },
+          "thumb_opposition": {
+            "mae": 0.02640320122645022,
+            "rmse": 0.08001435168697091
+          },
+          "index_finger_distal": {
+            "mae": 0.026963567185424232,
+            "rmse": 0.08017836083012793
+          },
+          "index_finger_proximal": {
+            "mae": 0.025604500143565138,
+            "rmse": 0.07523737113998144
+          },
+          "middle_finger_distal": {
+            "mae": 0.0215526941297455,
+            "rmse": 0.05145058111793195
+          },
+          "middle_finger_proximal": {
+            "mae": 0.02036281760983087,
+            "rmse": 0.05015006020710287
+          },
+          "ring_finger": {
+            "mae": 0.019990107842212657,
+            "rmse": 0.054992577802983854
+          },
+          "pinky": {
+            "mae": 0.015726776020780736,
+            "rmse": 0.06508775753631052
+          },
+          "finger_spread": {
+            "mae": 0.007224045948412509,
+            "rmse": 0.025961216269058323
+          }
+        }
+      },
+      "gate_objective": 0.9774175336430702,
+      "gate_parameters": {
+        "recent_frames": 8,
+        "threshold_percentile": 60.0,
+        "threshold": 0.005214414615479727,
+        "temperature_fraction": 0.25,
+        "temperature": 0.0037947634767208803,
+        "alpha_by_horizon": [
+          0.75,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "label": "residual_motion2",
+      "model": "residual_gru",
+      "seed": 20261027,
+      "checkpoint": "D:\\VR\\HandAi\\single-hand-teleop-baseline\\experiments\\intent_prediction\\outputs\\second_round_v2_open_release\\20260829T024400_143036Z\\checkpoints\\residual_motion2.pt",
+      "checkpoint_sha256": "a49511a07b743043c729a5f3736bdc6e7196c7b69fae5185cbf748cfd6f2f00f",
+      "raw_metrics": {
+        "samples": 13310,
+        "mae": 0.02131054183155166,
+        "rmse": 0.06438126427748717,
+        "p95_abs_error": 0.07661913745105266,
+        "range_violation_rate": 0.0,
+        "per_horizon_ms": {
+          "50": {
+            "mae": 0.012734314011111667,
+            "rmse": 0.044559358288699405,
+            "p95_abs_error": 0.038732738047838
+          },
+          "100": {
+            "mae": 0.022253232163952377,
+            "rmse": 0.0675176349349332,
+            "p95_abs_error": 0.07645143717527382
+          },
+          "150": {
+            "mae": 0.028944079319590935,
+            "rmse": 0.07675072723821802,
+            "p95_abs_error": 0.11162493005394906
+          }
+        },
+        "per_channel": {
+          "thumb_flexion": {
+            "mae": 0.024397252694904923,
+            "rmse": 0.07672039758359143
+          },
+          "thumb_opposition": {
+            "mae": 0.027531050374923142,
+            "rmse": 0.0796952893974616
+          },
+          "index_finger_distal": {
+            "mae": 0.027548456776324105,
+            "rmse": 0.07957586221350874
+          },
+          "index_finger_proximal": {
+            "mae": 0.026161415725023385,
+            "rmse": 0.07463713858486538
+          },
+          "middle_finger_distal": {
+            "mae": 0.02151644984217927,
+            "rmse": 0.051546715105126505
+          },
+          "middle_finger_proximal": {
+            "mae": 0.02029052714672851,
+            "rmse": 0.05024409795203242
+          },
+          "ring_finger": {
+            "mae": 0.02026330739641765,
+            "rmse": 0.05505054820039691
+          },
+          "pinky": {
+            "mae": 0.016826842524709062,
+            "rmse": 0.06522929731043726
+          },
+          "finger_spread": {
+            "mae": 0.007259574002754889,
+            "rmse": 0.026404328188754107
+          }
+        }
+      },
+      "gated_metrics": {
+        "samples": 13310,
+        "mae": 0.020859935976388924,
+        "rmse": 0.06458862875311512,
+        "p95_abs_error": 0.07687736451625823,
+        "range_violation_rate": 0.0,
+        "per_horizon_ms": {
+          "50": {
+            "mae": 0.012379310926593824,
+            "rmse": 0.04462501768795258,
+            "p95_abs_error": 0.03875286579132077
+          },
+          "100": {
+            "mae": 0.021809318276245607,
+            "rmse": 0.06769713179575179,
+            "p95_abs_error": 0.07665068060159681
+          },
+          "150": {
+            "mae": 0.028391178726327338,
+            "rmse": 0.07707644929290479,
+            "p95_abs_error": 0.11255525052547449
+          }
+        },
+        "per_channel": {
+          "thumb_flexion": {
+            "mae": 0.023796031969928712,
+            "rmse": 0.07698190305070765
+          },
+          "thumb_opposition": {
+            "mae": 0.026572426875793493,
+            "rmse": 0.07993211544285993
+          },
+          "index_finger_distal": {
+            "mae": 0.02709082386719453,
+            "rmse": 0.07993491579712518
+          },
+          "index_finger_proximal": {
+            "mae": 0.025732220169283133,
+            "rmse": 0.07497425575596298
+          },
+          "middle_finger_distal": {
+            "mae": 0.021498863904102595,
+            "rmse": 0.05174540233712979
+          },
+          "middle_finger_proximal": {
+            "mae": 0.020306634227169246,
+            "rmse": 0.050448860669985794
+          },
+          "ring_finger": {
+            "mae": 0.019992236316166253,
+            "rmse": 0.05514113033783727
+          },
+          "pinky": {
+            "mae": 0.015820980744631282,
+            "rmse": 0.06522957292232279
+          },
+          "finger_spread": {
+            "mae": 0.006929205713231072,
+            "rmse": 0.02647672123285341
+          }
+        }
+      },
+      "gate_objective": 0.9786242214976408,
+      "gate_parameters": {
+        "recent_frames": 8,
+        "threshold_percentile": 70.0,
+        "threshold": 0.006583996365467706,
+        "temperature_fraction": 0.25,
+        "temperature": 0.0037947634767208803,
+        "alpha_by_horizon": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "label": "residual_unweighted",
+      "model": "residual_gru",
+      "seed": 20261026,
+      "checkpoint": "D:\\VR\\HandAi\\single-hand-teleop-baseline\\experiments\\intent_prediction\\outputs\\second_round_v2_open_release\\20260829T024400_143036Z\\checkpoints\\residual_unweighted.pt",
+      "checkpoint_sha256": "15734c5de28a6a7bbec4c622ac2a5035053ee20bc096a138a3f318bbedc16e51",
+      "raw_metrics": {
+        "samples": 13310,
+        "mae": 0.020967577799759052,
+        "rmse": 0.0647886842911817,
+        "p95_abs_error": 0.07641964405775063,
+        "range_violation_rate": 0.0,
+        "per_horizon_ms": {
+          "50": {
+            "mae": 0.012430028912319964,
+            "rmse": 0.044848139616033386,
+            "p95_abs_error": 0.03862055465579032
+          },
+          "100": {
+            "mae": 0.021927473161705114,
+            "rmse": 0.0678308482697753,
+            "p95_abs_error": 0.07653589397668815
+          },
+          "150": {
+            "mae": 0.02854523132525208,
+            "rmse": 0.07733266601204657,
+            "p95_abs_error": 0.11197102293372141
+          }
+        },
+        "per_channel": {
+          "thumb_flexion": {
+            "mae": 0.023849197335596293,
+            "rmse": 0.07723164170819938
+          },
+          "thumb_opposition": {
+            "mae": 0.026901054226169056,
+            "rmse": 0.07986043857373792
+          },
+          "index_finger_distal": {
+            "mae": 0.027247445181622306,
+            "rmse": 0.08057556005207935
+          },
+          "index_finger_proximal": {
+            "mae": 0.02585170743759848,
+            "rmse": 0.07549016379512218
+          },
+          "middle_finger_distal": {
+            "mae": 0.021384190627442096,
+            "rmse": 0.05175134963619706
+          },
+          "middle_finger_proximal": {
+            "mae": 0.020155374544715294,
+            "rmse": 0.050413588593019386
+          },
+          "ring_finger": {
+            "mae": 0.02012727716232697,
+            "rmse": 0.055232556568267054
+          },
+          "pinky": {
+            "mae": 0.016027093146275102,
+            "rmse": 0.06539324491949716
+          },
+          "finger_spread": {
+            "mae": 0.007164860536085884,
+            "rmse": 0.026418114653119617
+          }
+        }
+      },
+      "gated_metrics": {
+        "samples": 13310,
+        "mae": 0.02083169606851574,
+        "rmse": 0.06488818047800261,
+        "p95_abs_error": 0.07662176191806792,
+        "range_violation_rate": 0.0,
+        "per_horizon_ms": {
+          "50": {
+            "mae": 0.012340189710554176,
+            "rmse": 0.044874406935369836,
+            "p95_abs_error": 0.03869003262370821
+          },
+          "100": {
+            "mae": 0.02179519730905113,
+            "rmse": 0.06791299538094124,
+            "p95_abs_error": 0.07684988081455214
+          },
+          "150": {
+            "mae": 0.028359701185941895,
+            "rmse": 0.07749542281854202,
+            "p95_abs_error": 0.11244461968308302
+          }
+        },
+        "per_channel": {
+          "thumb_flexion": {
+            "mae": 0.023732946953522786,
+            "rmse": 0.07734469856852635
+          },
+          "thumb_opposition": {
+            "mae": 0.026601735056248157,
+            "rmse": 0.08001224548836879
+          },
+          "index_finger_distal": {
+            "mae": 0.027080014075939386,
+            "rmse": 0.08069084970844176
+          },
+          "index_finger_proximal": {
+            "mae": 0.02571005819569252,
+            "rmse": 0.07560258811856596
+          },
+          "middle_finger_distal": {
+            "mae": 0.021394496780544687,
+            "rmse": 0.05185564705352384
+          },
+          "middle_finger_proximal": {
+            "mae": 0.02018867859249481,
+            "rmse": 0.05051950388126534
+          },
+          "ring_finger": {
+            "mae": 0.019992679376847823,
+            "rmse": 0.055317180486543535
+          },
+          "pinky": {
+            "mae": 0.01579173536449926,
+            "rmse": 0.06543411520447136
+          },
+          "finger_spread": {
+            "mae": 0.0069929202208521835,
+            "rmse": 0.026467244222771073
+          }
+        }
+      },
+      "gate_objective": 0.9790590026321455,
+      "gate_parameters": {
+        "recent_frames": 8,
+        "threshold_percentile": 25.0,
+        "threshold": 0.0021486420716558185,
+        "temperature_fraction": 0.25,
+        "temperature": 0.0037947634767208803,
+        "alpha_by_horizon": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "label": "absolute_gru",
+      "model": "gru",
+      "seed": 20260926,
+      "checkpoint": "D:\\VR\\HandAi\\single-hand-teleop-baseline\\experiments\\intent_prediction\\outputs\\second_round_v2_open_release\\20260829T024400_143036Z\\checkpoints\\absolute_gru.pt",
+      "checkpoint_sha256": "d3905570f7a066d468dfbbdab064118e72e939292b4650ce492a86b5d642c6de",
+      "raw_metrics": {
+        "samples": 13310,
+        "mae": 0.02534918428488601,
+        "rmse": 0.06562771611106051,
+        "p95_abs_error": 0.09091084599494931,
+        "range_violation_rate": 0.0,
+        "per_horizon_ms": {
+          "50": {
+            "mae": 0.01791083794325193,
+            "rmse": 0.04702605297466781,
+            "p95_abs_error": 0.05773676699027415
+          },
+          "100": {
+            "mae": 0.02608081830860466,
+            "rmse": 0.06847406994597245,
+            "p95_abs_error": 0.09112707525491713
+          },
+          "150": {
+            "mae": 0.03205589660280144,
+            "rmse": 0.07759409418583131,
+            "p95_abs_error": 0.11975874602794565
+          }
+        },
+        "per_channel": {
+          "thumb_flexion": {
+            "mae": 0.025741406347305925,
+            "rmse": 0.0765095908920995
+          },
+          "thumb_opposition": {
+            "mae": 0.030613102622723428,
+            "rmse": 0.07915916916671081
+          },
+          "index_finger_distal": {
+            "mae": 0.030023877726232336,
+            "rmse": 0.07834004367853165
+          },
+          "index_finger_proximal": {
+            "mae": 0.0282872718169749,
+            "rmse": 0.07396361795016874
+          },
+          "middle_finger_distal": {
+            "mae": 0.025394818906138414,
+            "rmse": 0.05512396173024381
+          },
+          "middle_finger_proximal": {
+            "mae": 0.024795757700673278,
+            "rmse": 0.0540433846022429
+          },
+          "ring_finger": {
+            "mae": 0.02561624381482352,
+            "rmse": 0.05922046388452819
+          },
+          "pinky": {
+            "mae": 0.024205735859749413,
+            "rmse": 0.06890062969243302
+          },
+          "finger_spread": {
+            "mae": 0.013464443769352881,
+            "rmse": 0.02866364633637173
+          }
+        }
+      },
+      "gated_metrics": {
+        "samples": 13310,
+        "mae": 0.021092869866110683,
+        "rmse": 0.0649426961481159,
+        "p95_abs_error": 0.07793550789356228,
+        "range_violation_rate": 0.0,
+        "per_horizon_ms": {
+          "50": {
+            "mae": 0.012538267135038998,
+            "rmse": 0.04510374925107384,
+            "p95_abs_error": 0.03996466994285578
+          },
+          "100": {
+            "mae": 0.02213701901497722,
+            "rmse": 0.06773838163019817,
+            "p95_abs_error": 0.07824082784354686
+          },
+          "150": {
+            "mae": 0.028603323448315825,
+            "rmse": 0.0776519465730088,
+            "p95_abs_error": 0.11326585176284386
+          }
+        },
+        "per_channel": {
+          "thumb_flexion": {
+            "mae": 0.023986011263925813,
+            "rmse": 0.07776954220587276
+          },
+          "thumb_opposition": {
+            "mae": 0.026540868216586536,
+            "rmse": 0.08023459674703153
+          },
+          "index_finger_distal": {
+            "mae": 0.027250062527404573,
+            "rmse": 0.08059018438273706
+          },
+          "index_finger_proximal": {
+            "mae": 0.025953747600609183,
+            "rmse": 0.07583487631878104
+          },
+          "middle_finger_distal": {
+            "mae": 0.021909266172663724,
+            "rmse": 0.051672570558285696
+          },
+          "middle_finger_proximal": {
+            "mae": 0.020780279900884543,
+            "rmse": 0.05039924809159263
+          },
+          "ring_finger": {
+            "mae": 0.020300721259718806,
+            "rmse": 0.05532845917654509
+          },
+          "pinky": {
+            "mae": 0.01587577925440336,
+            "rmse": 0.0654531527949586
+          },
+          "finger_spread": {
+            "mae": 0.007239092598799594,
+            "rmse": 0.02590546640635319
+          }
+        }
+      },
+      "gate_objective": 0.9879880980067981,
+      "gate_parameters": {
+        "recent_frames": 8,
+        "threshold_percentile": 92.5,
+        "threshold": 0.03930777635957517,
+        "temperature_fraction": 1.0,
+        "temperature": 0.015179053906883521,
+        "alpha_by_horizon": [
+          0.25,
+          1.0,
+          1.0
+        ]
+      }
+    }
+  ]
+}

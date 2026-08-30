@@ -19,6 +19,7 @@ def _args(**overrides):
         "max_frames": None,
         "print_json": False,
         "save_jsonl": False,
+        "prediction_shadow": False,
     }
     base.update(overrides)
     return argparse.Namespace(**base)
@@ -39,6 +40,24 @@ def test_runtime_mode_defaults_to_baseline_only():
     assert runtime.input_source_type == "webcam"
     assert runtime.gui_enabled is True
     assert runtime.headless is False
+    assert runtime.control_extension_enabled is False
+    assert runtime.svh_preview_enabled is False
+
+
+def test_prediction_shadow_cli_is_explicit_and_does_not_enable_udp_or_preview():
+    updated = _apply_cli_overrides(
+        {
+            "prediction_shadow_enabled": False,
+            "unity_udp_enabled": False,
+            "enable_control_extension": False,
+            "svh_enable_preview": False,
+        },
+        _args(prediction_shadow=True),
+    )
+
+    runtime = _build_runtime_mode(updated)
+    assert updated["prediction_shadow_enabled"] is True
+    assert updated["unity_udp_enabled"] is False
     assert runtime.control_extension_enabled is False
     assert runtime.svh_preview_enabled is False
 

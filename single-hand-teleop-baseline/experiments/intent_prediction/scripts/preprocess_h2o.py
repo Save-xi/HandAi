@@ -11,7 +11,11 @@ for import_root in (PROJECT_ROOT / "src", EXPERIMENT_ROOT):
     if str(import_root) not in sys.path:
         sys.path.insert(0, str(import_root))
 
-from intent_prediction.h2o_adapter import preprocess_h2o_pose_dataset  # noqa: E402
+from intent_prediction.h2o_adapter import (  # noqa: E402
+    POSE_ONLY_PROJECTION_LEGACY,
+    POSE_ONLY_PROJECTION_NORMALIZED_PERSPECTIVE,
+    preprocess_h2o_pose_dataset,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -33,6 +37,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--min-segment-frames", type=int, default=40, help="短于此值的连续有效片段会丢弃")
     parser.add_argument("--limit-takes", type=int, default=None, help="仅调试时限制处理的 take 数")
+    parser.add_argument(
+        "--pose-only-projection",
+        choices=(POSE_ONLY_PROJECTION_LEGACY, POSE_ONLY_PROJECTION_NORMALIZED_PERSPECTIVE),
+        default=POSE_ONLY_PROJECTION_LEGACY,
+        help="无 cam_intrinsics 时的 2D 几何；默认只为复现 v2，新实验建议显式选择 normalized_perspective",
+    )
     return parser.parse_args()
 
 
@@ -46,6 +56,7 @@ def main() -> int:
         split_policy=args.split_policy,
         min_segment_frames=args.min_segment_frames,
         limit_takes=args.limit_takes,
+        pose_only_projection_policy=args.pose_only_projection,
     )
     print(f"H2O 单右手预处理完成：{manifest}")
     return 0

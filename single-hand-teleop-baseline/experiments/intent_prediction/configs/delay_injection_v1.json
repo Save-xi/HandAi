@@ -1,0 +1,30 @@
+{
+  "schema_version": "intent-delay-injection-config-v1",
+  "run_purpose": "pre_registered_h2o_v2_network_impairment_replay",
+  "protocol_frozen_before_run": true,
+  "seed": 20260829,
+  "split": "test",
+  "history_frames": 30,
+  "horizon_ms": [50, 100, 150],
+  "stride": 1,
+  "max_windows": null,
+  "batch_size": 256,
+  "device": "auto",
+  "selection_path": "../reports/second_round/20260829T024400_143036Z_selection.json",
+  "second_round_report_path": "../reports/second_round/20260829T024400_143036Z_report.json",
+  "checkpoint_path": "../outputs/second_round_v2_open_release/20260829T024400_143036Z/checkpoints/residual_motion4.pt",
+  "network_matrix": {
+    "delays_ms": [0, 20, 50, 100],
+    "jitters_ms": [0, 5, 10],
+    "loss_rates": [0.0, 0.01, 0.05]
+  },
+  "retention_gate": {
+    "primary_delays_ms": [50, 100],
+    "minimum_aggregate_rmse_improvement_percent": 3.0,
+    "minimum_aggregate_p95_improvement_percent": 0.0,
+    "minimum_q90_rmse_improvement_percent": 5.0,
+    "maximum_worst_scenario_rmse_regression_percent": 1.0,
+    "maximum_range_violation_rate": 0.0,
+    "minimum_prediction_available_fraction": 0.95
+  }
+}

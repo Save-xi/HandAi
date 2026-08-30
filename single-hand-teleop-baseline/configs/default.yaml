@@ -15,13 +15,30 @@ console_landmarks_preview_count: 3
 save_last_json: true
 save_jsonl: false
 jsonl_output_dir: "outputs"
-output_json_path: "examples/sample_output.json"
+output_json_path: "outputs/latest_frame.json"
 export_last_every_n_frames: 5  # 运行期按帧间隔节流写 last-frame JSON，正常退出时仍会补写一次
 jsonl_flush_interval: 10  # JSONL 保持一个小缓冲，降低实时运行时的逐帧写盘压力
 unity_udp_enabled: false  # 默认不向 Unity 发送；只有需要实时联动预览时再打开
 unity_udp_host: "127.0.0.1"
 unity_udp_port: 18080
 recent_frames_buffer_size: 10
+
+# 默认关闭的研究诊断层。启用后只在 UDP 发送之后记录 hold/raw/gated，
+# 不改写 svh_preview，也不把预测结果发给 Unity。
+prediction_shadow_enabled: false
+prediction_shadow_selection_path: "experiments/intent_prediction/reports/second_round/20260829T024400_143036Z_selection.json"
+prediction_shadow_checkpoint_path: "experiments/intent_prediction/outputs/second_round_v2_open_release/20260829T024400_143036Z/checkpoints/residual_motion4.pt"
+prediction_shadow_report_path: "experiments/intent_prediction/reports/second_round/20260829T024400_143036Z_report.json"
+prediction_shadow_require_offline_gate: false  # 仅允许影子诊断；模型永不进入 UDP
+prediction_shadow_device: "auto"
+prediction_shadow_horizon_ms: [50, 100, 150]
+prediction_shadow_max_frame_gap_ms: 100.0
+prediction_shadow_target_fps: 30.0
+prediction_shadow_output_json_path: "outputs/latest_prediction_shadow.json"
+prediction_shadow_jsonl_output_dir: "outputs"
+prediction_shadow_result_queue_size: 8
+prediction_shadow_worker_shutdown_timeout_s: 2.0
+
 enable_control_extension: false  # 默认单右手 baseline 保持关闭；只有需要可选控制层时才开启
 control_grasp_open_ref: 0.02
 control_grasp_closed_ref: 0.55
@@ -31,18 +48,21 @@ control_hand_open_ratio_open_ref: 0.95
 control_hand_open_ratio_closed_ref: 0.25
 control_pinch_index_open_ref: 0.05
 control_pinch_index_closed_ref: 0.35
+control_open_release_enabled: false  # 仅预览校准使用；默认 baseline 不改写原始 curl 语义
+control_open_release_start_ratio: 0.85
+control_open_release_full_ratio: 0.95
 svh_enable_preview: false  # 默认关闭 preview 扩展，让 baseline 能独立于 Unity / SVH 下游工作运行
 svh_enable_gesture_fallback: false  # 这是偏演示用途的 fallback；默认关闭会更保守
 svh_preview_layout: "compact5"  # compact5 是当前轻量 preview；切到 svh_9ch 更接近论文/C# 参考顺序
 svh_preview_channel_count: 5  # 如果想使用更像 SVH 的 preview 向量，可配合 svh_9ch 一起改成 9
 svh_preview_mode: "preview"
 svh_transport: "mock"  # 未来可以扩展 TCP transport，但不需要改适配器调用点
+svh_mock_history_size: 32  # 仅保留最近少量 preview，长期运行不会无限增长
 svh_protocol_sync_bytes: [76, 170]  # 论文启发的 preview sync bytes（0x4C, 0xAA），不代表完整协议已确认
 svh_grasp_open_ref: 0.02  # 非拇指平均 curl 接近张开手时的参考值
 svh_grasp_closed_ref: 0.55  # 非拇指平均 curl 接近闭合抓握时的参考值
 svh_pinch_open_ref: 0.45  # 捏合距离较大，表示拇指与食指分开
 svh_pinch_closed_ref: 0.08  # 捏合距离较小，表示捏合更强
-svh_invalid_holds_last_command: false
 svh_protocol_use_little_endian: true
 svh_hand_open_ratio_open_ref: 0.95
 svh_hand_open_ratio_closed_ref: 0.25
