@@ -146,3 +146,19 @@ H2O 官方播放器读取 `cam_intrinsics.txt` 并用 `cv2.projectPoints` 投影
 3. 若继续模型研究，新建 normalized-perspective + sequential-stabilizer 标签版本并重新预注册；
 4. 只有真实域收益与覆盖先达标，再做多 seed/LOSO；
 5. 实体 SVH 始终走独立协议、标定、限位、watchdog、急停和断线安全验收。
+
+## 7. 验证与 Git 闭环
+
+| 检查 | 结果 |
+|---|---|
+| `handai-intent-prediction` 全量 pytest | `168 passed` |
+| `single-right-hand-baseline` 全量 pytest | `161 passed, 7 skipped` |
+| Ruff / compileall | PASS |
+| 真实 v2 checkpoint 无摄像头 shadow smoke | 36 帧，`preview_unchanged=true`，最终 `predicted` |
+| 冻结 36 场景 + 摄像头 JSONL 覆盖率复跑 | 4/6 未通过；端到端覆盖 61.90% |
+| PR | [#15](https://github.com/Save-xi/HandAi/pull/15)，保持 open，未自动合并 |
+| GitHub Actions | Windows / Ubuntu baseline job 均 success |
+
+共享 `single-right-hand-baseline` Conda 环境的 `pip check` 仍会报告历史 Jupyter/音频包缺少
+`idna/cffi/certifi/jinja2` 等依赖；这些包不在 baseline requirements 中。本轮没有为消除共享环境
+噪声而盲装无关依赖，PR 的干净 Python 3.10 Windows/Ubuntu job 均通过 `pip check`。

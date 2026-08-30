@@ -828,7 +828,7 @@ hold-last / raw residual / gated residual
 - [x] 历史 v1 第二轮 residual GRU + validation gate，离线 6/6（仅历史语义）
 - [x] 当前映射 H2O v2 重标/重训与 contract 闸门；诚实记录 gate 4/6 未通过
 - [x] 历史 Phase 1 正式报告快照、PR #14 合并和双平台 CI
-- [ ] 当前 Phase 1.5 二审修补 PR 与双平台 CI（以本阶段 PR 状态为准）
+- [x] 当前 Phase 1.5 二审修补 PR #15 已开，Windows/Ubuntu CI 通过（保持 open，未自动合并）
 - [x] 默认关闭的非阻塞预测影子、30 Hz 重采样、独立日志与新 checkpoint smoke
 - [x] Unity loopback/invalid/乱序/过期/watchdog 动态 batch 回归
 - [x] 延迟/抖动/丢包 36 场景冻结回放；retention gate 4/6，保留 hold-last
