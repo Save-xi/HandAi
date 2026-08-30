@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import socket
+import threading
 from pathlib import Path
 from typing import Any, Dict, TextIO
 
@@ -107,6 +109,17 @@ class JsonExporter:
                 svh_preview.pop("target_ticks_preview", None)
                 console_obj[key] = svh_preview
                 continue
+            if key == "prediction_diagnostics" and isinstance(value, dict):
+                prediction = dict(value)
+                for matrix_name in ("hold_last", "raw_prediction", "gated_prediction"):
+                    matrix = list(prediction.get(matrix_name, []))
+                    prediction[f"{matrix_name}_horizon_count"] = len(matrix)
+                    prediction[f"{matrix_name}_first_horizon_preview"] = (
+                        list(matrix[0])[:landmarks_preview_count] if matrix else []
+                    )
+                    prediction.pop(matrix_name, None)
+                console_obj[key] = prediction
+                continue
             console_obj[key] = value
         return self._round_value(console_obj)
 
@@ -122,12 +135,25 @@ class JsonExporter:
             self.logger.debug(message, *args)
 
     def _write_last_prepared_frame(self, prepared: Dict[str, Any]) -> None:
-        """把最近一帧写成完整 JSON 文件。"""
+        """把最近一帧原子替换成完整 JSON，避免读取方看到半截文件。"""
 
         path = Path(self.output_path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("w", encoding="utf-8") as f:
-            json.dump(prepared, f, ensure_ascii=False, indent=2)
+        temp_path = path.with_name(
+            f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp"
+        )
+        try:
+            with temp_path.open("w", encoding="utf-8") as f:
+                json.dump(prepared, f, ensure_ascii=False, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            temp_path.replace(path)
+        except Exception:
+            try:
+                temp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+            raise
         self._last_frame_write_count += 1
         self._last_frame_dirty = False
 

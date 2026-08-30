@@ -236,6 +236,132 @@
     "latency_ms": {
       "type": "number"
     },
+    "prediction_diagnostics": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Optional default-off shadow prediction diagnostics aligned to the top-level frame. This object is added only after the unchanged Unity UDP payload has been sent.",
+      "required": [
+        "schema_version",
+        "mode",
+        "enabled",
+        "status",
+        "ready",
+        "source_frame_index",
+        "source_timestamp_unix_ms",
+        "history_frames_required",
+        "history_frames_available",
+        "history_span_ms",
+        "observed_fps",
+        "horizon_ms",
+        "channel_order",
+        "hold_last",
+        "raw_prediction",
+        "gated_prediction",
+        "motion_score",
+        "base_gate",
+        "effective_gate_by_horizon",
+        "inference_started_unix_ms",
+        "inference_completed_unix_ms",
+        "inference_ms",
+        "gating_completed_unix_ms",
+        "gating_ms",
+        "raw_range_violation_count",
+        "device",
+        "model_label",
+        "selection_sha256",
+        "checkpoint_sha256",
+        "fallback_reason"
+      ],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "mode": { "const": "shadow" },
+        "enabled": { "const": true },
+        "status": {
+          "enum": [
+            "initialization_error",
+            "invalid_input",
+            "warming_up",
+            "predicted",
+            "inference_error"
+          ]
+        },
+        "ready": { "type": "boolean" },
+        "source_frame_index": { "type": "integer", "minimum": 0 },
+        "source_timestamp_unix_ms": { "type": "number", "minimum": 0.0 },
+        "history_frames_required": { "type": "integer", "minimum": 2 },
+        "history_frames_available": { "type": "integer", "minimum": 0 },
+        "history_span_ms": { "type": ["number", "null"], "minimum": 0.0 },
+        "observed_fps": { "type": ["number", "null"], "minimum": 0.0 },
+        "horizon_ms": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "integer", "minimum": 1 }
+        },
+        "channel_order": {
+          "const": [
+            "thumb_flexion",
+            "thumb_opposition",
+            "index_finger_distal",
+            "index_finger_proximal",
+            "middle_finger_distal",
+            "middle_finger_proximal",
+            "ring_finger",
+            "pinky",
+            "finger_spread"
+          ]
+        },
+        "hold_last": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "minItems": 9,
+            "maxItems": 9,
+            "items": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+          }
+        },
+        "raw_prediction": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "minItems": 9,
+            "maxItems": 9,
+            "items": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+          }
+        },
+        "gated_prediction": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "minItems": 9,
+            "maxItems": 9,
+            "items": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+          }
+        },
+        "motion_score": { "type": ["number", "null"], "minimum": 0.0 },
+        "base_gate": { "type": ["number", "null"], "minimum": 0.0, "maximum": 1.0 },
+        "effective_gate_by_horizon": {
+          "type": "array",
+          "items": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+        },
+        "inference_started_unix_ms": { "type": ["number", "null"], "minimum": 0.0 },
+        "inference_completed_unix_ms": { "type": ["number", "null"], "minimum": 0.0 },
+        "inference_ms": { "type": ["number", "null"], "minimum": 0.0 },
+        "gating_completed_unix_ms": { "type": ["number", "null"], "minimum": 0.0 },
+        "gating_ms": { "type": ["number", "null"], "minimum": 0.0 },
+        "raw_range_violation_count": { "type": "integer", "minimum": 0 },
+        "device": { "type": ["string", "null"] },
+        "model_label": { "type": ["string", "null"] },
+        "selection_sha256": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "checkpoint_sha256": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "fallback_reason": { "type": ["string", "null"] }
+      }
+    },
     "timing": {
       "type": "object",
       "additionalProperties": false,

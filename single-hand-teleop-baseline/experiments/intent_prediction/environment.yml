@@ -7,3 +7,9 @@ dependencies:
   - numpy=2.2.6
   - pyyaml=6.0.3
   - pytest=9.0.2
+  - pip:
+      # 让同一环境既能做离线训练，也能运行主链影子模式；PyTorch 仍按 README
+      # 根据本机 CUDA/CPU 情况单独安装。
+      - mediapipe==0.10.14
+      - opencv-contrib-python==4.13.0.92
+      - Pillow==12.1.1

@@ -1,3 +1,4 @@
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -12,6 +13,9 @@ def test_main_help_smoke_without_camera_or_hardware():
         cwd=PROJECT_ROOT,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="strict",
+        env={**os.environ, "PYTHONUTF8": "1"},
         check=False,
     )
 

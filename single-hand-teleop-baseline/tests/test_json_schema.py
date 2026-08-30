@@ -1,13 +1,18 @@
 import json
 from pathlib import Path
 
+import numpy as np
+
 from output.frame_payload_contract import (
     DEPRECATED_ALIASES,
     FRAME_PAYLOAD_REQUIRED_FIELDS,
+    PREDICTION_DIAGNOSTICS_REQUIRED_FIELDS,
     normalize_frame_payload,
     validate_frame_payload,
 )
 from output.json_exporter import JsonExporter
+from prediction.shadow_predictor import PredictionShadow
+from svh.svh_layout import SVH_9CH_NAMES
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -83,6 +88,9 @@ def test_schema_file_matches_frozen_contract():
     assert schema["properties"]["gesture_stable"]["type"] == "string"
     assert schema["properties"]["svh_preview"]["type"] == "object"
     assert schema["properties"]["landmarks_3d"]["type"] == "array"
+    assert schema["properties"]["prediction_diagnostics"]["required"] == list(
+        PREDICTION_DIAGNOSTICS_REQUIRED_FIELDS
+    )
     assert schema["allOf"][0]["then"]["properties"]["landmarks_2d"]["minItems"] == 21
     assert schema["allOf"][0]["then"]["properties"]["landmarks_3d"]["maxItems"] == 21
 
@@ -280,6 +288,96 @@ def test_timing_rejects_non_finite_and_unknown_values():
     assert "timing.udp_send_attempt_unix_ms 必须是有限数字" in errors
 
 
+def test_optional_prediction_diagnostics_accepts_aligned_predicted_state():
+    shadow = PredictionShadow(
+        predict_fn=lambda history: np.repeat(history[-1:, :], 3, axis=0),
+        history_frames=2,
+        horizon_ms=[50, 100, 150],
+        gate_recent_frames=2,
+        gate_threshold=0.0,
+        gate_temperature=0.01,
+        gate_alpha_by_horizon=[0.75, 0.75, 0.75],
+        max_frame_gap_ms=100.0,
+        device="cpu",
+        model_label="contract_test",
+        selection_sha256="a" * 64,
+        checkpoint_sha256="b" * 64,
+    )
+    final_payload = None
+    final_diagnostic = None
+    for frame_index in range(2):
+        payload = _sample_payload()
+        payload["frame_index"] = frame_index
+        payload["timestamp"] = 1_000.0 + frame_index / 30.0
+        payload["svh_preview"]["target_channels"] = list(range(9))
+        payload["svh_preview"]["target_positions"] = [0.1 + index * 0.05 for index in range(9)]
+        payload["svh_preview"]["protocol_hint"]["channel_layout"] = "svh_9ch"
+        payload["svh_preview"]["protocol_hint"]["channel_order"] = ",".join(SVH_9CH_NAMES)
+        final_diagnostic = shadow.observe(payload)
+        final_payload = payload
+
+    assert final_payload is not None and final_diagnostic is not None
+    assert final_diagnostic["status"] == "predicted"
+    final_payload["prediction_diagnostics"] = final_diagnostic
+    final_payload = normalize_frame_payload(final_payload, include_deprecated_aliases=False)
+    assert validate_frame_payload(final_payload) == []
+
+
+def test_prediction_diagnostics_rejects_misalignment_unknown_fields_and_bad_matrix_shape():
+    payload = _sample_payload()
+    diagnostic = PredictionShadow.unavailable("test initialization failure").observe(payload)
+    diagnostic["source_frame_index"] = 999
+    diagnostic["unexpected"] = True
+    payload["prediction_diagnostics"] = diagnostic
+
+    errors = validate_frame_payload(payload)
+    assert "prediction_diagnostics.source_frame_index 必须与顶层 frame_index 一致" in errors
+    assert "prediction_diagnostics 不允许未知字段：unexpected" in errors
+
+    diagnostic = dict(diagnostic)
+    diagnostic.pop("unexpected")
+    diagnostic["status"] = "predicted"
+    diagnostic["ready"] = True
+    diagnostic["source_frame_index"] = payload["frame_index"]
+    diagnostic["hold_last"] = [[0.0] * 8] * 3
+    diagnostic["raw_prediction"] = [[0.0] * 9] * 3
+    diagnostic["gated_prediction"] = [[0.0] * 9] * 3
+    diagnostic["motion_score"] = 0.0
+    diagnostic["base_gate"] = 0.0
+    diagnostic["effective_gate_by_horizon"] = [0.0, 0.0, 0.0]
+    diagnostic["inference_started_unix_ms"] = 1.0
+    diagnostic["inference_completed_unix_ms"] = 2.0
+    diagnostic["inference_ms"] = 1.0
+    diagnostic["device"] = "cpu"
+    diagnostic["model_label"] = "test"
+    diagnostic["selection_sha256"] = "a" * 64
+    diagnostic["checkpoint_sha256"] = "b" * 64
+    diagnostic["fallback_reason"] = None
+    payload["prediction_diagnostics"] = diagnostic
+    errors = validate_frame_payload(payload)
+    assert "prediction_diagnostics.hold_last[0] 必须包含 9 个通道" in errors
+
+
+def test_runtime_contract_rejects_unknown_fields_where_schema_disallows_them():
+    payload = _sample_payload()
+    payload["unexpected_top"] = True
+    payload["finger_curl"]["sixth_finger"] = 0.5
+    payload["control_representation"]["unexpected_control"] = 1
+    payload["control_representation"]["finger_flex"]["sixth_finger"] = 0.5
+    payload["svh_preview"]["unexpected_preview"] = 1
+    payload["svh_preview"]["protocol_hint"]["unexpected_protocol"] = 1
+
+    normalized = normalize_frame_payload(payload, include_deprecated_aliases=False)
+    errors = validate_frame_payload(normalized)
+
+    assert "顶层 payload 不允许未知字段：unexpected_top" in errors
+    assert "finger_curl 不允许未知字段：sixth_finger" in errors
+    assert "control_representation 不允许未知字段：unexpected_control" in errors
+    assert "control_representation.finger_flex 不允许未知字段：sixth_finger" in errors
+    assert "svh_preview 不允许未知字段：unexpected_preview" in errors
+    assert "svh_preview.protocol_hint 不允许未知字段：unexpected_protocol" in errors
+
+
 def test_json_exporter_persists_canonical_payload(tmp_path):
     obj = _sample_payload()
     p = tmp_path / "last.json"
@@ -316,6 +414,22 @@ def test_example_payloads_follow_frozen_contract():
     for name in ["sample_output.json", "sample_output_svh_9ch.json"]:
         payload = json.loads((PROJECT_ROOT / "examples" / name).read_text(encoding="utf-8"))
         assert validate_frame_payload(payload) == []
+
+
+def test_prediction_diagnostics_example_can_be_attached_to_an_aligned_svh_9ch_frame():
+    diagnostic = json.loads(
+        (PROJECT_ROOT / "examples" / "sample_prediction_diagnostics.json").read_text(encoding="utf-8")
+    )
+    payload = _sample_payload()
+    payload["frame_index"] = diagnostic["source_frame_index"]
+    payload["timestamp"] = diagnostic["source_timestamp_unix_ms"] / 1000.0
+    payload["svh_preview"]["target_channels"] = list(range(9))
+    payload["svh_preview"]["target_positions"] = diagnostic["hold_last"][0]
+    payload["svh_preview"]["protocol_hint"]["channel_layout"] = "svh_9ch"
+    payload["svh_preview"]["protocol_hint"]["channel_order"] = ",".join(SVH_9CH_NAMES)
+    payload["prediction_diagnostics"] = diagnostic
+
+    assert validate_frame_payload(payload) == []
 
 
 def test_sample_session_jsonl_lines_follow_frozen_contract():

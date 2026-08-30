@@ -10,7 +10,7 @@ def test_load_config_resolves_from_repo_root(monkeypatch):
 
     cfg = load_config("configs/default.yaml")
 
-    assert Path(cfg["output_json_path"]) == project_root / "examples" / "sample_output.json"
+    assert Path(cfg["output_json_path"]) == project_root / "outputs" / "latest_frame.json"
     assert Path(cfg["jsonl_output_dir"]) == project_root / "outputs"
     assert cfg["enable_control_extension"] is False
     assert cfg["svh_enable_preview"] is False
@@ -18,7 +18,7 @@ def test_load_config_resolves_from_repo_root(monkeypatch):
     assert cfg["headless"] is False
 
 
-def test_load_svh_9ch_preview_config_resolves_example_output(monkeypatch):
+def test_load_svh_9ch_preview_config_resolves_runtime_output(monkeypatch):
     project_root = Path(__file__).resolve().parents[1]
     repo_root = project_root.parent
     monkeypatch.chdir(repo_root)
@@ -32,7 +32,8 @@ def test_load_svh_9ch_preview_config_resolves_example_output(monkeypatch):
     assert cfg["unity_udp_enabled"] is False
     assert cfg["unity_udp_host"] == "127.0.0.1"
     assert cfg["unity_udp_port"] == 18080
-    assert Path(cfg["output_json_path"]) == project_root / "examples" / "sample_output_svh_9ch.json"
+    assert Path(cfg["output_json_path"]) == project_root / "outputs" / "latest_svh_9ch.json"
+    assert Path(cfg["prediction_shadow_output_json_path"]) == project_root / "outputs" / "latest_prediction_shadow.json"
 
 
 def test_load_unity_udp_preview_config_enables_streaming(monkeypatch):

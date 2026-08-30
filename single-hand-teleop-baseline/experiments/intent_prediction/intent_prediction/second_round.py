@@ -329,6 +329,13 @@ def run_second_round(
     data_root = data_root.resolve()
     manifest_path = data_root / "manifest.json"
     data_manifest = load_manifest(data_root)
+    data_contract = {
+        "manifest_sha256": _hash_file(manifest_path),
+        "mapping_config_sha256": data_manifest.get("mapping_config_sha256"),
+        "mapping_contract_version": data_manifest.get("mapping_contract_version"),
+        "mapping_contract_sha256": data_manifest.get("mapping_contract_sha256"),
+        "dataset_fps": data_manifest.get("fps"),
+    }
 
     seed = int(config.get("seed", 20260823))
     history_frames = int(config.get("history_frames", 30))
@@ -380,6 +387,7 @@ def run_second_round(
             training_config=training_config,
             checkpoint_path=checkpoint_path,
             seed=candidate_seed,
+            checkpoint_metadata=data_contract,
         )
         gate_fit = fit_motion_gate(
             val.x,
@@ -414,6 +422,7 @@ def run_second_round(
         "test_loaded": False,
         "test_metrics_available": False,
         "effective_config_sha256": _hash_json(config),
+        "data_contract": data_contract,
         "validation_hold_metrics": validation_hold_metrics,
         **selection,
     }
@@ -547,6 +556,7 @@ def run_second_round(
         "data_root": str(data_root),
         "dataset": data_manifest.get("dataset"),
         "manifest_sha256": _hash_file(manifest_path),
+        "data_contract": data_contract,
         "history_frames": history_frames,
         "horizon_ms": list(horizons),
         "effective_horizon_frames": test.horizon_steps.tolist(),

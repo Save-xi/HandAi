@@ -102,10 +102,68 @@ TIMING_REQUIRED_FIELDS = (
 TIMING_EPOCH_FIELDS = TIMING_REQUIRED_FIELDS[2:]
 """timing 中使用同一 Unix epoch 毫秒时钟的字段。"""
 
+PREDICTION_DIAGNOSTICS_REQUIRED_FIELDS = (
+    "schema_version",
+    "mode",
+    "enabled",
+    "status",
+    "ready",
+    "source_frame_index",
+    "source_timestamp_unix_ms",
+    "history_frames_required",
+    "history_frames_available",
+    "history_span_ms",
+    "observed_fps",
+    "horizon_ms",
+    "channel_order",
+    "hold_last",
+    "raw_prediction",
+    "gated_prediction",
+    "motion_score",
+    "base_gate",
+    "effective_gate_by_horizon",
+    "inference_started_unix_ms",
+    "inference_completed_unix_ms",
+    "inference_ms",
+    "gating_completed_unix_ms",
+    "gating_ms",
+    "raw_range_violation_count",
+    "device",
+    "model_label",
+    "selection_sha256",
+    "checkpoint_sha256",
+    "fallback_reason",
+)
+"""可选 prediction_diagnostics v1 一旦出现，就必须保持完整稳定形状。"""
+
+PREDICTION_DIAGNOSTIC_STATUSES = (
+    "initialization_error",
+    "invalid_input",
+    "warming_up",
+    "predicted",
+    "inference_error",
+)
+
+PREDICTION_CHANNEL_ORDER = (
+    "thumb_flexion",
+    "thumb_opposition",
+    "index_finger_distal",
+    "index_finger_proximal",
+    "middle_finger_distal",
+    "middle_finger_proximal",
+    "ring_finger",
+    "pinky",
+    "finger_spread",
+)
+"""影子模型训练、preview 与诊断共用的固定 9 通道语义顺序。"""
+
 DEPRECATED_ALIASES = {
     "gesture": "gesture_stable",
     "svh": "svh_preview",
 }
+
+FRAME_PAYLOAD_OPTIONAL_FIELDS = ("timing", "prediction_diagnostics")
+"""canonical 顶层可选字段；其余未知键与 JSON Schema 一样必须拒绝。"""
 
 
 class FingerMap(TypedDict):
@@ -140,6 +198,7 @@ class FramePayload(TypedDict, total=False):
     fps: float
     latency_ms: float
     timing: Dict[str, Any]
+    prediction_diagnostics: Dict[str, Any]
 
 
 def _is_number(value: Any) -> bool:
@@ -168,11 +227,13 @@ def _clamp_unit_interval(value: Any) -> float | None:
 
 
 def _normalize_finger_map(mapping: Any) -> FingerMap:
-    mapping = mapping or {}
-    return {
-        name: _clamp_unit_interval(mapping.get(name))
-        for name in FINGER_NAMES
-    }
+    source = dict(mapping or {})
+    # 保留未知键，让 validate/prepare 明确报错；不能在 normalize 阶段静默吞掉，
+    # 否则运行时 contract 会比 additionalProperties=false 的 JSON Schema 更宽松。
+    normalized: Dict[str, Any] = dict(source)
+    for name in FINGER_NAMES:
+        normalized[name] = _clamp_unit_interval(source.get(name))
+    return normalized  # type: ignore[return-value]
 
 
 def _normalize_landmarks_2d(landmarks: Any) -> List[List[float]]:
@@ -281,17 +342,67 @@ def _normalize_svh_preview(preview: Any) -> Dict[str, Any]:
 
 
 def _normalize_timing(timing: Any) -> Dict[str, Any] | None:
-    """规范化可选的阶段时戳对象，同时丢弃未知键。"""
+    """规范化可选的阶段时戳对象，并保留未知键交给严格校验拒绝。"""
 
     if timing is None:
         return None
     source = dict(timing or {})
-    normalized: Dict[str, Any] = {
-        "schema_version": int(source.get("schema_version", 1)),
-        "clock": str(source.get("clock", "unix_epoch_ms")),
-    }
+    normalized: Dict[str, Any] = dict(source)
+    normalized["schema_version"] = int(source.get("schema_version", 1))
+    normalized["clock"] = str(source.get("clock", "unix_epoch_ms"))
     for field in TIMING_EPOCH_FIELDS:
         normalized[field] = _maybe_float(source.get(field))
+    return normalized
+
+
+def _normalize_prediction_matrix(matrix: Any) -> List[List[float]]:
+    return [
+        [float(value) for value in list(row)]
+        for row in list(matrix or [])
+    ]
+
+
+def _normalize_prediction_diagnostics(diagnostics: Any) -> Dict[str, Any] | None:
+    """规范化可选影子诊断，并保留未知键交给 v1 严格校验拒绝。"""
+
+    if diagnostics is None:
+        return None
+    source = dict(diagnostics or {})
+    normalized: Dict[str, Any] = dict(source)
+    normalized.update({
+        "schema_version": int(source.get("schema_version", 1)),
+        "mode": str(source.get("mode", "shadow")),
+        "enabled": bool(source.get("enabled", True)),
+        "status": str(source.get("status", "initialization_error")),
+        "ready": bool(source.get("ready", False)),
+        "source_frame_index": int(source.get("source_frame_index", -1)),
+        "source_timestamp_unix_ms": _maybe_float(source.get("source_timestamp_unix_ms")),
+        "history_frames_required": int(source.get("history_frames_required", 0)),
+        "history_frames_available": int(source.get("history_frames_available", 0)),
+        "history_span_ms": _maybe_float(source.get("history_span_ms")),
+        "observed_fps": _maybe_float(source.get("observed_fps")),
+        "horizon_ms": [int(value) for value in list(source.get("horizon_ms", []))],
+        "channel_order": [str(value) for value in list(source.get("channel_order", []))],
+        "hold_last": _normalize_prediction_matrix(source.get("hold_last")),
+        "raw_prediction": _normalize_prediction_matrix(source.get("raw_prediction")),
+        "gated_prediction": _normalize_prediction_matrix(source.get("gated_prediction")),
+        "motion_score": _maybe_float(source.get("motion_score")),
+        "base_gate": _maybe_float(source.get("base_gate")),
+        "effective_gate_by_horizon": [
+            float(value) for value in list(source.get("effective_gate_by_horizon", []))
+        ],
+        "inference_started_unix_ms": _maybe_float(source.get("inference_started_unix_ms")),
+        "inference_completed_unix_ms": _maybe_float(source.get("inference_completed_unix_ms")),
+        "inference_ms": _maybe_float(source.get("inference_ms")),
+        "gating_completed_unix_ms": _maybe_float(source.get("gating_completed_unix_ms")),
+        "gating_ms": _maybe_float(source.get("gating_ms")),
+        "raw_range_violation_count": int(source.get("raw_range_violation_count", 0)),
+        "device": None if source.get("device") is None else str(source.get("device")),
+        "model_label": None if source.get("model_label") is None else str(source.get("model_label")),
+        "selection_sha256": None if source.get("selection_sha256") is None else str(source.get("selection_sha256")),
+        "checkpoint_sha256": None if source.get("checkpoint_sha256") is None else str(source.get("checkpoint_sha256")),
+        "fallback_reason": None if source.get("fallback_reason") is None else str(source.get("fallback_reason")),
+    })
     return normalized
 
 
@@ -336,6 +447,11 @@ def normalize_frame_payload(
         normalized.pop("timing", None)
     else:
         normalized["timing"] = timing
+    prediction_diagnostics = _normalize_prediction_diagnostics(normalized.get("prediction_diagnostics"))
+    if prediction_diagnostics is None:
+        normalized.pop("prediction_diagnostics", None)
+    else:
+        normalized["prediction_diagnostics"] = prediction_diagnostics
     normalized["control_ready"] = bool(
         normalized.get(
             "control_ready",
@@ -357,6 +473,9 @@ def _validate_finger_map(name: str, mapping: Any, errors: List[str]) -> None:
     if not isinstance(mapping, dict):
         errors.append(f"{name} 必须是一个包含五个命名手指的对象")
         return
+    for field in mapping:
+        if field not in FINGER_NAMES:
+            errors.append(f"{name} 不允许未知字段：{field}")
     for finger in FINGER_NAMES:
         if finger not in mapping:
             errors.append(f"{name}.{finger} 是必填字段")
@@ -389,6 +508,211 @@ def _validate_unit_interval(name: str, value: Any, errors: List[str]) -> None:
         errors.append(f"{name} 必须位于 [0, 1] 区间内")
 
 
+def _validate_prediction_matrix(
+    name: str,
+    matrix: Any,
+    *,
+    expected_rows: int,
+    errors: List[str],
+) -> None:
+    if not isinstance(matrix, list):
+        errors.append(f"{name} 必须是列表")
+        return
+    if len(matrix) != expected_rows:
+        errors.append(f"{name} 必须包含 {expected_rows} 个预测距离")
+    for row_index, row in enumerate(matrix):
+        if not isinstance(row, list) or len(row) != len(PREDICTION_CHANNEL_ORDER):
+            errors.append(f"{name}[{row_index}] 必须包含 9 个通道")
+            continue
+        for channel_index, value in enumerate(row):
+            if not _is_number(value):
+                errors.append(f"{name}[{row_index}][{channel_index}] 必须是有限数字")
+            elif not 0.0 <= float(value) <= 1.0:
+                errors.append(f"{name}[{row_index}][{channel_index}] 必须位于 [0, 1]")
+
+
+def _validate_optional_nonnegative_number(name: str, value: Any, errors: List[str]) -> None:
+    if value is None:
+        return
+    if not _is_number(value):
+        errors.append(f"{name} 必须是有限数字或 null")
+    elif float(value) < 0.0:
+        errors.append(f"{name} 不能为负数")
+
+
+def _validate_prediction_diagnostics(
+    payload: Dict[str, Any],
+    diagnostics: Any,
+    errors: List[str],
+) -> None:
+    if not isinstance(diagnostics, dict):
+        errors.append("prediction_diagnostics 必须是对象")
+        return
+
+    for field in diagnostics:
+        if field not in PREDICTION_DIAGNOSTICS_REQUIRED_FIELDS:
+            errors.append(f"prediction_diagnostics 不允许未知字段：{field}")
+    for field in PREDICTION_DIAGNOSTICS_REQUIRED_FIELDS:
+        if field not in diagnostics:
+            errors.append(f"prediction_diagnostics.{field} 是必填字段")
+
+    if diagnostics.get("schema_version") != 1:
+        errors.append("prediction_diagnostics.schema_version 当前必须是 1")
+    if diagnostics.get("mode") != "shadow":
+        errors.append("prediction_diagnostics.mode 当前必须是 shadow")
+    if diagnostics.get("enabled") is not True:
+        errors.append("prediction_diagnostics.enabled 当前必须为 true")
+    status = diagnostics.get("status")
+    if status not in PREDICTION_DIAGNOSTIC_STATUSES:
+        errors.append("prediction_diagnostics.status 不受支持")
+    expected_ready = status == "predicted"
+    if diagnostics.get("ready") is not expected_ready:
+        errors.append("prediction_diagnostics.ready 必须且仅能在 predicted 状态为 true")
+
+    source_frame_index = diagnostics.get("source_frame_index")
+    if not isinstance(source_frame_index, int) or isinstance(source_frame_index, bool) or source_frame_index < 0:
+        errors.append("prediction_diagnostics.source_frame_index 必须是非负整数")
+    elif source_frame_index != payload.get("frame_index"):
+        errors.append("prediction_diagnostics.source_frame_index 必须与顶层 frame_index 一致")
+    source_timestamp = diagnostics.get("source_timestamp_unix_ms")
+    if not _is_number(source_timestamp) or float(source_timestamp) < 0.0:
+        errors.append("prediction_diagnostics.source_timestamp_unix_ms 必须是非负有限数字")
+    elif _is_number(payload.get("timestamp")):
+        expected_timestamp = float(payload["timestamp"]) * 1000.0
+        if not math.isclose(float(source_timestamp), expected_timestamp, rel_tol=0.0, abs_tol=1e-6):
+            errors.append("prediction_diagnostics.source_timestamp_unix_ms 必须与顶层 timestamp 对齐")
+
+    required = diagnostics.get("history_frames_required")
+    available = diagnostics.get("history_frames_available")
+    if not isinstance(required, int) or isinstance(required, bool) or required < 2:
+        errors.append("prediction_diagnostics.history_frames_required 必须是至少为 2 的整数")
+    if not isinstance(available, int) or isinstance(available, bool) or available < 0:
+        errors.append("prediction_diagnostics.history_frames_available 必须是非负整数")
+    elif isinstance(required, int) and not isinstance(required, bool) and available > required:
+        errors.append("prediction_diagnostics.history_frames_available 不能超过 required")
+
+    _validate_optional_nonnegative_number(
+        "prediction_diagnostics.history_span_ms", diagnostics.get("history_span_ms"), errors
+    )
+    _validate_optional_nonnegative_number(
+        "prediction_diagnostics.observed_fps", diagnostics.get("observed_fps"), errors
+    )
+    horizons = diagnostics.get("horizon_ms")
+    if not isinstance(horizons, list) or not horizons:
+        errors.append("prediction_diagnostics.horizon_ms 必须是非空列表")
+        horizon_count = 0
+    else:
+        horizon_count = len(horizons)
+        for index, value in enumerate(horizons):
+            if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+                errors.append(f"prediction_diagnostics.horizon_ms[{index}] 必须是正整数")
+    if diagnostics.get("channel_order") != list(PREDICTION_CHANNEL_ORDER):
+        errors.append("prediction_diagnostics.channel_order 必须使用冻结的 SVH 9 通道顺序")
+
+    matrix_fields = ("hold_last", "raw_prediction", "gated_prediction")
+    if status == "predicted":
+        if available != required:
+            errors.append("predicted 状态必须具有完整历史窗口")
+        preview = payload.get("svh_preview")
+        preview_protocol = preview.get("protocol_hint", {}) if isinstance(preview, dict) else {}
+        if (
+            not isinstance(preview, dict)
+            or preview.get("valid") is not True
+            or len(preview.get("target_positions", [])) != len(PREDICTION_CHANNEL_ORDER)
+            or not isinstance(preview_protocol, dict)
+            or preview_protocol.get("channel_layout") != "svh_9ch"
+        ):
+            errors.append("predicted 状态必须来源于当前帧有效的 svh_9ch preview")
+        for field in matrix_fields:
+            _validate_prediction_matrix(
+                f"prediction_diagnostics.{field}",
+                diagnostics.get(field),
+                expected_rows=horizon_count,
+                errors=errors,
+            )
+        _validate_optional_nonnegative_number(
+            "prediction_diagnostics.motion_score", diagnostics.get("motion_score"), errors
+        )
+        if diagnostics.get("motion_score") is None:
+            errors.append("predicted 状态必须包含 motion_score")
+        _validate_unit_interval("prediction_diagnostics.base_gate", diagnostics.get("base_gate"), errors)
+        if diagnostics.get("base_gate") is None:
+            errors.append("predicted 状态必须包含 base_gate")
+        effective = diagnostics.get("effective_gate_by_horizon")
+        if not isinstance(effective, list) or len(effective) != horizon_count:
+            errors.append("prediction_diagnostics.effective_gate_by_horizon 长度必须与 horizon 一致")
+        else:
+            for index, value in enumerate(effective):
+                _validate_unit_interval(
+                    f"prediction_diagnostics.effective_gate_by_horizon[{index}]", value, errors
+                )
+        if diagnostics.get("fallback_reason") is not None:
+            errors.append("predicted 状态的 fallback_reason 必须是 null")
+    else:
+        for field in matrix_fields:
+            if diagnostics.get(field) != []:
+                errors.append(f"非 predicted 状态的 prediction_diagnostics.{field} 必须为空")
+        if diagnostics.get("motion_score") is not None or diagnostics.get("base_gate") is not None:
+            errors.append("非 predicted 状态不能携带 motion_score 或 base_gate")
+        if diagnostics.get("effective_gate_by_horizon") != []:
+            errors.append("非 predicted 状态的 effective_gate_by_horizon 必须为空")
+        if not isinstance(diagnostics.get("fallback_reason"), str) or not diagnostics.get("fallback_reason"):
+            errors.append("非 predicted 状态必须给出 fallback_reason")
+
+    inference_fields = (
+        "inference_started_unix_ms",
+        "inference_completed_unix_ms",
+        "inference_ms",
+    )
+    for field in inference_fields:
+        _validate_optional_nonnegative_number(
+            f"prediction_diagnostics.{field}", diagnostics.get(field), errors
+        )
+    if status == "predicted":
+        if any(diagnostics.get(field) is None for field in inference_fields):
+            errors.append("predicted 状态必须包含完整推理时序")
+    elif status != "inference_error" and any(diagnostics.get(field) is not None for field in inference_fields):
+        errors.append("未执行推理的状态不能携带推理时序")
+    elif status == "inference_error":
+        present_count = sum(diagnostics.get(field) is not None for field in inference_fields)
+        if present_count not in (0, len(inference_fields)):
+            errors.append("inference_error 的推理时序必须全空或完整")
+
+    gating_fields = ("gating_completed_unix_ms", "gating_ms")
+    for field in gating_fields:
+        _validate_optional_nonnegative_number(
+            f"prediction_diagnostics.{field}", diagnostics.get(field), errors
+        )
+    if status == "predicted":
+        if any(diagnostics.get(field) is None for field in gating_fields):
+            errors.append("predicted 状态必须包含完整门控时序")
+        if (
+            _is_number(diagnostics.get("gating_completed_unix_ms"))
+            and _is_number(diagnostics.get("inference_completed_unix_ms"))
+            and float(diagnostics["gating_completed_unix_ms"])
+            < float(diagnostics["inference_completed_unix_ms"])
+        ):
+            errors.append("门控完成时刻不能早于推理完成时刻")
+    elif any(diagnostics.get(field) is not None for field in gating_fields):
+        errors.append("非 predicted 状态不能携带门控时序")
+
+    violation_count = diagnostics.get("raw_range_violation_count")
+    if not isinstance(violation_count, int) or isinstance(violation_count, bool) or violation_count < 0:
+        errors.append("prediction_diagnostics.raw_range_violation_count 必须是非负整数")
+    for field in ("device", "model_label", "selection_sha256", "checkpoint_sha256"):
+        value = diagnostics.get(field)
+        if value is not None and not isinstance(value, str):
+            errors.append(f"prediction_diagnostics.{field} 必须是字符串或 null")
+    for field in ("selection_sha256", "checkpoint_sha256"):
+        value = diagnostics.get(field)
+        if value is not None and (len(value) != 64 or any(char not in "0123456789abcdef" for char in value)):
+            errors.append(f"prediction_diagnostics.{field} 必须是小写 SHA-256")
+    if status == "predicted":
+        for field in ("device", "model_label", "selection_sha256", "checkpoint_sha256"):
+            if not diagnostics.get(field):
+                errors.append(f"predicted 状态必须包含 prediction_diagnostics.{field}")
+
+
 def validate_frame_payload(
     payload: Dict[str, Any],
     *,
@@ -401,6 +725,13 @@ def validate_frame_payload(
     """
 
     errors: List[str] = []
+
+    allowed_top_level = set(FRAME_PAYLOAD_REQUIRED_FIELDS) | set(FRAME_PAYLOAD_OPTIONAL_FIELDS)
+    if allow_deprecated_aliases:
+        allowed_top_level.update(DEPRECATED_ALIASES)
+    for field in payload:
+        if field not in allowed_top_level:
+            errors.append(f"顶层 payload 不允许未知字段：{field}")
 
     for field in FRAME_PAYLOAD_REQUIRED_FIELDS:
         if field not in payload:
@@ -467,6 +798,8 @@ def validate_frame_payload(
                     errors.append(f"timing.{field} 必须是有限数字")
                 elif float(value) < 0.0:
                     errors.append(f"timing.{field} 不能为负数")
+    if "prediction_diagnostics" in payload:
+        _validate_prediction_diagnostics(payload, payload["prediction_diagnostics"], errors)
 
     if "finger_curl" in payload:
         _validate_finger_map("finger_curl", payload["finger_curl"], errors)
@@ -506,6 +839,9 @@ def validate_frame_payload(
     if not isinstance(control, dict):
         errors.append("control_representation 必须是对象")
     else:
+        for field in control:
+            if field not in CONTROL_REPRESENTATION_REQUIRED_FIELDS:
+                errors.append(f"control_representation 不允许未知字段：{field}")
         for field in CONTROL_REPRESENTATION_REQUIRED_FIELDS:
             if field not in control:
                 errors.append(f"control_representation.{field} 是必填字段")
@@ -530,6 +866,9 @@ def validate_frame_payload(
     if not isinstance(preview, dict):
         errors.append("svh_preview 必须是对象")
     else:
+        for field in preview:
+            if field not in SVH_PREVIEW_REQUIRED_FIELDS:
+                errors.append(f"svh_preview 不允许未知字段：{field}")
         for field in SVH_PREVIEW_REQUIRED_FIELDS:
             if field not in preview:
                 errors.append(f"svh_preview.{field} 是必填字段")
@@ -560,6 +899,9 @@ def validate_frame_payload(
         if not isinstance(protocol_hint, dict):
             errors.append("svh_preview.protocol_hint 必须是对象")
         else:
+            for field in protocol_hint:
+                if field not in PROTOCOL_HINT_REQUIRED_FIELDS:
+                    errors.append(f"svh_preview.protocol_hint 不允许未知字段：{field}")
             for field in PROTOCOL_HINT_REQUIRED_FIELDS:
                 if field not in protocol_hint:
                     errors.append(f"svh_preview.protocol_hint.{field} 是必填字段")

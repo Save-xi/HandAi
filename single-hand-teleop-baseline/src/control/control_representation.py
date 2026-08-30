@@ -44,6 +44,43 @@ def _resolve_effective_pinch_strength(thumb_index_proximity: float, support_flex
     # 之前的问题在于连续特征被稳定手势门控截断，导致大量中间姿态在进入 Unity 前就丢了。
     return clamp01(thumb_index_proximity - 0.45 * support_flex - 0.60 * grasp_close)
 
+
+def _apply_open_release(
+    finger_flex: Dict[str, float],
+    *,
+    gesture: str,
+    hand_open_ratio: float,
+    cfg: Dict,
+) -> Dict[str, float]:
+    """在明确张手时连续消除摄像头视角造成的残余弯曲量。
+
+    MediaPipe 的单目 3D-like 关键点会随相机视角和手型产生系统偏差，尤其是
+    拇指、小指即使已经伸直，几何 curl 也可能仍明显大于零。这里不改写上游
+    ``finger_curl``，只在控制中间层对稳定 ``open`` 上下文做连续释放：
+    hand_open_ratio 从 start 增长到 full 时，控制用 flex 平滑衰减到零。
+
+    pinch 和其他上下文不参与校正，避免张开的支撑手指误伤捏合控制。该能力
+    默认关闭，由需要真实摄像头预览的配置显式启用。
+    """
+
+    if not bool(cfg.get("control_open_release_enabled", False)) or gesture != "open":
+        return finger_flex
+
+    start_ratio = float(cfg.get("control_open_release_start_ratio", cfg.get("open_ratio_threshold", 0.85)))
+    full_ratio = float(
+        cfg.get(
+            "control_open_release_full_ratio",
+            cfg.get("control_hand_open_ratio_open_ref", cfg.get("svh_hand_open_ratio_open_ref", 0.95)),
+        )
+    )
+    if full_ratio <= start_ratio + 1e-6:
+        release_strength = 1.0 if hand_open_ratio >= full_ratio else 0.0
+    else:
+        release_strength = clamp01((hand_open_ratio - start_ratio) / (full_ratio - start_ratio))
+
+    retain_scale = 1.0 - release_strength
+    return {name: clamp01(value * retain_scale) for name, value in finger_flex.items()}
+
 def empty_control_representation() -> Dict:
     """构造符合 contract 的空控制对象。
 
@@ -91,8 +128,15 @@ def build_control_representation(payload: Dict, cfg: Dict) -> Dict:
     ):
         return empty_control_representation()
 
-    # finger_flex 直接继承视觉侧 curl，但先夹到 [0, 1]，保护下游不受异常值影响。
+    # finger_flex 先继承视觉侧 curl 并夹到 [0, 1]；预览配置可在明确张手时
+    # 启用连续释放校正，但原始 finger_curl 始终保留，便于诊断和回放。
     finger_flex = {name: clamp01(float(finger_curl[name])) for name in CONTROL_FINGERS}
+    finger_flex = _apply_open_release(
+        finger_flex,
+        gesture=gesture,
+        hand_open_ratio=float(payload["hand_open_ratio"]),
+        cfg=cfg,
+    )
     mean_non_thumb_flex = _mean(finger_flex[name] for name in NON_THUMB_FINGERS)
     support_flex = _mean(finger_flex[name] for name in SUPPORT_FINGERS)
 

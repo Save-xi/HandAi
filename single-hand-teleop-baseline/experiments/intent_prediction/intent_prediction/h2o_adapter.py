@@ -15,6 +15,7 @@ from control.control_representation import build_control_representation
 from features.hand_features import extract_hand_features
 from gesture.rule_based_gesture import infer_gesture_raw
 from svh.svh_adapter import build_svh_command_preview
+from svh.mapping_contract import MAPPING_CONTRACT_VERSION, mapping_contract_sha256
 from utils.config import load_config
 
 
@@ -409,6 +410,8 @@ def preprocess_h2o_pose_dataset(
         "split_policy": split_policy,
         "mapping_config": str(mapping_config_path),
         "mapping_config_sha256": _sha256(mapping_config_path),
+        "mapping_contract_version": MAPPING_CONTRACT_VERSION,
+        "mapping_contract_sha256": mapping_contract_sha256(mapping_cfg),
         "projection_policy": "perspective_if_intrinsics_else_camera_xy_wrist_origin_palm_scale",
         "joint_order": "MediaPipe-compatible: wrist, thumb[1:5], index[5:9], middle[9:13], ring[13:17], little[17:21]",
         "feature_summary_fields": [
