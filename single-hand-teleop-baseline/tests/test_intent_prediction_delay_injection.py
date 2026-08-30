@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -78,6 +79,11 @@ def test_perfect_one_step_forecast_beats_hold_under_100ms_delay():
     assert scenario["methods"]["hold_last"]["rmse"] > 0.0
     assert scenario["methods"]["gated"]["rmse"] < 1e-7
     assert scenario["improvement_percent_vs_hold"]["gated_rmse"] > 99.99
+    assert scenario["receiver_ticks"] == 12
+    assert scenario["evaluated_ticks"] == 11
+    assert scenario["receiver_coverage_fraction"] == pytest.approx(11 / 12)
+    assert scenario["conditional_prediction_available_fraction"] == 1.0
+    assert scenario["end_to_end_prediction_coverage_fraction"] == pytest.approx(11 / 12)
 
 
 def test_loss_and_jitter_are_deterministic_for_frozen_seed():
@@ -184,6 +190,21 @@ def test_short_runtime_segment_without_arrival_is_counted_not_fatal():
     )
     short = next(item for item in sequences if item["sequence_id"] == "short")
     assert short["evaluated_ticks"] == 0
+    assert short["receiver_coverage_fraction"] == 0.0
+    assert short["end_to_end_prediction_coverage_fraction"] == 0.0
     assert short["methods"] is None
     assert scenarios[0]["sequence_count"] == 2
     assert scenarios[0]["evaluated_sequence_count"] == 1
+
+
+def test_duplicate_horizons_are_rejected_before_interpolation():
+    with pytest.raises(ValueError, match="严格递增"):
+        evaluate_network_matrix(
+            [_linear_trace()],
+            horizon_ms=(100, 100),
+            delays_ms=(0.0,),
+            jitters_ms=(0.0,),
+            loss_rates=(0.0,),
+            seed=123,
+            dynamic_threshold=0.01,
+        )

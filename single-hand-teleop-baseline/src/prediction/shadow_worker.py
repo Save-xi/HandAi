@@ -11,7 +11,7 @@ from copy import deepcopy
 import logging
 from queue import Empty, Full, Queue
 from threading import Event, Lock, Thread
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 from output.frame_payload_contract import prepare_frame_payload
 from prediction.shadow_predictor import PredictionShadow
@@ -30,7 +30,7 @@ class PredictionShadowWorker:
     ) -> None:
         self.shadow = shadow
         self.logger = logger
-        self._input: Queue[Dict[str, Any]] = Queue(maxsize=max(1, int(input_queue_size)))
+        self._input: Queue[Tuple[Dict[str, Any], int]] = Queue(maxsize=max(1, int(input_queue_size)))
         self._results: Queue[Dict[str, Any]] = Queue(maxsize=max(1, int(result_queue_size)))
         self._stop_requested = Event()
         self._closed = False
@@ -39,6 +39,10 @@ class PredictionShadowWorker:
         self.completed_count = 0
         self.dropped_input_count = 0
         self.dropped_result_count = 0
+        # latest-only 可以丢普通有效帧，但绝不能丢掉“手消失/输入无效”这一
+        # 时序断点。generation 会随下一帧一起传给 worker，确保先清空历史。
+        self._reset_generation = 0
+        self._applied_reset_generation = 0
         self._thread = Thread(
             target=self._run,
             name="prediction-shadow-worker",
@@ -52,8 +56,13 @@ class PredictionShadowWorker:
         if self._closed or self._stop_requested.is_set():
             return False
         item = deepcopy(payload)
+        with self._lock:
+            if self.shadow.requires_history_reset(item):
+                self._reset_generation += 1
+            reset_generation = self._reset_generation
+        queued_item = (item, reset_generation)
         try:
-            self._input.put_nowait(item)
+            self._input.put_nowait(queued_item)
         except Full:
             try:
                 self._input.get_nowait()
@@ -63,7 +72,7 @@ class PredictionShadowWorker:
             except Empty:
                 pass
             try:
-                self._input.put_nowait(item)
+                self._input.put_nowait(queued_item)
             except Full:
                 with self._lock:
                     self.dropped_input_count += 1
@@ -93,11 +102,14 @@ class PredictionShadowWorker:
     def _run(self) -> None:
         while not self._stop_requested.is_set() or not self._input.empty():
             try:
-                payload = self._input.get(timeout=0.05)
+                payload, reset_generation = self._input.get(timeout=0.05)
             except Empty:
                 continue
             try:
                 try:
+                    if reset_generation > self._applied_reset_generation:
+                        self.shadow.reset_history()
+                        self._applied_reset_generation = reset_generation
                     diagnostics = self.shadow.observe(payload)
                 except Exception as exc:
                     if self.logger is not None:

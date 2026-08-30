@@ -71,7 +71,7 @@ validation 预先确定的 q90 动态子集有 52,365 个接收时刻：
 | q90 RMSE 至少改善 5% | **失败：2.67%** |
 | 任一 primary 场景 RMSE 回退不超过 1% | 通过：最差回退 0% |
 | 越界率为 0 | 通过 |
-| 预测可用覆盖率至少 95% | 通过：100% |
+| 预测可用覆盖率至少 95% | 通过：100%（冻结 v1 口径：已有包 tick 上的条件覆盖率） |
 
 最终为 **4/6，retention gate 未通过**。
 
@@ -103,7 +103,7 @@ validation 预先确定的 q90 动态子集有 52,365 个接收时刻：
 
 动态 q90 gated RMSE 改善 `5.12%`，说明快速动作段确有预测信号；但两个工程问题更关键：
 
-- 预测可用覆盖率只有 `65.17%`；warming up、丢检和短片段会退回 hold-last；
+- 条件预测覆盖率只有 `65.17%`；warming up、丢检和短片段会退回 hold-last；
 - `30.55%` 的接收时刻帧龄超过 150 ms，只能夹到最远 horizon；帧龄 P95 约 171.87 ms。
 
 真实日志里的“真值”仍是之后时刻的 MediaPipe/SVH 映射输出，不是实体手关节传感器真值，
@@ -149,3 +149,20 @@ python -X utf8 experiments\intent_prediction\scripts\run_delay_injection.py `
 - [H2O 逐序列 CSV](../experiments/intent_prediction/reports/delay_injection/20260829T112008_630685Z_sequence_metrics.csv)
 - [真实日志场景 CSV](../experiments/intent_prediction/reports/delay_injection/20260829T112008_630685Z_runtime_scenario_metrics.csv)
 - [真实日志逐片段 CSV](../experiments/intent_prediction/reports/delay_injection/20260829T112008_630685Z_runtime_sequence_metrics.csv)
+
+## 8. 2026-08-30 覆盖率分母审计
+
+原 v1 `prediction_available_fraction` 只在“接收端已经拿到至少一个包”的 tick 上计算，
+会排除每段开头尚无包到达的时刻。代码现同时报告条件覆盖、接收覆盖和全部接收 tick 上的
+端到端预测覆盖，但不事后改动已冻结的 v1 retention gate。
+
+同一配置、selection、checkpoint、H2O test 和摄像头 JSONL 重放结果：
+
+| 域 | 条件预测覆盖 | 接收覆盖 | 端到端预测覆盖 |
+|---|---:|---:|---:|
+| H2O primary | 100.00% | 99.52% | 99.52% |
+| 摄像头 JSONL primary | 65.17% | 94.97% | **61.90%** |
+
+六项门槛仍是 4/6，控制决策仍是 `hold-last`。本次审计报告 SHA-256 为
+[`ae97cae...e70ef`](../experiments/intent_prediction/reports/delay_injection/20260830T093122_803505Z_coverage_audit_report.json)；完整修补与
+H2O 标签语义审计见 [二审修补记录](phase15_second_review_remediation.md)。

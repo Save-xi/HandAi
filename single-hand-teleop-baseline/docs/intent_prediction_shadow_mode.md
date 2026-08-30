@@ -155,7 +155,7 @@ sha256 = 453c18c3ae851c325cd3b882409800c074f97f7f7ad898865d1d4895b2e318a0
 
 ## 8. 当前验证证据
 
-- `handai-intent-prediction` 环境 Python 全量测试：`160 passed`。
+- `handai-intent-prediction` 环境 Python 全量测试：`168 passed`（2026-08-30 二审修补后）。
 - 新 checkpoint CUDA 30 帧 smoke：`status=predicted`，固定 966.67 ms 历史窗。
 - 2026-08-28 真实日志回放：808 帧中 458 predicted；原始帧率 p50 约 12.49 Hz；
   CUDA inference p50/p95/max 约 1.01/1.34/1.62 ms。

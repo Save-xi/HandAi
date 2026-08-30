@@ -47,7 +47,7 @@ Phase 1 clean-run 代码基线：`a5a53da`（PR #14 已合并）；Phase 1.5 为
 
 | 部分 | 当前状态 | 最强证据 | 结论边界 |
 |---|---|---|---|
-| 单右手视觉主链 | 已实现 | 当前现役环境全量回归 `160 passed`；摄像头 60 帧无界面短跑 | 短跑时右手未入镜，仍需人工动作集验收 |
+| 单右手视觉主链 | 已实现 | 当前现役环境全量回归 `168 passed`；摄像头 60 帧无界面短跑 | 短跑时右手未入镜，仍需人工动作集验收 |
 | payload / JSON / JSONL / UDP contract | 已实现并冻结 v1 行为 | schema、规范化/校验、输出顺序和回归测试 | UDP 是本机预览通道，不是可靠控制总线 |
 | Phase 1 FreiHAND 离线验收 | 已通过，可冻结 | clean run `20260824T022030_928281Z_a5a53da_clean`，`release_eligible=true` | 静态图像，不等于实时视频或右手筛选验收 |
 | Unity 新编辑器兼容与 UDP 安全 | 已完成自动行为回归 | Unity 2020.3.49f1 编译返回 0；loopback 有效/invalid/乱序/过期/watchdog batch PASS | 自动回归不替代正式场景视觉观感验收 |
@@ -364,8 +364,8 @@ Phase 1 clean run 仍保留 2026-08-24 不可覆盖结果；2026-08-30 Phase 1.5
 
 | 环境 | 范围 | 结果 |
 |---|---|---|
-| `handai-intent-prediction` | 当前全部 Python 测试（baseline/Phase 1/contract/v2 shadow/网络扰动/Unity 快照） | `160 passed`，10.15 s |
-| `single-right-hand-baseline` | 不含 PyTorch 可选能力的兼容回归 | `153 passed, 7 skipped`，3.18 s |
+| `handai-intent-prediction` | 当前全部 Python 测试（baseline/Phase 1/contract/v2 shadow/网络扰动/Unity 快照） | `168 passed`，10.97 s |
+| `single-right-hand-baseline` | 不含 PyTorch 可选能力的兼容回归 | `161 passed, 7 skipped`，4.56 s |
 | `handai-intent-prediction` | 当前摄像头 60 帧无界面 + 后台 worker | baseline/prediction 各 60 行，输入/结果 0 丢弃；当时右手未入镜 |
 | Unity 2020.3.49f1 batchmode | 编译 + loopback/invalid/乱序/过期/watchdog 动态回归 | `PHASE15_UNITY_SAFETY_BATCH_PASS`，返回码 0 |
 | Unity 最小源码快照 | 7 个关键文件 manifest 哈希 + 本机外部工程对比 | 7/7 一致，无漂移 |
@@ -732,7 +732,7 @@ python experiments\intent_prediction\scripts\run_second_round.py `
 
 ### 9.2 意图预测仍是代理任务
 
-H2O 没有 SVH 9 通道真值。当前监督目标是把公开手姿态经规则映射后生成的代理序列，因此模型学到的是“规则映射后的短期轨迹”，不是机械手真实响应动力学。
+H2O 没有 SVH 9 通道真值。当前监督目标是把公开手姿态经规则映射后生成的代理序列，因此模型学到的是“规则映射后的短期轨迹”，不是机械手真实响应动力学。二审全量审计还确认：v2 的逐帧 raw 手势代理有 0.90% 帧会与实时去抖标签不同；pose-only 缺少内参时直接使用相机 x/y，与归一化透视标签有 95.09% 帧不同、平均每通道绝对差 0.05191。因此 v2 可复现实验，但不是与摄像头图像域完全同构的标签。
 
 ### 9.3 统计证据仍需加强
 
@@ -745,8 +745,9 @@ H2O 没有 SVH 9 通道真值。当前监督目标是把公开手姿态经规则
 ### 9.4 还没有证明“延迟补偿”
 
 模型预测未来目标，不等于已经减少遥操作延迟。冻结的 36 场景回放已经完成，但 H2O
-primary RMSE 只改善 1.95%、retention gate 4/6；真实 JSONL 总体改善 1.85%，覆盖率仅
-65.17%。因此当前证据明确不支持使用“延迟补偿有效”的表述。
+primary RMSE 只改善 1.95%、retention gate 4/6；真实 JSONL 总体改善 1.85%，条件覆盖率
+65.17%，计入初始无包 tick 后端到端预测覆盖率仅 61.90%。因此当前证据明确不支持使用
+“延迟补偿有效”的表述。
 
 ### 9.5 真机安全完全独立
 
@@ -771,7 +772,7 @@ hold-last / raw residual / gated residual
 ### 优先级 2：延迟、抖动与丢包注入（已完成）
 
 冻结的 36 场景 H2O/JSONL 回放已经完成。H2O primary gated RMSE 改善 1.95%、q90 改善
-2.67%，retention gate 4/6；真实 JSONL 总体改善 1.85%，但 prediction 覆盖率仅 65.17%。
+2.67%，retention gate 4/6；真实 JSONL 总体改善 1.85%，但端到端 prediction 覆盖率仅 61.90%。
 因此本项结论是继续使用 hold-last，而不是把模型接入控制。详见
 [冻结回放报告](intent_prediction_delay_injection.md)。
 
@@ -803,7 +804,7 @@ hold-last / raw residual / gated residual
 
 可以这样说：
 
-> 我们已经完成单右手视觉理解、连续控制表示、9 通道 Unity 虚拟手预览和 Phase 1.5 UDP 安全加固；预测支线已实现映射版本闸门、30 Hz 重采样和非阻塞后台影子日志。冻结的 36 场景网络扰动回放中，H2O primary RMSE 改善 1.95%、retention gate 4/6，真实摄像头 JSONL 总体改善 1.85%且预测覆盖率为 65.17%，因此控制参考继续使用 hold-last，模型不进入 Unity/UDP。
+> 我们已经完成单右手视觉理解、连续控制表示、9 通道 Unity 虚拟手预览和 Phase 1.5 UDP 安全加固；预测支线已实现映射参数与公式闸门、30 Hz 重采样和非阻塞后台影子日志。冻结的 36 场景网络扰动回放中，H2O primary RMSE 改善 1.95%、retention gate 4/6，真实摄像头 JSONL 总体改善 1.85%且端到端预测覆盖率为 61.90%，因此控制参考继续使用 hold-last，模型不进入 Unity/UDP。
 
 暂时不要这样说：
 
@@ -826,11 +827,13 @@ hold-last / raw residual / gated residual
 - [x] 第一轮六类预测方法对照
 - [x] 历史 v1 第二轮 residual GRU + validation gate，离线 6/6（仅历史语义）
 - [x] 当前映射 H2O v2 重标/重训与 contract 闸门；诚实记录 gate 4/6 未通过
-- [x] 正式报告快照、Git PR 合并和双平台 CI
+- [x] 历史 Phase 1 正式报告快照、PR #14 合并和双平台 CI
+- [ ] 当前 Phase 1.5 二审修补 PR 与双平台 CI（以本阶段 PR 状态为准）
 - [x] 默认关闭的非阻塞预测影子、30 Hz 重采样、独立日志与新 checkpoint smoke
 - [x] Unity loopback/invalid/乱序/过期/watchdog 动态 batch 回归
 - [x] 延迟/抖动/丢包 36 场景冻结回放；retention gate 4/6，保留 hold-last
 - [x] Unity 7 个关键源码/依赖/版本文件的 Git 快照、SHA-256 和漂移回归
+- [x] invalid 队列断点、mapping implementation 指纹、覆盖率分母与 H2O 标签语义审计
 - [ ] 真实个人视频域验证
 - [ ] 多种子/跨 subject 统计稳定性
 - [ ] 真正未参与设计的最终盲测

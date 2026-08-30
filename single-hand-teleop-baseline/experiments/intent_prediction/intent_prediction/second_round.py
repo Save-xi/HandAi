@@ -19,6 +19,12 @@ from .metrics import compute_forecast_metrics, compute_motion_stratified_metrics
 from .models import TORCH_AVAILABLE
 from .sequence_data import WindowSplit, build_window_split, create_synthetic_smoke_dataset, load_manifest
 from .training import predict_neural_checkpoint, train_neural_model
+from svh.mapping_contract import (
+    H2O_LABEL_GESTURE_CONTEXT_POLICY,
+    MAPPING_CONTRACT_VERSION,
+    RUNTIME_GESTURE_CONTEXT_POLICY,
+    expected_mapping_implementation_sha256,
+)
 
 
 def _utc_now() -> str:
@@ -329,11 +335,20 @@ def run_second_round(
     data_root = data_root.resolve()
     manifest_path = data_root / "manifest.json"
     data_manifest = load_manifest(data_root)
+    mapping_version = str(data_manifest.get("mapping_contract_version") or MAPPING_CONTRACT_VERSION)
     data_contract = {
         "manifest_sha256": _hash_file(manifest_path),
         "mapping_config_sha256": data_manifest.get("mapping_config_sha256"),
         "mapping_contract_version": data_manifest.get("mapping_contract_version"),
         "mapping_contract_sha256": data_manifest.get("mapping_contract_sha256"),
+        "mapping_implementation_sha256": data_manifest.get("mapping_implementation_sha256")
+        or expected_mapping_implementation_sha256(mapping_version),
+        "h2o_label_gesture_context_policy": data_manifest.get("h2o_label_gesture_context_policy")
+        or H2O_LABEL_GESTURE_CONTEXT_POLICY,
+        "runtime_gesture_context_policy": data_manifest.get("runtime_gesture_context_policy")
+        or RUNTIME_GESTURE_CONTEXT_POLICY,
+        "projection_policy": data_manifest.get("projection_policy"),
+        "joint_order": data_manifest.get("joint_order"),
         "dataset_fps": data_manifest.get("fps"),
     }
 

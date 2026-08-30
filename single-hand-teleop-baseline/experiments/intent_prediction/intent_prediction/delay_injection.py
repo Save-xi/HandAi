@@ -99,6 +99,8 @@ class SequenceForecastTrace:
             raise ValueError("timestamps_ms 必须严格递增")
         if self.frame_ids.shape != (count,):
             raise ValueError("frame_ids 长度不匹配")
+        if np.any(np.diff(self.frame_ids) <= 0):
+            raise ValueError("frame_ids 必须严格递增")
         if self.history.ndim != 3 or self.history.shape[0] != count or self.history.shape[2] != 9:
             raise ValueError("history 必须为 [N, T, 9]")
         if self.current.shape != (count, 9):
@@ -111,6 +113,15 @@ class SequenceForecastTrace:
             raise ValueError("prediction_available 长度不匹配")
         if self.motion_score.shape != (count,):
             raise ValueError("motion_score 长度不匹配")
+        for name, values in (
+            ("history", self.history),
+            ("current", self.current),
+            ("raw_forecast", self.raw_forecast),
+            ("gated_forecast", self.gated_forecast),
+            ("motion_score", self.motion_score),
+        ):
+            if not np.all(np.isfinite(values)):
+                raise ValueError(f"{name} 包含非有限值")
 
 
 @dataclass(frozen=True)
@@ -124,6 +135,7 @@ class ScenarioArrays:
     ages_ms: np.ndarray
     horizon_clamped: np.ndarray
     sequence_ids: np.ndarray
+    receiver_ticks: int
 
 
 @dataclass(frozen=True)
@@ -379,6 +391,12 @@ def _evaluate_trace(
     seed: int,
     dynamic_threshold: float,
 ) -> tuple[dict[str, Any], ScenarioArrays | None]:
+    if not horizon_ms or tuple(sorted(set(horizon_ms))) != tuple(horizon_ms):
+        raise ValueError("horizon_ms 必须为严格递增的唯一正整数")
+    if any(value <= 0 for value in horizon_ms):
+        raise ValueError("horizon_ms 必须为严格递增的唯一正整数")
+    if trace.raw_forecast.shape[1] != len(horizon_ms):
+        raise ValueError("forecast 的 horizon 数量与 horizon_ms 不一致")
     rng = np.random.default_rng(
         _scenario_seed(
             seed,
@@ -454,7 +472,11 @@ def _evaluate_trace(
             "receiver_ticks": count,
             "evaluated_ticks": 0,
             "no_packet_ticks": count,
+            "prediction_available_ticks": 0,
+            "receiver_coverage_fraction": 0.0,
             "prediction_available_fraction": None,
+            "conditional_prediction_available_fraction": None,
+            "end_to_end_prediction_coverage_fraction": 0.0,
             "horizon_clamped_fraction": None,
             "age_ms": None,
             "methods": None,
@@ -470,10 +492,14 @@ def _evaluate_trace(
         ages_ms=np.asarray(age_rows, dtype=np.float64),
         horizon_clamped=np.asarray(clamped_rows, dtype=bool),
         sequence_ids=np.full(len(truth_rows), trace.sequence_id),
+        receiver_ticks=count,
     )
     hold_metrics = _command_metrics(arrays.truth, arrays.hold_last)
     raw_metrics = _command_metrics(arrays.truth, arrays.raw)
     gated_metrics = _command_metrics(arrays.truth, arrays.gated)
+    prediction_available_ticks = int(np.count_nonzero(arrays.prediction_available))
+    evaluated_ticks = int(len(arrays.truth))
+    conditional_prediction_fraction = float(np.mean(arrays.prediction_available))
     summary = {
         "sequence_id": trace.sequence_id,
         "subject": trace.subject,
@@ -481,9 +507,14 @@ def _evaluate_trace(
         "lost_packets": int(np.count_nonzero(lost)),
         "adjacent_reordered_arrivals": adjacent_reordered,
         "receiver_ticks": count,
-        "evaluated_ticks": int(len(arrays.truth)),
-        "no_packet_ticks": int(count - len(arrays.truth)),
-        "prediction_available_fraction": float(np.mean(arrays.prediction_available)),
+        "evaluated_ticks": evaluated_ticks,
+        "no_packet_ticks": int(count - evaluated_ticks),
+        "prediction_available_ticks": prediction_available_ticks,
+        "receiver_coverage_fraction": float(evaluated_ticks / count),
+        # 旧字段保留 v1 口径：只在“至少已有一个包”的 tick 上计算。
+        "prediction_available_fraction": conditional_prediction_fraction,
+        "conditional_prediction_available_fraction": conditional_prediction_fraction,
+        "end_to_end_prediction_coverage_fraction": float(prediction_available_ticks / count),
         "horizon_clamped_fraction": float(np.mean(arrays.horizon_clamped)),
         "age_ms": {
             "p50": float(np.percentile(arrays.ages_ms, 50)),
@@ -514,6 +545,7 @@ def _concat_scenario_arrays(parts: Iterable[ScenarioArrays]) -> ScenarioArrays:
         ages_ms=np.concatenate([item.ages_ms for item in values]),
         horizon_clamped=np.concatenate([item.horizon_clamped for item in values]),
         sequence_ids=np.concatenate([item.sequence_ids for item in values]),
+        receiver_ticks=sum(item.receiver_ticks for item in values),
     )
 
 
@@ -537,8 +569,17 @@ def _summarize_arrays(arrays: ScenarioArrays) -> dict[str, Any]:
                 ),
             },
         }
+    evaluated_ticks = int(len(arrays.truth))
+    receiver_ticks = int(arrays.receiver_ticks)
+    prediction_available_ticks = int(np.count_nonzero(arrays.prediction_available))
+    conditional_prediction_fraction = float(np.mean(arrays.prediction_available))
     return {
-        "samples": int(len(arrays.truth)),
+        "samples": evaluated_ticks,
+        "receiver_ticks": receiver_ticks,
+        "evaluated_ticks": evaluated_ticks,
+        "no_packet_ticks": int(receiver_ticks - evaluated_ticks),
+        "prediction_available_ticks": prediction_available_ticks,
+        "receiver_coverage_fraction": float(evaluated_ticks / receiver_ticks),
         "methods": {"hold_last": hold, "raw": raw, "gated": gated},
         "improvement_percent_vs_hold": {
             "raw_rmse": _improvement_percent(hold["rmse"], raw["rmse"]),
@@ -546,7 +587,10 @@ def _summarize_arrays(arrays: ScenarioArrays) -> dict[str, Any]:
             "gated_p95": _improvement_percent(hold["p95_abs_error"], gated["p95_abs_error"]),
         },
         "dynamic_q90": dynamic,
-        "prediction_available_fraction": float(np.mean(arrays.prediction_available)),
+        # 兼容既有 report v1；新字段把条件覆盖与端到端覆盖明确拆开。
+        "prediction_available_fraction": conditional_prediction_fraction,
+        "conditional_prediction_available_fraction": conditional_prediction_fraction,
+        "end_to_end_prediction_coverage_fraction": float(prediction_available_ticks / receiver_ticks),
         "horizon_clamped_fraction": float(np.mean(arrays.horizon_clamped)),
         "age_ms": {
             "p50": float(np.percentile(arrays.ages_ms, 50)),
@@ -568,13 +612,24 @@ def evaluate_network_matrix(
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[tuple[float, float, float], ScenarioArrays]]:
     if not traces:
         raise ValueError("至少需要一个 forecast trace")
+    if not horizon_ms or tuple(sorted(set(horizon_ms))) != tuple(horizon_ms) or any(
+        value <= 0 for value in horizon_ms
+    ):
+        raise ValueError("horizon_ms 必须为严格递增的唯一正整数")
     scenario_reports: list[dict[str, Any]] = []
     sequence_reports: list[dict[str, Any]] = []
     arrays_by_scenario: dict[tuple[float, float, float], ScenarioArrays] = {}
     for delay_ms in delays_ms:
         for jitter_ms in jitters_ms:
             for loss_rate in loss_rates:
-                if delay_ms < 0.0 or jitter_ms < 0.0 or not 0.0 <= loss_rate < 1.0:
+                if (
+                    not np.isfinite(delay_ms)
+                    or not np.isfinite(jitter_ms)
+                    or not np.isfinite(loss_rate)
+                    or delay_ms < 0.0
+                    or jitter_ms < 0.0
+                    or not 0.0 <= loss_rate < 1.0
+                ):
                     raise ValueError("delay/jitter 必须非负，loss_rate 必须位于 [0, 1)")
                 parts: list[ScenarioArrays] = []
                 for trace in traces:
@@ -630,11 +685,25 @@ def _validate_config(config: dict[str, Any]) -> None:
         values = network.get(key)
         if not isinstance(values, list) or not values:
             raise ValueError(f"network_matrix.{key} 必须是非空数组")
+        try:
+            numeric = [float(value) for value in values]
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"network_matrix.{key} 必须只包含数值") from exc
+        if not all(np.isfinite(value) for value in numeric):
+            raise ValueError(f"network_matrix.{key} 必须只包含有限数值")
+        if key in {"delays_ms", "jitters_ms"} and any(value < 0.0 for value in numeric):
+            raise ValueError(f"network_matrix.{key} 不能包含负数")
+        if key == "loss_rates" and any(not 0.0 <= value < 1.0 for value in numeric):
+            raise ValueError("network_matrix.loss_rates 必须位于 [0, 1)")
     horizons = config.get("horizon_ms")
-    if not isinstance(horizons, list) or not horizons or any(int(value) <= 0 for value in horizons):
+    if (
+        not isinstance(horizons, list)
+        or not horizons
+        or any(not isinstance(value, int) or isinstance(value, bool) or value <= 0 for value in horizons)
+    ):
         raise ValueError("horizon_ms 必须是正整数数组")
-    if sorted(int(value) for value in horizons) != [int(value) for value in horizons]:
-        raise ValueError("horizon_ms 必须递增")
+    if sorted(horizons) != horizons or len(set(horizons)) != len(horizons):
+        raise ValueError("horizon_ms 必须严格递增且不能重复")
     gate = config.get("retention_gate")
     if not isinstance(gate, dict):
         raise ValueError("retention_gate 必须是对象")
@@ -670,6 +739,13 @@ def _retention_result(
         "worst_scenario_rmse_regression_percent": worst_scenario_regression,
         "range_violation_rate": aggregate["methods"]["gated"]["range_violation_rate"],
         "prediction_available_fraction": aggregate["prediction_available_fraction"],
+        "conditional_prediction_available_fraction": aggregate[
+            "conditional_prediction_available_fraction"
+        ],
+        "receiver_coverage_fraction": aggregate["receiver_coverage_fraction"],
+        "end_to_end_prediction_coverage_fraction": aggregate[
+            "end_to_end_prediction_coverage_fraction"
+        ],
         "horizon_clamped_fraction": aggregate["horizon_clamped_fraction"],
     }
     criteria = {
@@ -691,6 +767,10 @@ def _retention_result(
         "criteria_config": gate,
         "observed": observed,
         "criteria_pass": criteria,
+        "prediction_coverage_metric": (
+            "prediction_available_fraction conditional on a receiver tick having at least one arrived packet; "
+            "kept unchanged because the v1 retention protocol was frozen before the formal run"
+        ),
         "retention_gate_passed": passed,
         "decision": (
             "continue_shadow_research_only"
@@ -708,7 +788,13 @@ def _write_scenario_csv(path: Path, scenarios: list[dict[str, Any]]) -> None:
         "jitter_ms",
         "loss_rate",
         "samples",
+        "receiver_ticks",
+        "evaluated_ticks",
+        "no_packet_ticks",
+        "receiver_coverage_fraction",
         "prediction_available_fraction",
+        "conditional_prediction_available_fraction",
+        "end_to_end_prediction_coverage_fraction",
         "horizon_clamped_fraction",
         "hold_rmse",
         "raw_rmse",
@@ -729,7 +815,17 @@ def _write_scenario_csv(path: Path, scenarios: list[dict[str, Any]]) -> None:
                     "jitter_ms": item["jitter_ms"],
                     "loss_rate": item["loss_rate"],
                     "samples": item["samples"],
+                    "receiver_ticks": item["receiver_ticks"],
+                    "evaluated_ticks": item["evaluated_ticks"],
+                    "no_packet_ticks": item["no_packet_ticks"],
+                    "receiver_coverage_fraction": item["receiver_coverage_fraction"],
                     "prediction_available_fraction": item["prediction_available_fraction"],
+                    "conditional_prediction_available_fraction": item[
+                        "conditional_prediction_available_fraction"
+                    ],
+                    "end_to_end_prediction_coverage_fraction": item[
+                        "end_to_end_prediction_coverage_fraction"
+                    ],
                     "horizon_clamped_fraction": item["horizon_clamped_fraction"],
                     "hold_rmse": item["methods"]["hold_last"]["rmse"],
                     "raw_rmse": item["methods"]["raw"]["rmse"],
@@ -753,8 +849,14 @@ def _write_sequence_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         "subject",
         "source_packets",
         "lost_packets",
+        "receiver_ticks",
         "evaluated_ticks",
+        "no_packet_ticks",
+        "prediction_available_ticks",
+        "receiver_coverage_fraction",
         "prediction_available_fraction",
+        "conditional_prediction_available_fraction",
+        "end_to_end_prediction_coverage_fraction",
         "horizon_clamped_fraction",
         "hold_rmse",
         "raw_rmse",
@@ -776,8 +878,18 @@ def _write_sequence_csv(path: Path, rows: list[dict[str, Any]]) -> None:
                     "subject": item["subject"],
                     "source_packets": item["source_packets"],
                     "lost_packets": item["lost_packets"],
+                    "receiver_ticks": item["receiver_ticks"],
                     "evaluated_ticks": item["evaluated_ticks"],
+                    "no_packet_ticks": item["no_packet_ticks"],
+                    "prediction_available_ticks": item["prediction_available_ticks"],
+                    "receiver_coverage_fraction": item["receiver_coverage_fraction"],
                     "prediction_available_fraction": item["prediction_available_fraction"],
+                    "conditional_prediction_available_fraction": item[
+                        "conditional_prediction_available_fraction"
+                    ],
+                    "end_to_end_prediction_coverage_fraction": item[
+                        "end_to_end_prediction_coverage_fraction"
+                    ],
                     "horizon_clamped_fraction": item["horizon_clamped_fraction"],
                     "hold_rmse": methods["hold_last"]["rmse"] if methods else None,
                     "raw_rmse": methods["raw"]["rmse"] if methods else None,
@@ -815,7 +927,10 @@ def _write_markdown(path: Path, report: dict[str, Any]) -> None:
                 "",
                 f"- 总体 gated RMSE 改善：{runtime_summary['improvement_percent_vs_hold']['gated_rmse']:.6f}%",
                 f"- q90 gated RMSE 改善：{runtime_summary['dynamic_q90']['improvement_percent_vs_hold']['gated_rmse']:.6f}%",
-                f"- prediction 覆盖率：{runtime_summary['prediction_available_fraction']:.6f}",
+                "- prediction 条件覆盖率（已有包的 tick）："
+                f"{runtime_summary['conditional_prediction_available_fraction']:.6f}",
+                "- prediction 端到端覆盖率（全部接收 tick）："
+                f"{runtime_summary['end_to_end_prediction_coverage_fraction']:.6f}",
                 f"- 超 150 ms horizon 比例：{runtime_summary['horizon_clamped_fraction']:.6f}",
                 "- 该结果以之后的视觉映射输出作伪真值，不参与 H2O retention gate。",
             ]
@@ -865,6 +980,16 @@ def run_delay_injection(
         raise ValueError("selection 与 H2O manifest 的 mapping contract 版本不一致")
     if data_contract.get("mapping_contract_sha256") != manifest.get("mapping_contract_sha256"):
         raise ValueError("selection 与 H2O manifest 的 mapping contract SHA 不一致")
+    for contract_key in (
+        "mapping_implementation_sha256",
+        "h2o_label_gesture_context_policy",
+        "runtime_gesture_context_policy",
+        "projection_policy",
+        "joint_order",
+    ):
+        expected = data_contract.get(contract_key)
+        if expected is not None and expected != manifest.get(contract_key):
+            raise ValueError(f"selection 与 H2O manifest 的 {contract_key} 不一致")
 
     history_frames = int(config["history_frames"])
     horizon_ms = tuple(int(value) for value in config["horizon_ms"])
@@ -972,6 +1097,10 @@ def run_delay_injection(
             "packet_receiver_policy": "latest_source_frame_among_packets_arrived_by_receiver_tick",
             "prediction_policy": "linear_interpolation_from_hold_at_0ms_to_frozen_50_100_150ms_forecasts",
             "age_above_max_horizon_policy": "clamp_to_farthest_forecast_and_report_fraction",
+            "prediction_coverage_policy": (
+                "report conditional_on_arrived_packet and end_to_end_over_all_receiver_ticks separately; "
+                "formal_v1_gate_keeps_the_preregistered_conditional_metric"
+            ),
         },
         "dataset": {
             "root": str(data_root),

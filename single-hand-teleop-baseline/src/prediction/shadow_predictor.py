@@ -22,7 +22,11 @@ from typing import Any, Callable, Deque, Dict, Sequence
 import numpy as np
 
 from svh.svh_layout import SVH_9CH_LAYOUT, SVH_9CH_NAMES
-from svh.mapping_contract import MAPPING_CONTRACT_VERSION, mapping_contract_sha256
+from svh.mapping_contract import (
+    MAPPING_CONTRACT_VERSION,
+    assert_mapping_implementation_compatible,
+    mapping_contract_sha256,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -279,6 +283,46 @@ class PredictionShadow:
             return None, "svh_preview_positions_out_of_range"
         return values, None
 
+    @classmethod
+    def _extract_history_input(
+        cls,
+        payload: Dict[str, Any],
+    ) -> tuple[np.ndarray | None, int | None, float | None, str | None]:
+        """统一校验一帧是否能进入连续历史，并返回毫秒时间戳。"""
+
+        values, invalid_reason = cls._extract_preview(payload)
+        timestamp = payload.get("timestamp")
+        frame_index = payload.get("frame_index")
+        timestamp_valid = (
+            isinstance(timestamp, (int, float))
+            and not isinstance(timestamp, bool)
+            and math.isfinite(float(timestamp))
+            and float(timestamp) >= 0.0
+        )
+        frame_index_valid = (
+            isinstance(frame_index, int)
+            and not isinstance(frame_index, bool)
+            and frame_index >= 0
+        )
+        if values is None:
+            return None, None, None, invalid_reason
+        if not timestamp_valid:
+            return None, None, None, "source_timestamp_invalid"
+        if not frame_index_valid:
+            return None, None, None, "source_frame_index_invalid"
+        return values, int(frame_index), float(timestamp) * 1000.0, None
+
+    @classmethod
+    def requires_history_reset(cls, payload: Dict[str, Any]) -> bool:
+        """供 latest-only worker 标记不可被队列覆盖掉的历史断点。"""
+
+        return cls._extract_history_input(payload)[3] is not None
+
+    def reset_history(self) -> None:
+        """只清空时序历史，不改变初始化/推理错误的 fail-closed 状态。"""
+
+        self._history.clear()
+
     def observe(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """观察一帧，但绝不修改传入 payload 或其中的 preview。"""
 
@@ -297,31 +341,17 @@ class PredictionShadow:
                 fallback_reason=self._runtime_error,
             )
 
-        values, invalid_reason = self._extract_preview(payload)
-        timestamp = payload.get("timestamp")
-        frame_index = payload.get("frame_index")
-        timestamp_valid = (
-            isinstance(timestamp, (int, float))
-            and not isinstance(timestamp, bool)
-            and math.isfinite(float(timestamp))
-            and float(timestamp) >= 0.0
-        )
-        frame_index_valid = isinstance(frame_index, int) and not isinstance(frame_index, bool) and frame_index >= 0
-        if values is None or not timestamp_valid or not frame_index_valid:
-            self._history.clear()
-            reason = invalid_reason
-            if reason is None and not timestamp_valid:
-                reason = "source_timestamp_invalid"
-            if reason is None:
-                reason = "source_frame_index_invalid"
+        values, frame_index, timestamp_ms, invalid_reason = self._extract_history_input(payload)
+        if invalid_reason is not None:
+            self.reset_history()
             return self._diagnostic(
                 payload,
                 status="invalid_input",
                 history_available=0,
-                fallback_reason=reason,
+                fallback_reason=invalid_reason,
             )
 
-        timestamp_ms = float(timestamp) * 1000.0
+        assert values is not None and frame_index is not None and timestamp_ms is not None
         reset_reason: str | None = None
         if self._history:
             previous_frame_index, previous_timestamp_ms, _ = self._history[-1]
@@ -332,7 +362,7 @@ class PredictionShadow:
             elif timestamp_ms - previous_timestamp_ms > self.max_frame_gap_ms:
                 reset_reason = "history_reset_frame_gap"
         if reset_reason is not None:
-            self._history.clear()
+            self.reset_history()
 
         self._history.append((frame_index, timestamp_ms, values.copy()))
         history, history_available, history_span_ms, observed_fps = self._resample_history()
@@ -499,6 +529,7 @@ def build_prediction_shadow(cfg: Dict[str, Any], *, logger) -> PredictionShadow 
                 "必须重新生成标签并重新评估模型："
                 f"expected={expected_mapping_sha256}, current={current_mapping_sha256}"
             )
+        assert_mapping_implementation_compatible(cfg, data_contract)
 
         report_path = _resolve_project_path(
             str(cfg.get("prediction_shadow_report_path", DEFAULT_REPORT_PATH))

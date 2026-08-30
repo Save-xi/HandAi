@@ -36,10 +36,13 @@
 - `svh_preview` 只是预览和联调用，不是可以直接下发给实体机械手的安全命令。
 - 意图预测目前只处于 shadow mode；v2 离线 gate 未全部通过，没有证明延迟补偿有效，也不驱动 Unity。
 - 冻结的 36 场景延迟/抖动/丢包回放已完成：H2O primary RMSE 只改善 1.95%，retention gate 4/6，控制参考继续使用 hold-last。
+- 二审已补上 invalid 历史断点和映射公式指纹；真实日志端到端 prediction 覆盖率为 61.90%，H2O v2 仍明确属于 pose-only 代理标签。
 - 当前主线只做单右手，不做双手或多手控制。
 
 网络扰动的完整协议、指标和决策见
 [延迟、抖动、丢包冻结回放报告](docs/intent_prediction_delay_injection.md)。
+二审代码修补、覆盖率口径和 H2O 投影/去抖审计见
+[Phase 1.5 二审修补与算法复核记录](docs/phase15_second_review_remediation.md)。
 
 ## 推荐理解顺序
 

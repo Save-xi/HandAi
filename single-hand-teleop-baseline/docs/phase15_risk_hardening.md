@@ -180,16 +180,22 @@ normalize 不再静默吞掉未知键，而是保留给 validator 明确报错�
 
 ### 4.3 映射契约与旧模型淘汰
 
-新增 `svh9-label-v2-open-release` 语义契约。指纹只覆盖会改变 9 通道标签的手势阈值、
+新增 `svh9-label-v2-open-release` 语义契约。参数指纹覆盖会改变 9 通道标签的手势阈值、
 control refs、open-release、SVH layout/scales 和固定通道顺序，不受日志路径、UDP 端口等无关项影响。
+2026-08-30 二审后又增加 implementation AST 指纹，补上原参数 SHA 没有覆盖的硬编码权重、公式与
+现役手势去抖上下文；旧 v2 SHA 保持不变，公式漂移则 fail closed。
 
 H2O manifest、selection、checkpoint 和实时配置必须具有相同：
 
 - `mapping_contract_version`；
 - `mapping_contract_sha256`；
+- `mapping_implementation_sha256`（旧 v2 工件按冻结版本表兼容）；
 - checkpoint `data_contract`；
 - selection/checkpoint SHA；
 - report 引用的 selection SHA。
+
+完整二审修补、覆盖率分母和 H2O 投影审计见
+[Phase 1.5 二审修补与算法复核记录](phase15_second_review_remediation.md)。
 
 旧 v1 selection 没有 `data_contract`，并且旧映射指纹与当前 open-release 不同，因此会安全返回
 `initialization_error`，不会悄悄加载。
@@ -241,8 +247,8 @@ test 对比：
 
 | 检查 | 结果 |
 |---|---|
-| `handai-intent-prediction` 全量 pytest | `160 passed` |
-| baseline 环境全量 pytest | `153 passed, 7 skipped` |
+| `handai-intent-prediction` 全量 pytest | `168 passed`（2026-08-30） |
+| baseline 环境全量 pytest | `161 passed, 7 skipped`（2026-08-30） |
 | Python compileall | PASS |
 | `handai-intent-prediction` 环境 pip check | `No broken requirements found` |
 | Unity 2020.3.49f1 脚本编译 | 返回码 0 |

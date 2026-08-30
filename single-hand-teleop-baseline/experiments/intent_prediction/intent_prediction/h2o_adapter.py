@@ -15,7 +15,13 @@ from control.control_representation import build_control_representation
 from features.hand_features import extract_hand_features
 from gesture.rule_based_gesture import infer_gesture_raw
 from svh.svh_adapter import build_svh_command_preview
-from svh.mapping_contract import MAPPING_CONTRACT_VERSION, mapping_contract_sha256
+from svh.mapping_contract import (
+    H2O_LABEL_GESTURE_CONTEXT_POLICY,
+    MAPPING_CONTRACT_VERSION,
+    RUNTIME_GESTURE_CONTEXT_POLICY,
+    assert_mapping_implementation_compatible,
+    mapping_contract_sha256,
+)
 from utils.config import load_config
 
 
@@ -25,6 +31,8 @@ H2O_RIGHT_POINTS_START = 65
 HAND_LANDMARK_COUNT = 21
 SVH_CHANNEL_COUNT = 9
 H2O_DEFAULT_FPS = 30.0
+POSE_ONLY_PROJECTION_LEGACY = "legacy_camera_xy_wrist_origin_palm_scale"
+POSE_ONLY_PROJECTION_NORMALIZED_PERSPECTIVE = "normalized_perspective_wrist_origin_palm_scale"
 
 
 @dataclass(frozen=True)
@@ -102,10 +110,10 @@ def project_h2o_points_normalized(points_xyz: np.ndarray, intrinsics: CameraIntr
 
 
 def canonicalize_h2o_camera_xy(points_xyz: np.ndarray) -> np.ndarray:
-    """pose-only 缺少内参时，用相机平面坐标构造尺度无关的 2D 几何。
+    """旧 v2 兼容路径：直接用相机坐标 x/y 构造尺度无关的 2D 几何。
 
-    当前手部特征使用的都是距离比值和关节角，因此平移与统一尺度不会改变结果。
-    这里以腕点为原点、腕到中指 MCP 为单位掌长；若该长度退化，则回退到掌宽。
+    这不是针孔相机投影，只为精确复现已经冻结的 v2 标签。新实验应显式选择
+    ``normalized_perspective_wrist_origin_palm_scale``。
     """
 
     points = np.asarray(points_xyz, dtype=np.float64)
@@ -118,6 +126,29 @@ def canonicalize_h2o_camera_xy(points_xyz: np.ndarray) -> np.ndarray:
         scale = float(np.linalg.norm(xy[5] - xy[17]))
     if scale <= 1e-8:
         raise ValueError("H2O 掌长和掌宽同时退化，无法构造规范化 2D 几何")
+    return ((xy - origin) / scale).astype(np.float32)
+
+
+def canonicalize_h2o_normalized_perspective_xy(points_xyz: np.ndarray) -> np.ndarray:
+    """无内参时先做 x/z、y/z 归一化透视投影，再消除平移与统一尺度。
+
+    当前特征只使用 2D 距离比和角度，因此针孔模型中的主点平移与共同焦距会在
+    后续规范化中消去；这比直接使用相机坐标 x/y 更接近 MediaPipe 图像域。
+    """
+
+    points = np.asarray(points_xyz, dtype=np.float64)
+    if points.shape != (HAND_LANDMARK_COUNT, 3) or not np.isfinite(points).all():
+        raise ValueError(f"points_xyz 形状必须是有限的 (21, 3)，实际为 {points.shape}")
+    depth = points[:, 2]
+    if np.any(np.abs(depth) <= 1e-8):
+        raise ValueError("H2O 点包含接近零的相机深度，无法做归一化透视投影")
+    xy = points[:, :2] / depth[:, None]
+    origin = xy[0]
+    scale = float(np.linalg.norm(xy[9] - origin))
+    if scale <= 1e-8:
+        scale = float(np.linalg.norm(xy[5] - xy[17]))
+    if scale <= 1e-8:
+        raise ValueError("H2O 透视投影后的掌长和掌宽同时退化")
     return ((xy - origin) / scale).astype(np.float32)
 
 
@@ -270,11 +301,17 @@ def preprocess_h2o_pose_dataset(
     split_policy: str = "cross_subject",
     min_segment_frames: int = 40,
     limit_takes: int | None = None,
+    pose_only_projection_policy: str = POSE_ONLY_PROJECTION_LEGACY,
 ) -> Path:
     """把已解压的 H2O pose-only 数据转成逐序列 NPZ 与 manifest。"""
 
     if fps <= 0:
         raise ValueError("fps 必须大于 0")
+    if pose_only_projection_policy not in {
+        POSE_ONLY_PROJECTION_LEGACY,
+        POSE_ONLY_PROJECTION_NORMALIZED_PERSPECTIVE,
+    }:
+        raise ValueError(f"未知 pose-only 投影策略：{pose_only_projection_policy}")
     h2o_root = h2o_root.resolve()
     output_root = output_root.resolve()
     if not h2o_root.exists():
@@ -287,6 +324,7 @@ def preprocess_h2o_pose_dataset(
     mapping_cfg = load_config(str(mapping_config_path))
     if mapping_cfg.get("svh_preview_layout") != "svh_9ch" or int(mapping_cfg.get("svh_preview_channel_count", 0)) != 9:
         raise ValueError("mapping config 必须启用 svh_9ch 且通道数为 9")
+    mapping_implementation_sha256 = assert_mapping_implementation_compatible(mapping_cfg)
 
     takes = discover_h2o_takes(h2o_root, split_policy=split_policy)
     if limit_takes is not None:
@@ -305,13 +343,17 @@ def preprocess_h2o_pose_dataset(
         "short_segments": 0,
         "takes_with_intrinsics": 0,
         "takes_with_canonical_xy": 0,
+        "takes_with_normalized_perspective": 0,
     }
 
     for take in takes:
         intrinsics_path = take.cam_dir / "cam_intrinsics.txt"
         intrinsics = read_h2o_intrinsics(intrinsics_path) if intrinsics_path.exists() else None
         if intrinsics is None:
-            diagnostics["takes_with_canonical_xy"] += 1
+            if pose_only_projection_policy == POSE_ONLY_PROJECTION_LEGACY:
+                diagnostics["takes_with_canonical_xy"] += 1
+            else:
+                diagnostics["takes_with_normalized_perspective"] += 1
         else:
             diagnostics["takes_with_intrinsics"] += 1
         segment_index = 0
@@ -364,7 +406,11 @@ def preprocess_h2o_pose_dataset(
                 points_xy = (
                     project_h2o_points_normalized(points_xyz, intrinsics)
                     if intrinsics is not None
-                    else canonicalize_h2o_camera_xy(points_xyz)
+                    else (
+                        canonicalize_h2o_camera_xy(points_xyz)
+                        if pose_only_projection_policy == POSE_ONLY_PROJECTION_LEGACY
+                        else canonicalize_h2o_normalized_perspective_xy(points_xyz)
+                    )
                 )
                 positions, summary = h2o_frame_to_svh9(
                     points_xyz,
@@ -400,6 +446,11 @@ def preprocess_h2o_pose_dataset(
         entries = [entry for entry in sequence_entries if entry["split"] == split]
         split_counts[split] = {"sequences": len(entries), "frames": sum(int(entry["frames"]) for entry in entries)}
 
+    manifest_projection_policy = (
+        "perspective_if_intrinsics_else_camera_xy_wrist_origin_palm_scale"
+        if pose_only_projection_policy == POSE_ONLY_PROJECTION_LEGACY
+        else f"perspective_if_intrinsics_else_{pose_only_projection_policy}"
+    )
     manifest = {
         "schema_version": "intent-dataset-manifest-v1",
         "dataset": "h2o_pose_only_right_hand",
@@ -412,7 +463,10 @@ def preprocess_h2o_pose_dataset(
         "mapping_config_sha256": _sha256(mapping_config_path),
         "mapping_contract_version": MAPPING_CONTRACT_VERSION,
         "mapping_contract_sha256": mapping_contract_sha256(mapping_cfg),
-        "projection_policy": "perspective_if_intrinsics_else_camera_xy_wrist_origin_palm_scale",
+        "mapping_implementation_sha256": mapping_implementation_sha256,
+        "h2o_label_gesture_context_policy": H2O_LABEL_GESTURE_CONTEXT_POLICY,
+        "runtime_gesture_context_policy": RUNTIME_GESTURE_CONTEXT_POLICY,
+        "projection_policy": manifest_projection_policy,
         "joint_order": "MediaPipe-compatible: wrist, thumb[1:5], index[5:9], middle[9:13], ring[13:17], little[17:21]",
         "feature_summary_fields": [
             "pinch_distance_norm",
