@@ -62,6 +62,7 @@ else:
 | `fps` | 当前处理帧率 | 性能诊断 |
 | `latency_ms` | 旧版 Python 视觉与 preview 处理耗时 | 不含采集、序列化、UDP、Unity 或真机 |
 | `timing` | 可选的阶段时戳对象 | 同机 Python/Unity 延迟诊断首选 |
+| `prediction_diagnostics` | 可选的默认关闭影子预测对象 | 只出现在独立 prediction 结果文件，不是 Unity/真机命令 |
 
 完整字段列表以 schema 为准：
 
@@ -84,6 +85,25 @@ else:
 
 旧 payload 没有 `timing` 仍然合法。`timing` 使用 Unix epoch 毫秒；只有 Python 和 Unity 位于同一台电脑，或者跨设备时钟已经同步时，才能直接相减。Unity 当前记录的是“接收”和“目标应用”时间，不代表画面已经渲染，也不代表实体手已经响应。
 
+### 可选 `prediction_diagnostics` v1
+
+该对象只在显式开启 `--prediction-shadow` 时出现。当前帧 Unity UDP 数据报已经发送后，
+主线程只把 payload 非阻塞提交到后台 worker；完成结果写入
+`latest_prediction_shadow.json` / `prediction_session_*.jsonl`。baseline 的
+`latest_svh_9ch.json` / `session_*.jsonl` 与 UDP 均不含该对象。Unity 不应依赖、消费或转发它。
+
+关键约束：
+
+- `source_frame_index` 必须与顶层 `frame_index` 一致；
+- `source_timestamp_unix_ms` 必须等于顶层 `timestamp * 1000`；
+- timing v1 的字段集合保持不变，推理开始/结束时刻在本对象内使用同一 Unix 时钟；
+- 只有 `status="predicted"` 时 `ready=true`，hold/raw/gated 才是完整 `[H, 9]`；
+- 其他状态必须清空预测数组并给出 `fallback_reason`；
+- 无论状态如何，都不得改写 `svh_preview`。
+
+状态和运行说明见
+[单右手 9 通道意图预测影子模式](intent_prediction_shadow_mode.md)。
+
 ## `control_representation`
 
 这个对象是“视觉特征”和“具体硬件命令”之间的中间层。它不绑定 SVH，也不绑定 Unity。
@@ -99,7 +119,13 @@ else:
 | `thumb_index_proximity` | `[0, 1]` / null | 拇指和食指接近程度 |
 | `effective_pinch_strength` | `[0, 1]` / null | 经过门控后的有效捏合强度 |
 | `support_flex` | `[0, 1]` / null | 中指、无名指、小指的平均支撑弯曲 |
-| `finger_flex` | object | 五根手指各自的弯曲程度 |
+| `finger_flex` | object | 五根手指用于下游控制的弯曲程度；可能包含配置启用的张手释放校正 |
+
+视觉侧原始几何量始终保存在顶层 `finger_curl`。当
+`control_open_release_enabled=true` 且稳定手势为 `open` 时，控制层会根据
+`hand_open_ratio` 在 `control_open_release_start_ratio` 到
+`control_open_release_full_ratio` 之间连续衰减 `finger_flex`，以抵消单目视角下
+拇指、小指的残余 curl；该校正不作用于 `pinch` 或其他手势上下文。
 
 兼容字段：
 
@@ -242,6 +268,7 @@ else:
 
 - [../examples/sample_output.json](../examples/sample_output.json)
 - [../examples/sample_output_svh_9ch.json](../examples/sample_output_svh_9ch.json)
+- [../examples/sample_prediction_diagnostics.json](../examples/sample_prediction_diagnostics.json)
 - [../examples/sample_session.jsonl](../examples/sample_session.jsonl)
 
 ## 真实 SVH 接入前的安全缺口

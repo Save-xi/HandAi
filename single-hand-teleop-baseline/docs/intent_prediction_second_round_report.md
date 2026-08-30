@@ -1,5 +1,11 @@
 # 单右手控制意图预测：第二轮离线报告
 
+> 历史版本说明（2026-08-29）：本文保留的是 open-release 映射加入前的 v1 实验，
+> 指标与 6/6 gate 仅对当时的旧标签语义成立。当前运行时已启用映射契约闸门，旧 checkpoint
+> 会被拒绝；依据当前映射重新标注/重训的 v2 结果为 `offline_gate_passed=false`。
+> 当前结论以 [Phase 1.5 二轮风险加固完成记录](phase15_risk_hardening.md) 为准，不应继续把
+> 本文 v1 指标表述为现役模型效果。
+
 ## 1. 结论先行
 
 第二轮离线门槛 **6/6 通过**。按事先冻结的规则，subject3 validation 选中：
@@ -161,15 +167,20 @@ raw。这项数据只保留为诊断：下一轮应在新的 validation/CV 协�
 4. 每个候选本轮只有一个固定种子；候选之间很接近，尚未证明排序对随机种子稳定。
 5. 没有验证 Unity Play Mode、UDP 抖动、端到端延迟或真实机械手安全。
 
-## 10. 建议的下一步
+## 10. 后续落实状态与下一步
 
-当前最合适的推进方式是：把选中 checkpoint 接入 Python 侧 **默认关闭的影子模式**。影子
-模式只并行计算并记录 `hold / raw / gated`，不改变现有 `svh_preview` 和 UDP 输出；任何
-checkpoint、输入质量或时序异常都回退到原链路。这样在没有摄像头时可以先用 H2O/JSONL
-回放做接口和时序验收，等有可用摄像头后再录少量个人数据验证域偏移。
+2026-08-26 已把选中 checkpoint 接入 Python 侧 **默认关闭的影子模式**。影子模式只计算并
+记录 `hold / raw / gated`，不改变现有 `svh_preview` 和 UDP 输出；checkpoint、输入质量或
+时序异常都会回退到原链路。无摄像头合成 9 通道 smoke 已实际加载冻结 checkpoint，并得到
+`status=predicted`、`preview_unchanged=true`。
 
-影子模式应直接扩展仓库现有的 `timing v1`、JSON/JSONL contract 和 Unity 诊断，不能新增
-一套与现有帧号和时间戳无法对应的平行日志。
+`timing v1` 保持严格冻结。新增的可选 `prediction_diagnostics v1` 复用同一 `frame_index`、
+顶层 timestamp、Unix epoch 毫秒时钟和同一 JSONL；当前帧 UDP 先发送，预测诊断后附加，
+所以不存在与原链无法对应的平行日志，也不会让推理延迟当前 Unity 包。实现、状态和命令见
+`docs/intent_prediction_shadow_mode.md`。
+
+现在的下一优先级是确定性 H2O/JSONL 回放与延迟、抖动、丢包注入。只有冻结指标下的
+hold/raw/gated 对照过线，才能把“未来轨迹预测”表述升级为“模拟延迟条件下有效”。
 
 若要把结果写成更严肃的论文结论，先做多种子和 leave-one-subject-out/subject bootstrap，
 并保留一批新的自录数据作为真正未参与设计的最终测试集。

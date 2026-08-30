@@ -59,11 +59,16 @@
 - `Apply Baseline Preview To Hardware = false`
 - `Log Baseline Preview Packets = false`
 - `Enable Legacy Gesture Snapping = false`
+- `Baseline Udp Watchdog Timeout Ms = 350`
+- `Baseline Udp Max Packet Age Ms = 1000`
+- `Allow Legacy Hardware Control = false`
 
 说明：
 
 - `Log Baseline Preview Packets` 默认应该关掉，不然 Unity Console 会每帧刷日志，影响观察。
 - `Enable Legacy Gesture Snapping` 默认必须关掉。它是旧的离散模板吸附逻辑，会把连续动作拉回固定姿态，干扰当前预览链。
+- baseline socket 只绑定 `127.0.0.1`；UDP 的真机转发在代码里固定关闭，Inspector 旧字段即使误勾也不会把包下发真机。
+- `Allow Legacy Hardware Control` 是旧 COM/IP/机械臂入口总门，Phase 1/1.5 必须保持 false。
 
 5. 点击 Unity 的 `Play`
 
@@ -99,6 +104,7 @@ python src/main.py --config configs/unity_udp_preview.yaml
 - [../src/control/control_representation.py](../src/control/control_representation.py)
   - 连续控制不再被离散手势过早截断
   - 握拳时对误触发 pinch 做了抑制
+  - Unity/SVH 预览配置会在稳定 `open` 中按 `hand_open_ratio` 连续释放残余 curl；原始 `finger_curl` 不改写
 
 - [../src/svh/svh_adapter.py](../src/svh/svh_adapter.py)
   - support fingers 的权重做了增强
@@ -116,6 +122,45 @@ python src/main.py --config configs/unity_udp_preview.yaml
 - `Log Baseline Preview Packets` 默认关闭
 - `Enable Legacy Gesture Snapping` 默认关闭
 - 对 middle / ring / little 做过轻微增益补偿
+
+### 2026-08-29 Phase 1.5 UDP 安全加固
+
+- 监听地址从所有网卡收敛为 `127.0.0.1`，并拒绝空包和超过 32 KiB 的包。
+- canonical preview 必须同时满足 `detected/control_ready/preview.valid/control.valid/features_valid/command_ready`。
+- payload 已带 `svh_preview` 但为 invalid/no-hand 时立即张开，不允许再绕入旧 fallback。
+- frame index/timestamp 倒序、重放、过期和明显未来包不会改写当前目标。
+- 350 ms 没有可接受的新包时，watchdog 把虚拟手回到全张开姿态。
+- baseline UDP 编译期固定只驱动虚拟手；旧 COM/IP 入口由 `allowLegacyHardwareControl=false` 隔离。
+- Unity 2020.3.49f1 batchmode 已通过真实 loopback socket 行为回归，标记为
+  `PHASE15_UNITY_SAFETY_BATCH_PASS`。测试脚本在
+  `D:\SVH\RoboticArm\Assets\Editor\BaselineUdpSafetyBatch.cs`。
+
+完整证据和仍未完成项见
+[Phase 1.5 二轮风险加固完成记录](phase15_risk_hardening.md)。
+
+由于完整 Unity 工程不是 Git 仓库，当前已把两份关键 C#、对应 `.meta`、包清单和
+`ProjectVersion.txt` 固定到
+[Unity Phase 1.5 最小源码快照](../integrations/unity_phase15_snapshot/README.md)。
+快照 manifest 会校验 7 个文件的 SHA-256；本机 `D:\SVH\RoboticArm` 存在时，测试还会
+检查运行工程是否已经和仓库快照漂移。正常联动仍从原 Unity 工程启动，不从快照目录启动。
+
+### 2026-08-28 实拍张手修正
+
+外接摄像头实拍日志曾出现“握紧正常、张开后虚拟手仍半握”的现象。排查结果是：
+
+- Unity 端代码会把较小目标线性映射为较小关节角，未发现阻止回退或强制保持握拳的逻辑。
+- 单目关键点在张手时仍给出了偏大的拇指/小指 `finger_curl`，导致旧映射的
+  `grasp_close` 和前 8 个屈曲通道没有回到接近零。
+- `configs/unity_udp_preview.yaml` 现已显式启用 `control_open_release_enabled`。
+  稳定手势为 `open` 时，`hand_open_ratio` 从 `0.85` 到 `0.95` 会让控制用
+  `finger_flex` 连续衰减到零；`pinch`、`fist` 和原始 `finger_curl` 不受改写。
+
+如果以后换摄像头、拍摄距离或手型后需要调节，只调整：
+
+- `control_open_release_start_ratio`：从何时开始释放
+- `control_open_release_full_ratio`：何时完全张开
+
+不要先打开 `Enable Legacy Gesture Snapping`，它会重新引入离散姿态吸附。
 
 ## 现在最需要记住的非代码结论
 
@@ -165,6 +210,7 @@ Unity 工程在 D:\SVH\RoboticArm。
 3. [../configs/unity_udp_preview.yaml](../configs/unity_udp_preview.yaml)
 4. [../src/control/control_representation.py](../src/control/control_representation.py)
 5. [../src/svh/svh_adapter.py](../src/svh/svh_adapter.py)
+6. [Unity Phase 1.5 最小源码快照](../integrations/unity_phase15_snapshot/README.md)
 
 ## 一句话总结
 

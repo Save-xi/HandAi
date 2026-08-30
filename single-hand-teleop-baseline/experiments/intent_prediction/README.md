@@ -169,8 +169,60 @@ python experiments\intent_prediction\scripts\run_second_round.py --synthetic-smo
 不是整个项目历史上的全新盲测。第二轮结论只决定是否值得进入离线回放/影子模式，不代表
 Unity Play Mode、摄像头、UDP 实时延迟或真机安全已经验收。
 
-本机正式第二轮结果与解释见
-`docs/intent_prediction_second_round_report.md`。
+旧 v1 第二轮结果保留在 `docs/intent_prediction_second_round_report.md`。open-release 加入后，
+已重新生成 H2O v2 标签和重训；现役 v2 的诚实结果与风险边界见
+`docs/phase15_risk_hardening.md`。
+
+## 8. 第三步：默认关闭的实时影子接入
+
+与当前映射契约一致的 v2 `residual_motion4` checkpoint 已接入主链，但不会替换现有命令。
+它的预注册离线 gate 未全部通过，只允许默认关闭的研究诊断：
+
+```text
+baseline/control/svh_preview -> 当前帧 UDP 先发
+                             -> 非阻塞提交到 latest-only worker
+                             -> 30 Hz 重采样 + residual GRU + frozen gate
+                             -> 独立 prediction JSON/JSONL，不回写 baseline/UDP
+```
+
+无摄像头 smoke：
+
+```powershell
+conda activate handai-intent-prediction
+python -X utf8 scripts\run_prediction_shadow_smoke.py `
+  --device auto `
+  --output outputs\prediction_shadow_smoke\latest.json
+```
+
+有视频时：
+
+```powershell
+python -X utf8 src\main.py `
+  --config configs\svh_9ch_preview.yaml `
+  --video-file D:\path\to\right_hand_video.mp4 `
+  --prediction-shadow --headless --save-jsonl
+```
+
+默认配置均为 `prediction_shadow_enabled: false`。缺 PyTorch/checkpoint、selection/report/SHA
+或 mapping contract 不匹配、输入 invalid、历史不足、断帧或推理异常只会产生明确诊断，
+不会中断 baseline。完整 contract、状态表和证据边界见
+`docs/intent_prediction_shadow_mode.md`。
+
+这一实现仍只是观察层。冻结的延迟/抖动/丢包回放已经完成：H2O 50/100 ms primary 场景
+gated RMSE 聚合改善 1.95%、q90 改善 2.67%，retention gate 为 4/6；真实摄像头 JSONL
+总体改善 1.85%，但 prediction 覆盖率只有 65.17%。因此控制参考继续使用 hold-last，模型只
+保留为默认关闭的影子诊断。完整结论见
+`docs/intent_prediction_delay_injection.md`。
+
+正式复现：
+
+```powershell
+python -X utf8 experiments\intent_prediction\scripts\run_delay_injection.py `
+  --config experiments\intent_prediction\configs\delay_injection_v1.json `
+  --data-root D:\VR\HandAi\datasets\H2O\processed\cross_subject_v2_open_release `
+  --runtime-jsonl outputs\session_20260828_210132.jsonl `
+  --runtime-config configs\unity_udp_preview.yaml
+```
 
 `outputs/` 保存本机完整运行目录并默认忽略；提交到 Git 的正式机器可读快照位于
 `experiments/intent_prediction/reports/`，其中不包含 H2O 原始数据或模型 checkpoint。
