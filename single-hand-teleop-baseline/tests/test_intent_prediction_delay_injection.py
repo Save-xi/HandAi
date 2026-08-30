@@ -22,7 +22,6 @@ from intent_prediction.delay_injection import (  # noqa: E402
 def _linear_trace() -> SequenceForecastTrace:
     count = 12
     history_frames = 3
-    horizon_ms = (100,)
     timestamps = np.arange(count, dtype=np.float64) * 100.0
     current = np.repeat((np.arange(count, dtype=np.float32) / 20.0)[:, None], 9, axis=1)
     history = np.empty((count, history_frames, 9), dtype=np.float32)

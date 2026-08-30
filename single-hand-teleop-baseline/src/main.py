@@ -34,7 +34,7 @@ from output.json_exporter import JsonExporter
 from perception.hand_filter import select_right_hand
 from perception.landmark_quality import assess_control_readiness
 from perception.mediapipe_hand import MediaPipeHandDetector
-from prediction.shadow_predictor import PredictionShadow, build_prediction_shadow
+from prediction.shadow_predictor import build_prediction_shadow
 from prediction.shadow_worker import PredictionShadowWorker
 from svh.svh_adapter import build_svh_command_preview, empty_svh_preview
 from utils.config import load_config
