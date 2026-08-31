@@ -50,10 +50,11 @@ H2O 数据仅限学术、非商业使用；不要把原始数据提交到 Git �
 
 转换器读取右手半段，再复用当前项目的
 `hand_features -> control_representation -> svh_adapter` 自动得到 9 通道。
-pose-only 压缩包通常不含 `cam_intrinsics.txt`，此时用相机平面的 `x/y`，以腕点为原点、
-腕到中指 MCP 为单位掌长；这些平移和统一缩放不会改变当前映射使用的距离比值。
-若某个发行版带相机内参，转换器会自动改用针孔投影。无效帧和不连续帧会切断序列，
-不会被模型跨越。
+pose-only 压缩包通常不含 `cam_intrinsics.txt`。现役 v2 为了可复现，显式冻结旧的相机平面
+`x/y` 路径；它不是针孔投影。新实验可以显式选择
+`--pose-only-projection normalized_perspective_wrist_origin_palm_scale`，但必须生成新数据版本并
+重新训练，不能覆盖 v2。若某个发行版带相机内参，转换器会使用内参投影。无效帧和不连续帧
+会切断序列，不会被模型跨越。
 
 默认采用严格的跨人员切分：
 
@@ -226,3 +227,23 @@ python -X utf8 experiments\intent_prediction\scripts\run_delay_injection.py `
 
 `outputs/` 保存本机完整运行目录并默认忽略；提交到 Git 的正式机器可读快照位于
 `experiments/intent_prediction/reports/`，其中不包含 H2O 原始数据或模型 checkpoint。
+
+## 9. 第四步：真实摄像头视频域开发评测
+
+固定视频不能继续沿用 `src/main.py --video-file` 的处理 wall-clock 作为算法时间轴。新的评测
+入口优先使用容器 PTS，并在 PTS 不可用时按 `frame_index / nominal_fps` 回退；模型在 baseline
+JSONL 生成后同步重放，因此不会因离线快读触发 latest-only 丢帧。离线算法效用、离线处理
+吞吐和真实摄像头异步 worker 覆盖会分别报告。
+
+完整开发集命令、V1–V7 动作清单、开发集/盲测集隔离和三分支判定见
+`docs/camera_domain_protocol_v1.md`。开发冒烟示例：
+
+```powershell
+python -X utf8 experiments\intent_prediction\scripts\run_camera_domain_eval.py `
+  --role development --allow-partial `
+  --video V1=D:\path\to\V1.mp4 `
+  --input-not-mirrored
+```
+
+当前配置仍是 `development`，固定返回 `development_only_no_release_decision`，并主动拒绝
+`--role blind`。完成开发集后必须先冻结机器 gate、协议 SHA 与配置 SHA，再另录 B1–B7。

@@ -1,0 +1,28 @@
+{
+  "schema_version": "camera-domain-eval-config-v1",
+  "protocol_stage": "development",
+  "claim_status": "camera_domain_pseudo_ground_truth_only",
+  "video_sets": {
+    "development": ["V1", "V2", "V3", "V4", "V5", "V6", "V7"],
+    "blind": ["B1", "B2", "B3", "B4", "B5", "B6", "B7"]
+  },
+  "timeline": {
+    "preferred_source": "container_pts_ms",
+    "fallback_source": "frame_index_over_nominal_fps",
+    "synthetic_epoch_seconds": 1700000000.0,
+    "minimum_nominal_fps": 1.0,
+    "maximum_nominal_fps": 240.0
+  },
+  "delay_config_path": "delay_injection_v1.json",
+  "runtime_config_path": "../../../configs/unity_udp_preview.yaml",
+  "protocol_document_path": "../../../docs/camera_domain_protocol_v1.md",
+  "development_policy": {
+    "allow_partial_with_explicit_flag": true,
+    "release_decision_enabled": false
+  },
+  "blind_policy": {
+    "enabled": false,
+    "note": "完成开发集后另行冻结门槛与协议 SHA；当前配置拒绝盲测准入判定。",
+    "gate": null
+  }
+}

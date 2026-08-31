@@ -43,6 +43,8 @@
 [延迟、抖动、丢包冻结回放报告](docs/intent_prediction_delay_injection.md)。
 二审代码修补、覆盖率口径和 H2O 投影/去抖审计见
 [Phase 1.5 二审修补与算法复核记录](docs/phase15_second_review_remediation.md)。
+真实摄像头视频域的媒体时间轴、开发集/盲测集隔离和三分支决策见
+[真实摄像头域开发评测协议](docs/camera_domain_protocol_v1.md)。
 
 ## 推荐理解顺序
 
@@ -476,7 +478,7 @@ python src/main.py --config configs/default.yaml --input-mirrored
 如果继续推进，这几件事最关键：
 
 - 清理运行时调试输出。
-- 用真实视频和摄像头多录几段 JSONL，观察 `gesture_stable` 和连续控制量是否稳定。
+- 按摄像头域协议录制 V1–V7 开发视频，用媒体 PTS 确定性重放；不要把离线处理 FPS 当作源帧率。
 - 用确定性回放注入延迟、抖动和丢包，比较 hold-last/raw/gated，证明或否定延迟补偿价值。
 - 调 Unity 侧 9 通道到 20 关节的展开效果。
 - 逐项确认 SVH 真机协议、通道方向、零位、限位、homing 和安全策略。
