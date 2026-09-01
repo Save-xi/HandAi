@@ -318,3 +318,16 @@ class JsonExporter:
             self._jsonl_flush_count,
             self._unity_udp_send_count,
         )
+
+    def diagnostic_snapshot(self) -> Dict[str, Any]:
+        """返回旁路会话清单需要的计数；不读取或改变逐帧 payload。"""
+
+        return {
+            "jsonl_path": self.jsonl_path,
+            "jsonl_write_count": self._jsonl_write_count,
+            "jsonl_flush_count": self._jsonl_flush_count,
+            "jsonl_failed": self._jsonl_failed,
+            "last_frame_write_count": self._last_frame_write_count,
+            "unity_udp_send_count": self._unity_udp_send_count,
+            "unity_udp_failed": self._unity_udp_failed,
+        }

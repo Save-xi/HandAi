@@ -156,6 +156,9 @@ def test_runtime_jsonl_is_split_on_invalid_and_preserves_prediction_coverage(tmp
     )
     assert group.total_rows == 7
     assert group.valid_rows == 6
+    assert group.evaluable_rows == 6
+    assert group.discarded_short_segment_rows == 0
+    assert group.discarded_short_segment_count == 0
     assert group.predicted_rows == 2
     assert len(group.traces) == 2
     assert group.status_counts == {"warming_up": 4, "invalid_input": 1, "predicted": 2}
@@ -163,6 +166,41 @@ def test_runtime_jsonl_is_split_on_invalid_and_preserves_prediction_coverage(tmp
         [False, False, True],
         [False, False, True],
     ]
+
+
+def test_runtime_jsonl_reports_valid_singleton_that_cannot_form_a_trace(tmp_path):
+    path = tmp_path / "camera-singleton.jsonl"
+    rows = []
+    for frame in range(5):
+        valid = frame != 1
+        rows.append(
+            {
+                "timestamp": 1000.0 + frame * 0.03,
+                "frame_index": frame,
+                "detected": valid,
+                "control_ready": valid,
+                "svh_preview": {
+                    "enabled": True,
+                    "valid": valid,
+                    "target_positions": [0.1 + frame * 0.01] * 9 if valid else [],
+                },
+            }
+        )
+    path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+
+    group = build_runtime_jsonl_forecast_traces(
+        path,
+        predictor=_FakeRuntimePredictor(),
+        recent_frames=3,
+    )
+
+    assert group.total_rows == 5
+    assert group.valid_rows == 4
+    assert group.evaluable_rows == 3
+    assert group.discarded_short_segment_rows == 1
+    assert group.discarded_short_segment_count == 1
+    assert group.predicted_rows == 1
+    assert len(group.traces) == 1
 
 
 def test_short_runtime_segment_without_arrival_is_counted_not_fatal():

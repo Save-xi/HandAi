@@ -9,6 +9,7 @@ from main import _drain_prediction_results, _emit_prepared_debug_outputs, _send_
 from main import _build_jsonl_session_path
 from prediction.shadow_predictor import PredictionShadow
 from utils.config import load_config
+from utils.runtime_session import create_runtime_session_artifacts
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -111,6 +112,30 @@ def test_session_paths_do_not_collide_within_same_second(tmp_path):
     assert first != second
     assert Path(first).parent == tmp_path
     assert Path(second).parent == tmp_path
+
+
+def test_runtime_session_artifacts_share_one_run_id_without_touching_payload(tmp_path):
+    cfg = {
+        "jsonl_output_dir": str(tmp_path / "baseline"),
+        "prediction_shadow_jsonl_output_dir": str(tmp_path / "prediction"),
+    }
+    artifacts = create_runtime_session_artifacts(
+        cfg,
+        prediction_requested=True,
+        run_id="20260901T120000000000Z-1234-deadbeef",
+    )
+
+    assert artifacts.baseline_jsonl_path.name == (
+        "session_20260901T120000000000Z-1234-deadbeef.jsonl"
+    )
+    assert artifacts.prediction_jsonl_path is not None
+    assert artifacts.prediction_jsonl_path.name == (
+        "prediction_session_20260901T120000000000Z-1234-deadbeef.jsonl"
+    )
+    assert artifacts.manifest_path.name == (
+        "runtime_session_20260901T120000000000Z-1234-deadbeef.json"
+    )
+    assert "run_id" not in _sample_payload(0)
 
 
 def test_export_prepared_frame_throttles_last_json_until_close(tmp_path):

@@ -43,6 +43,10 @@
 [延迟、抖动、丢包冻结回放报告](docs/intent_prediction_delay_injection.md)。
 二审代码修补、覆盖率口径和 H2O 投影/去抖审计见
 [Phase 1.5 二审修补与算法复核记录](docs/phase15_second_review_remediation.md)。
+真实摄像头视频域的媒体时间轴、开发集/盲测集隔离和三分支决策见
+[真实摄像头域开发评测协议](docs/camera_domain_protocol_v1.md)。
+2026-09-01 的真实摄像头、CUDA 影子、Unity 时延和人工视觉闭环见
+[真实摄像头与 Unity 实时验收记录](docs/live_runtime_acceptance_20260901.md)。
 
 ## 推荐理解顺序
 
@@ -140,7 +144,11 @@ python src/main.py --config configs/default.yaml --save-jsonl
 运行产物会写到（`examples/` 只保留冻结示例，不再被实时运行覆盖）：
 
 - `outputs/latest_frame.json`：最近一帧的 JSON
-- `outputs/session_*.jsonl`：开启 `--save-jsonl` 后的逐帧日志
+- `outputs/session_<run_id>.jsonl`：开启 `--save-jsonl` 后的逐帧日志
+- `outputs/runtime_session_<run_id>.json`：同次运行的配置 SHA、日志路径/SHA/行数和首末帧清单
+
+若同时开启 prediction shadow，`prediction_session_<run_id>.jsonl` 与 baseline 共享同一个
+文件名级 `run_id`。该身份只用于旁路证据配对，不写入逐帧 payload 或 Unity UDP。
 
 ## 常用模式
 
@@ -268,6 +276,9 @@ hold-last、raw residual 和 gated residual。当前帧 UDP 发送后只做非�
 进入独立的 `latest_prediction_shadow.json` / `prediction_session_*.jsonl`，不改
 `svh_preview`，也不把预测发给 Unity。当前 v2 离线 gate 未全部通过，只允许研究诊断。详见
 [docs/intent_prediction_shadow_mode.md](docs/intent_prediction_shadow_mode.md)。
+
+真实摄像头运行退出后，配对时必须同时核验共享 `run_id`、`runtime_session_<run_id>.json`、
+逐帧 frame/timestamp 和日志 SHA；不能只按相同 `frame_index` 做宽松交集。
 
 ## 输入镜像和左右手
 
@@ -476,7 +487,7 @@ python src/main.py --config configs/default.yaml --input-mirrored
 如果继续推进，这几件事最关键：
 
 - 清理运行时调试输出。
-- 用真实视频和摄像头多录几段 JSONL，观察 `gesture_stable` 和连续控制量是否稳定。
+- 按摄像头域协议录制 V1–V7 开发视频，用媒体 PTS 确定性重放；不要把离线处理 FPS 当作源帧率。
 - 用确定性回放注入延迟、抖动和丢包，比较 hold-last/raw/gated，证明或否定延迟补偿价值。
 - 调 Unity 侧 9 通道到 20 关节的展开效果。
 - 逐项确认 SVH 真机协议、通道方向、零位、限位、homing 和安全策略。

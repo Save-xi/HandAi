@@ -22,7 +22,7 @@ PROJECT_ROOT = MODULE_ROOT.parents[1]
 if str(MODULE_ROOT) not in sys.path:
     sys.path.insert(0, str(MODULE_ROOT))
 
-from freihand.io import load_config, read_json, resolve_path, split_config_path, write_json, write_text
+from freihand.io import load_config, read_json, split_config_path, write_json, write_text
 
 
 def parse_args() -> argparse.Namespace:

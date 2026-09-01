@@ -62,6 +62,8 @@
 - `Baseline Udp Watchdog Timeout Ms = 350`
 - `Baseline Udp Max Packet Age Ms = 1000`
 - `Allow Legacy Hardware Control = false`
+- `Write Baseline Timing Summary = true`
+- `Baseline Timing Sample Capacity = 4096`
 
 说明：
 
@@ -69,6 +71,7 @@
 - `Enable Legacy Gesture Snapping` 默认必须关掉。它是旧的离散模板吸附逻辑，会把连续动作拉回固定姿态，干扰当前预览链。
 - baseline socket 只绑定 `127.0.0.1`；UDP 的真机转发在代码里固定关闭，Inspector 旧字段即使误勾也不会把包下发真机。
 - `Allow Legacy Hardware Control` 是旧 COM/IP/机械臂入口总门，Phase 1/1.5 必须保持 false。
+- timing 使用固定容量环形缓冲；不要为了测 P50/P95 打开逐包日志。
 
 5. 点击 Unity 的 `Play`
 
@@ -86,6 +89,12 @@ python src/main.py --config configs/unity_udp_preview.yaml
 - 控制台可以继续打印 JSON（如果开了 `--print-json`）
 - Unity 虚拟手会跟着右手动作变化
 - 不只是 `open / fist / pinch`，中间连续动作也会跟着变化
+
+需要保存实时证据时，让 Python 带 `--prediction-shadow --save-jsonl` 运行 60–90 秒。先退出 Python，
+再停止 Unity Play；Unity Console 会只打印一次 `Baseline timing summary 已写入：...`。该 JSON 位于
+`Application.persistentDataPath/HandAiDiagnostics/`，后续必须与同一 Python `run_id` 的 manifest 和
+两份 JSONL 一起做严格配对。它测到的是 `source.read()` 返回后到 Unity 主线程应用目标，不是相机
+曝光、画面渲染或真机响应时间。
 
 ## 如果联动失败，先查这些
 
@@ -135,8 +144,19 @@ python src/main.py --config configs/unity_udp_preview.yaml
   `PHASE15_UNITY_SAFETY_BATCH_PASS`。测试脚本在
   `D:\SVH\RoboticArm\Assets\Editor\BaselineUdpSafetyBatch.cs`。
 
+### 2026-09-01 运行证据加固
+
+- Python baseline/prediction JSONL 共享一个文件名级 `run_id`，另有原子
+  `runtime_session_<run_id>.json` 冻结路径、SHA、行数、模型身份与 worker 计数。
+- Unity 对 Python post-capture、UDP delivery、主线程排队和 source-to-target apply 使用每项 4096
+  样本的有界环形缓冲，退出 Play 时只写一次 P50/P95/max 摘要。
+- `run_id` 不进入 UDP payload；预测仍是 default-off shadow，不改变 `svh_preview`。
+
 完整证据和仍未完成项见
 [Phase 1.5 二轮风险加固完成记录](phase15_risk_hardening.md)。
+2026-09-01 已用真实摄像头和 CUDA 影子完成 1,093 帧严格配对，且用户确认充分张开、
+握拳/捏合跟随、遮挡后安全张开三项均正常；详见
+[真实摄像头与 Unity 实时验收记录](live_runtime_acceptance_20260901.md)。
 
 由于完整 Unity 工程不是 Git 仓库，当前已把两份关键 C#、对应 `.meta`、包清单和
 `ProjectVersion.txt` 固定到

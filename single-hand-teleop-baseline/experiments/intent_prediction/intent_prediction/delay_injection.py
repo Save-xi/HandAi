@@ -146,6 +146,9 @@ class RuntimeTraceGroup:
     source_sha256: str
     total_rows: int
     valid_rows: int
+    evaluable_rows: int
+    discarded_short_segment_rows: int
+    discarded_short_segment_count: int
     predicted_rows: int
     status_counts: dict[str, int]
     traces: list[SequenceForecastTrace]
@@ -169,6 +172,9 @@ def build_runtime_jsonl_forecast_traces(
     predicted_rows = 0
     status_counts: dict[str, int] = {}
     segment_index = 0
+    evaluable_rows = 0
+    discarded_short_segment_rows = 0
+    discarded_short_segment_count = 0
 
     segment_timestamps: list[float] = []
     segment_frame_ids: list[int] = []
@@ -181,6 +187,9 @@ def build_runtime_jsonl_forecast_traces(
 
     def flush_segment() -> None:
         nonlocal segment_index
+        nonlocal evaluable_rows
+        nonlocal discarded_short_segment_rows
+        nonlocal discarded_short_segment_count
         if len(segment_timestamps) >= 2:
             sequence_id = f"{path.stem}_segment{segment_index:03d}"
             traces.append(
@@ -197,7 +206,11 @@ def build_runtime_jsonl_forecast_traces(
                     motion_score=np.asarray(segment_motion, dtype=np.float64),
                 )
             )
+            evaluable_rows += len(segment_timestamps)
             segment_index += 1
+        elif segment_timestamps:
+            discarded_short_segment_rows += len(segment_timestamps)
+            discarded_short_segment_count += 1
         segment_timestamps.clear()
         segment_frame_ids.clear()
         segment_history.clear()
@@ -292,6 +305,9 @@ def build_runtime_jsonl_forecast_traces(
         source_sha256=_hash_file(path),
         total_rows=total_rows,
         valid_rows=valid_rows,
+        evaluable_rows=evaluable_rows,
+        discarded_short_segment_rows=discarded_short_segment_rows,
+        discarded_short_segment_count=discarded_short_segment_count,
         predicted_rows=predicted_rows,
         status_counts=status_counts,
         traces=traces,
@@ -1071,6 +1087,9 @@ def run_delay_injection(
                     "sha256": group.source_sha256,
                     "total_rows": group.total_rows,
                     "valid_rows": group.valid_rows,
+                    "evaluable_rows": group.evaluable_rows,
+                    "discarded_short_segment_rows": group.discarded_short_segment_rows,
+                    "discarded_short_segment_count": group.discarded_short_segment_count,
                     "predicted_rows": group.predicted_rows,
                     "status_counts": group.status_counts,
                     "segment_count": len(group.traces),

@@ -16,7 +16,8 @@ Unity 编辑器版本与 Python 版本一起保存，并用 `snapshot_manifest.j
 ## 包含内容
 
 - `Assets/Scripts/RobotControlScript.cs`：本机 UDP 接收、payload 合法性/时序闸门、
-  watchdog 安全张开以及 9 通道到虚拟手关节的展开。
+  watchdog 安全张开、9 通道到虚拟手关节的展开，以及退出 Play 时写出的有界 timing
+  P50/P95/max 摘要。摘要默认落到 `Application.persistentDataPath/HandAiDiagnostics/`，不进入 UDP。
 - `Assets/Editor/BaselineUdpSafetyBatch.cs`：loopback、invalid、乱序、过期和 watchdog
   的 Unity batchmode 行为验收。
 - `Packages/manifest.json`、`Packages/packages-lock.json`：已修复红色包错误后的依赖快照。

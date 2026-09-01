@@ -13,11 +13,8 @@ features、gesture、control、svh、output 等子模块里，方便单独测试
 
 import argparse
 import logging
-import os
 import time
-import uuid
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -40,6 +37,11 @@ from svh.svh_adapter import build_svh_command_preview, empty_svh_preview
 from utils.config import load_config
 from utils.logger import get_logger
 from utils.recent_frames import RecentFrameBuffer
+from utils.runtime_session import (
+    RuntimeSessionRecorder,
+    build_jsonl_session_path,
+    create_runtime_session_artifacts,
+)
 from utils.timer import FrameTimer, now_ts
 from visualize.overlay_2d import compose_view
 
@@ -156,15 +158,15 @@ def _build_jsonl_session_path(
     *,
     output_dir_key: str = "jsonl_output_dir",
     prefix: str = "session",
+    run_id: str | None = None,
 ) -> str:
     """为本次运行生成 JSONL 会话日志路径。"""
 
-    output_dir = Path(str(cfg.get(output_dir_key, "outputs")))
-    # 微秒 + PID 避免同一秒内启动两次或并行启动时互相追加到同一文件。
-    nonce = uuid.uuid4().hex[:8]
-    return str(
-        output_dir
-        / f"{prefix}_{datetime.now():%Y%m%d_%H%M%S_%f}_{os.getpid()}_{nonce}.jsonl"
+    return build_jsonl_session_path(
+        cfg,
+        output_dir_key=output_dir_key,
+        prefix=prefix,
+        run_id=run_id,
     )
 
 
@@ -215,17 +217,26 @@ def _build_detector(cfg: Dict[str, Any], runtime: RuntimeMode) -> MediaPipeHandD
     )
 
 
-def _build_exporter(cfg: Dict[str, Any], logger) -> JsonExporter:
+def _build_exporter(
+    cfg: Dict[str, Any],
+    logger,
+    *,
+    jsonl_path: str | None = None,
+) -> JsonExporter:
     """创建统一导出器。
 
     JsonExporter 同时负责 last-frame JSON、可选 JSONL、可选 Unity UDP。
     主循环只把规范化后的 payload 交给它，不关心具体输出通道。
     """
 
+    resolved_jsonl_path = None
+    if bool(cfg.get("save_jsonl", False)):
+        resolved_jsonl_path = jsonl_path or _build_jsonl_session_path(cfg)
+
     return JsonExporter(
         output_path=str(cfg.get("output_json_path", "outputs/latest_frame.json")),
         save_last_json=bool(cfg.get("save_last_json", True)),
-        jsonl_path=_build_jsonl_session_path(cfg) if bool(cfg.get("save_jsonl", False)) else None,
+        jsonl_path=resolved_jsonl_path,
         export_last_every_n_frames=int(cfg.get("export_last_every_n_frames", 1)),
         jsonl_flush_interval=int(cfg.get("jsonl_flush_interval", 1)),
         unity_udp_enabled=bool(cfg.get("unity_udp_enabled", False)),
@@ -235,8 +246,21 @@ def _build_exporter(cfg: Dict[str, Any], logger) -> JsonExporter:
     )
 
 
-def _build_prediction_result_exporter(cfg: Dict[str, Any], logger) -> JsonExporter:
+def _build_prediction_result_exporter(
+    cfg: Dict[str, Any],
+    logger,
+    *,
+    jsonl_path: str | None = None,
+) -> JsonExporter:
     """为后台影子结果创建独立本机输出；绝不启用 UDP。"""
+
+    resolved_jsonl_path = None
+    if bool(cfg.get("save_jsonl", False)):
+        resolved_jsonl_path = jsonl_path or _build_jsonl_session_path(
+            cfg,
+            output_dir_key="prediction_shadow_jsonl_output_dir",
+            prefix="prediction_session",
+        )
 
     return JsonExporter(
         output_path=str(
@@ -246,15 +270,7 @@ def _build_prediction_result_exporter(cfg: Dict[str, Any], logger) -> JsonExport
             )
         ),
         save_last_json=bool(cfg.get("save_last_json", True)),
-        jsonl_path=(
-            _build_jsonl_session_path(
-                cfg,
-                output_dir_key="prediction_shadow_jsonl_output_dir",
-                prefix="prediction_session",
-            )
-            if bool(cfg.get("save_jsonl", False))
-            else None
-        ),
+        jsonl_path=resolved_jsonl_path,
         export_last_every_n_frames=1,
         jsonl_flush_interval=int(cfg.get("jsonl_flush_interval", 1)),
         unity_udp_enabled=False,
@@ -552,10 +568,49 @@ def main() -> None:
     exporter = None
     prediction_worker = None
     prediction_result_exporter = None
+    prediction_shadow = None
+    session_recorder = None
+    session_artifacts = None
+    session_status = "completed"
+    session_error: BaseException | None = None
+    prediction_worker_stopped: bool | None = None
+    if bool(cfg.get("save_jsonl", False)):
+        session_artifacts = create_runtime_session_artifacts(
+            cfg,
+            prediction_requested=bool(cfg.get("prediction_shadow_enabled", False)),
+        )
+        try:
+            session_recorder = RuntimeSessionRecorder(
+                session_artifacts,
+                config_path=Path(args.config),
+                cfg=cfg,
+                runtime=runtime,
+            )
+            logger.info(
+                "运行证据会话已创建：run_id=%s，manifest=%s。",
+                session_artifacts.run_id,
+                session_artifacts.manifest_path,
+            )
+        except OSError as exc:
+            logger.warning("无法创建运行证据 manifest；逐帧链路继续运行：%s", exc)
     try:
         detector = _build_detector(cfg, runtime)
-        exporter = _build_exporter(cfg, logger)
+        exporter = _build_exporter(
+            cfg,
+            logger,
+            jsonl_path=(
+                str(session_artifacts.baseline_jsonl_path)
+                if session_artifacts is not None
+                else None
+            ),
+        )
         prediction_shadow = build_prediction_shadow(cfg, logger=logger)
+        if session_recorder is not None:
+            try:
+                session_recorder.record_prediction_identity(prediction_shadow)
+            except OSError as exc:
+                logger.warning("更新运行证据 manifest 失败；逐帧链路继续运行：%s", exc)
+                session_recorder = None
         if prediction_shadow is not None:
             prediction_worker = PredictionShadowWorker(
                 prediction_shadow,
@@ -563,7 +618,16 @@ def main() -> None:
                 input_queue_size=1,
                 result_queue_size=int(cfg.get("prediction_shadow_result_queue_size", 8)),
             )
-            prediction_result_exporter = _build_prediction_result_exporter(cfg, logger)
+            prediction_result_exporter = _build_prediction_result_exporter(
+                cfg,
+                logger,
+                jsonl_path=(
+                    str(session_artifacts.prediction_jsonl_path)
+                    if session_artifacts is not None
+                    and session_artifacts.prediction_jsonl_path is not None
+                    else None
+                ),
+            )
         # history 当前只保留最近帧摘要，方便未来做时序模型或更复杂去抖。
         history = RecentFrameBuffer(maxlen=int(cfg.get("recent_frames_buffer_size", 10)))
         svh_transport = _build_svh_transport(cfg, runtime, logger)
@@ -627,6 +691,8 @@ def main() -> None:
             # 3. 最后统一规范化并校验，保证输出满足 contract。
             payload = prepare_frame_payload(payload, include_deprecated_aliases=False)
             history.append(payload)
+            if session_recorder is not None:
+                session_recorder.observe_baseline(payload)
 
             # 4. frozen UDP 先发送；影子推理永远不能推迟或改写 Unity 包。
             _send_prepared_udp(payload, exporter=exporter)
@@ -657,10 +723,15 @@ def main() -> None:
                 logger.info("已达到 max_frames=%d；程序退出。", args.max_frames)
                 break
     except KeyboardInterrupt:
+        session_status = "interrupted"
         logger.info("用户中断运行。")
+    except BaseException as exc:
+        session_status = "failed"
+        session_error = exc
+        raise
     finally:
         if prediction_worker is not None:
-            prediction_worker.close(
+            prediction_worker_stopped = prediction_worker.close(
                 timeout_s=float(cfg.get("prediction_shadow_worker_shutdown_timeout_s", 2.0))
             )
             _drain_prediction_results(
@@ -671,6 +742,19 @@ def main() -> None:
             prediction_result_exporter.close()
         if exporter is not None:
             exporter.close()
+        if session_recorder is not None:
+            try:
+                session_recorder.finalize(
+                    status=session_status,
+                    error=session_error,
+                    baseline_exporter=exporter,
+                    prediction_exporter=prediction_result_exporter,
+                    prediction_worker=prediction_worker,
+                    prediction_worker_stopped=prediction_worker_stopped,
+                )
+                logger.info("运行证据 manifest 已冻结：%s。", session_recorder.manifest_path)
+            except OSError as exc:
+                logger.warning("冻结运行证据 manifest 失败：%s", exc)
         if detector is not None:
             detector.close()
         source.release()
