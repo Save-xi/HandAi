@@ -85,6 +85,19 @@ else:
 
 旧 payload 没有 `timing` 仍然合法。`timing` 使用 Unix epoch 毫秒；只有 Python 和 Unity 位于同一台电脑，或者跨设备时钟已经同步时，才能直接相减。Unity 当前记录的是“接收”和“目标应用”时间，不代表画面已经渲染，也不代表实体手已经响应。
 
+当前 Unity 接收端用固定容量环形缓冲保存四类 timing，并在退出 Play 时向
+`Application.persistentDataPath/HandAiDiagnostics/unity_timing_*.json` 写入 P50/P95/max、总样本数、
+保留样本数以及 overwritten/gap/rejected/stale/watchdog 计数。默认容量为每项 4096，不做逐帧
+Console 打印。跨 Python/Unity 的总边界从 `source_read_end_unix_ms` 开始，即输入源 `read()` 已返回；
+它不包含相机曝光、此前阻塞等待、Unity 显示刷新或实体硬件响应。
+
+### JSONL 会话身份（不属于 payload contract）
+
+`--save-jsonl` 会让 baseline 与 prediction 文件共享一个文件名级 `run_id`，并在 baseline 同目录写入
+`runtime_session_<run_id>.json`。manifest 冻结配置、日志路径/SHA/行数、首末帧、模型 SHA 和 worker
+计数。`run_id` 故意不添加到 canonical payload 或 UDP；消费方不能据此扩展 Unity 数据报。严格分析时
+应同时核验 run_id、manifest 和逐帧 frame/timestamp 身份，不能只按 `frame_index` 取交集。
+
 ### 可选 `prediction_diagnostics` v1
 
 该对象只在显式开启 `--prediction-shadow` 时出现。当前帧 Unity UDP 数据报已经发送后，

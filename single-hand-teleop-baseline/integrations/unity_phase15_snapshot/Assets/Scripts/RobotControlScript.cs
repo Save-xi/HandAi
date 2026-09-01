@@ -11,6 +11,7 @@ using System.Threading;
 using WebSocketSharp;
 using LitJson;
 using System.Collections.Generic;
+using System.IO;
 
 public class RobotControlScript : MonoBehaviour
 {
@@ -56,6 +57,14 @@ public class RobotControlScript : MonoBehaviour
     private int baselineStalePacketCount = 0;
     [SerializeField]
     private int baselineWatchdogOpenCount = 0;
+    [SerializeField]
+    [Tooltip("退出 Play 时把本次 Baseline timing 的有界分位数摘要写入 persistentDataPath。")]
+    private bool writeBaselineTimingSummary = true;
+    [SerializeField]
+    [Tooltip("每项 timing 指标最多保留的最近样本数；总样本数仍单独累计。")]
+    private int baselineTimingSampleCapacity = 4096;
+    [SerializeField]
+    private string lastBaselineTimingSummaryPath = "";
 
     private ConcurrentQueue<byte[]> incoming_messages = new ConcurrentQueue<byte[]>();
     private ConcurrentQueue<BaselinePreviewEnvelope> incomingBaselinePreviewPackets = new ConcurrentQueue<BaselinePreviewEnvelope>();
@@ -90,9 +99,143 @@ public class RobotControlScript : MonoBehaviour
     private float lastBaselineAcceptedRealtime = -1f;
     private bool baselineSafeOpenApplied = false;
     private bool baselineHardwareWarningLogged = false;
+    private BoundedTimingSeries baselinePythonPipelineSeries;
+    private BoundedTimingSeries baselineUdpDeliverySeries;
+    private BoundedTimingSeries baselineUnityQueueSeries;
+    private BoundedTimingSeries baselineSourceToTargetApplySeries;
+    private int baselineTimingAcceptedPacketCount = 0;
+    private int baselineTimingFirstFrameIndex = -1;
+    private int baselineTimingLastFrameIndex = -1;
+    private double baselineTimingFirstSourceTimestampMs = -1.0;
+    private double baselineTimingLastSourceTimestampMs = -1.0;
 
     // Baseline UDP 是虚拟预览通道，不允许通过 Inspector 误把网络包转发到真机。
     private const bool BaselineUdpHardwareForwardingCompiled = false;
+
+    private sealed class BoundedTimingSeries
+    {
+        private readonly double[] values;
+        private int nextIndex;
+        private int retainedCount;
+        private int totalCount;
+
+        public BoundedTimingSeries(int capacity)
+        {
+            values = new double[Math.Max(1, capacity)];
+        }
+
+        public void Add(double value)
+        {
+            if (double.IsNaN(value) || double.IsInfinity(value))
+            {
+                return;
+            }
+            values[nextIndex] = value;
+            nextIndex = (nextIndex + 1) % values.Length;
+            retainedCount = Math.Min(retainedCount + 1, values.Length);
+            totalCount += 1;
+        }
+
+        public BaselineTimingMetricSummary Snapshot()
+        {
+            double[] sorted = new double[retainedCount];
+            for (int i = 0; i < retainedCount; ++i)
+            {
+                int sourceIndex = (nextIndex - retainedCount + i + values.Length) % values.Length;
+                sorted[i] = values[sourceIndex];
+            }
+            Array.Sort(sorted);
+            return new BaselineTimingMetricSummary
+            {
+                total_sample_count = totalCount,
+                retained_sample_count = retainedCount,
+                capacity = values.Length,
+                p50_ms = Percentile(sorted, 0.50),
+                p95_ms = Percentile(sorted, 0.95),
+                max_ms = sorted.Length > 0 ? sorted[sorted.Length - 1] : -1.0
+            };
+        }
+
+        private static double Percentile(double[] sorted, double quantile)
+        {
+            if (sorted.Length == 0)
+            {
+                return -1.0;
+            }
+            double rank = (sorted.Length - 1) * quantile;
+            int lower = (int)Math.Floor(rank);
+            int upper = (int)Math.Ceiling(rank);
+            if (lower == upper)
+            {
+                return sorted[lower];
+            }
+            double weight = rank - lower;
+            return sorted[lower] * (1.0 - weight) + sorted[upper] * weight;
+        }
+    }
+
+    [Serializable]
+    private class BaselineTimingMetricSummary
+    {
+        public int total_sample_count;
+        public int retained_sample_count;
+        public int capacity;
+        public double p50_ms;
+        public double p95_ms;
+        public double max_ms;
+    }
+
+    [Serializable]
+    private class BaselineTimingMetricsSummary
+    {
+        public BaselineTimingMetricSummary python_post_capture_to_udp_ms;
+        public BaselineTimingMetricSummary udp_delivery_ms;
+        public BaselineTimingMetricSummary unity_main_thread_queue_ms;
+        public BaselineTimingMetricSummary source_read_end_to_target_apply_ms;
+    }
+
+    [Serializable]
+    private class BaselineTimingSourceSession
+    {
+        public int first_frame_index;
+        public int last_frame_index;
+        public double first_source_timestamp_unix_ms;
+        public double last_source_timestamp_unix_ms;
+    }
+
+    [Serializable]
+    private class BaselineTimingCountersSummary
+    {
+        public int overwritten_packet_count;
+        public int frame_gap_count;
+        public int rejected_packet_count;
+        public int stale_packet_count;
+        public int watchdog_open_count;
+    }
+
+    [Serializable]
+    private class BaselineTimingSafetySummary
+    {
+        public bool baseline_udp_hardware_forwarding_compiled;
+        public bool apply_baseline_preview_to_hardware;
+        public bool real_svh_in_scope;
+    }
+
+    [Serializable]
+    private class BaselineTimingRunSummary
+    {
+        public string schema_version;
+        public string created_at_utc;
+        public string completion_reason;
+        public string claim_status;
+        public string timing_boundary;
+        public string retention_policy;
+        public int accepted_packet_count;
+        public BaselineTimingSourceSession source_session;
+        public BaselineTimingMetricsSummary metrics;
+        public BaselineTimingCountersSummary counters;
+        public BaselineTimingSafetySummary safety;
+    }
 
     private class BaselinePreviewEnvelope
     {
@@ -165,6 +308,7 @@ public class RobotControlScript : MonoBehaviour
 
     void Start()
     {
+        InitializeBaselineTimingDiagnostics();
         jointsPosition = new Vector3[26];
         jointsRotation = new Quaternion[26];
         setRobotHandAngles = new double[(int)SVHConstants.SVHChannel.eSVH_DIMENSION];
@@ -548,8 +692,19 @@ public class RobotControlScript : MonoBehaviour
 
     private void RecordBaselineTimingDiagnostics(BaselineFramePayloadPacket packet, double receiveUnixMs)
     {
+        EnsureBaselineTimingDiagnosticsInitialized();
         double applyUnixMs = UtcNowUnixMs();
         lastBaselineUnityQueueMs = applyUnixMs - receiveUnixMs;
+        baselineUnityQueueSeries.Add(lastBaselineUnityQueueMs);
+        baselineTimingAcceptedPacketCount += 1;
+        double sourceTimestampMs = packet.timestamp * 1000.0;
+        if (baselineTimingFirstFrameIndex < 0)
+        {
+            baselineTimingFirstFrameIndex = packet.frame_index;
+            baselineTimingFirstSourceTimestampMs = sourceTimestampMs;
+        }
+        baselineTimingLastFrameIndex = packet.frame_index;
+        baselineTimingLastSourceTimestampMs = sourceTimestampMs;
 
         if (packet.timing != null &&
             packet.timing.schema_version == 1 &&
@@ -563,6 +718,9 @@ public class RobotControlScript : MonoBehaviour
                 receiveUnixMs - packet.timing.udp_send_attempt_unix_ms;
             lastBaselineSourceToTargetApplyMs =
                 applyUnixMs - packet.timing.source_read_end_unix_ms;
+            baselinePythonPipelineSeries.Add(lastBaselinePythonPipelineMs);
+            baselineUdpDeliverySeries.Add(lastBaselineUdpDeliveryMs);
+            baselineSourceToTargetApplySeries.Add(lastBaselineSourceToTargetApplyMs);
         }
         else
         {
@@ -585,6 +743,102 @@ public class RobotControlScript : MonoBehaviour
                 "，过期/乱序包=" + baselineStalePacketCount +
                 "，watchdog 张开=" + baselineWatchdogOpenCount
             );
+        }
+    }
+
+    private void InitializeBaselineTimingDiagnostics()
+    {
+        int capacity = Math.Max(1, baselineTimingSampleCapacity);
+        baselinePythonPipelineSeries = new BoundedTimingSeries(capacity);
+        baselineUdpDeliverySeries = new BoundedTimingSeries(capacity);
+        baselineUnityQueueSeries = new BoundedTimingSeries(capacity);
+        baselineSourceToTargetApplySeries = new BoundedTimingSeries(capacity);
+        baselineTimingAcceptedPacketCount = 0;
+        baselineTimingFirstFrameIndex = -1;
+        baselineTimingLastFrameIndex = -1;
+        baselineTimingFirstSourceTimestampMs = -1.0;
+        baselineTimingLastSourceTimestampMs = -1.0;
+        lastBaselineTimingSummaryPath = "";
+    }
+
+    private void EnsureBaselineTimingDiagnosticsInitialized()
+    {
+        if (baselineUnityQueueSeries == null)
+        {
+            InitializeBaselineTimingDiagnostics();
+        }
+    }
+
+    private void WriteBaselineTimingSummary(string completionReason)
+    {
+        if (!writeBaselineTimingSummary || baselineTimingAcceptedPacketCount <= 0)
+        {
+            return;
+        }
+        EnsureBaselineTimingDiagnosticsInitialized();
+        BaselineTimingRunSummary summary = new BaselineTimingRunSummary
+        {
+            schema_version = "handai-unity-timing-summary-v1",
+            created_at_utc = DateTime.UtcNow.ToString("o"),
+            completion_reason = completionReason,
+            claim_status = "single_right_hand_unity_preview_timing_diagnostic",
+            timing_boundary = "source.read() return to Unity main-thread target apply; excludes camera exposure, pre-read wait, display refresh, human response, and physical hardware",
+            retention_policy = "bounded_recent_samples_with_total_count",
+            accepted_packet_count = baselineTimingAcceptedPacketCount,
+            source_session = new BaselineTimingSourceSession
+            {
+                first_frame_index = baselineTimingFirstFrameIndex,
+                last_frame_index = baselineTimingLastFrameIndex,
+                first_source_timestamp_unix_ms = baselineTimingFirstSourceTimestampMs,
+                last_source_timestamp_unix_ms = baselineTimingLastSourceTimestampMs
+            },
+            metrics = new BaselineTimingMetricsSummary
+            {
+                python_post_capture_to_udp_ms = baselinePythonPipelineSeries.Snapshot(),
+                udp_delivery_ms = baselineUdpDeliverySeries.Snapshot(),
+                unity_main_thread_queue_ms = baselineUnityQueueSeries.Snapshot(),
+                source_read_end_to_target_apply_ms = baselineSourceToTargetApplySeries.Snapshot()
+            },
+            counters = new BaselineTimingCountersSummary
+            {
+                overwritten_packet_count = baselineOverwrittenPacketCount,
+                frame_gap_count = baselineFrameGapCount,
+                rejected_packet_count = baselineRejectedPacketCount,
+                stale_packet_count = baselineStalePacketCount,
+                watchdog_open_count = baselineWatchdogOpenCount
+            },
+            safety = new BaselineTimingSafetySummary
+            {
+                baseline_udp_hardware_forwarding_compiled = BaselineUdpHardwareForwardingCompiled,
+                apply_baseline_preview_to_hardware = applyBaselinePreviewToHardware,
+                real_svh_in_scope = false
+            }
+        };
+        string outputDirectory = Path.Combine(Application.persistentDataPath, "HandAiDiagnostics");
+        string identity = DateTime.UtcNow.ToString("yyyyMMddTHHmmssfffZ") + "_" + Guid.NewGuid().ToString("N").Substring(0, 8);
+        string outputPath = Path.Combine(outputDirectory, "unity_timing_" + identity + ".json");
+        string tempPath = outputPath + ".tmp";
+        try
+        {
+            Directory.CreateDirectory(outputDirectory);
+            File.WriteAllText(tempPath, JsonUtility.ToJson(summary, true), new UTF8Encoding(false));
+            File.Move(tempPath, outputPath);
+            lastBaselineTimingSummaryPath = outputPath;
+            Debug.Log("Baseline timing summary 已写入：" + outputPath);
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                if (File.Exists(tempPath))
+                {
+                    File.Delete(tempPath);
+                }
+            }
+            catch (Exception)
+            {
+            }
+            Debug.LogWarning("写入 Baseline timing summary 失败：" + ex.Message);
         }
     }
 
@@ -996,6 +1250,7 @@ public class RobotControlScript : MonoBehaviour
         {
             baselineUdpThread.Join(200);
         }
+        WriteBaselineTimingSummary("component_destroyed");
         if (robotHand != null)
         {
             robotHand.Stop();

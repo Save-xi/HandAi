@@ -45,6 +45,8 @@
 [Phase 1.5 二审修补与算法复核记录](docs/phase15_second_review_remediation.md)。
 真实摄像头视频域的媒体时间轴、开发集/盲测集隔离和三分支决策见
 [真实摄像头域开发评测协议](docs/camera_domain_protocol_v1.md)。
+2026-09-01 的真实摄像头、CUDA 影子、Unity 时延和人工视觉闭环见
+[真实摄像头与 Unity 实时验收记录](docs/live_runtime_acceptance_20260901.md)。
 
 ## 推荐理解顺序
 
@@ -142,7 +144,11 @@ python src/main.py --config configs/default.yaml --save-jsonl
 运行产物会写到（`examples/` 只保留冻结示例，不再被实时运行覆盖）：
 
 - `outputs/latest_frame.json`：最近一帧的 JSON
-- `outputs/session_*.jsonl`：开启 `--save-jsonl` 后的逐帧日志
+- `outputs/session_<run_id>.jsonl`：开启 `--save-jsonl` 后的逐帧日志
+- `outputs/runtime_session_<run_id>.json`：同次运行的配置 SHA、日志路径/SHA/行数和首末帧清单
+
+若同时开启 prediction shadow，`prediction_session_<run_id>.jsonl` 与 baseline 共享同一个
+文件名级 `run_id`。该身份只用于旁路证据配对，不写入逐帧 payload 或 Unity UDP。
 
 ## 常用模式
 
@@ -270,6 +276,9 @@ hold-last、raw residual 和 gated residual。当前帧 UDP 发送后只做非�
 进入独立的 `latest_prediction_shadow.json` / `prediction_session_*.jsonl`，不改
 `svh_preview`，也不把预测发给 Unity。当前 v2 离线 gate 未全部通过，只允许研究诊断。详见
 [docs/intent_prediction_shadow_mode.md](docs/intent_prediction_shadow_mode.md)。
+
+真实摄像头运行退出后，配对时必须同时核验共享 `run_id`、`runtime_session_<run_id>.json`、
+逐帧 frame/timestamp 和日志 SHA；不能只按相同 `frame_index` 做宽松交集。
 
 ## 输入镜像和左右手
 

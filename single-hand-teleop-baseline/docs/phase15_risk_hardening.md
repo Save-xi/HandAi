@@ -256,6 +256,8 @@ test 对比：
 | Unity 最小源码快照 | 7/7 文件哈希通过，且本机外部工程无漂移 |
 | 当前摄像头无界面 60 帧短跑 | 60/60 baseline + 60/60 prediction 记录，worker 0 丢弃 |
 | 当前短跑手部状态 | 60 帧均 invalid（运行时没有把右手放入画面，不是算法验收） |
+| 2026-09-01 真实摄像头 + Unity Play | 1,093 帧严格配对；worker 0 丢弃；Unity 1,090 accepted / 3 frame gap / 0 rejected / 0 stale |
+| 2026-09-01 用户人工视觉 | 充分张开、握拳/捏合跟随、遮挡后安全张开，三项 PASS |
 | 旧真实日志 v2 重放 | 458 predicted，固定 30 Hz 时间窗 |
 | 50,000 次 mock 压测 | 只保留 32 条，峰值约 0.029 MiB |
 | 1,920 行历史 JSONL runtime/schema 双校验 | 0 拒绝 / 0 拒绝 |
@@ -264,11 +266,13 @@ test 对比：
 
 1. 后续延迟、抖动、丢包冻结回放已完成，但 retention gate 仍为 4/6；所以仍不能说预测改善了遥操作延迟。
 2. 当前 v2 模型没有通过全部预注册门槛；保留作本科阶段学习和影子分析，不进入控制。
-3. 当前 60 帧摄像头短跑没有右手入镜，不能替代用户手动 open/fist/pinch/连续动作验收。
-4. Unity batchmode 证明脚本行为与本机 UDP 回环，但不替代用户在正式场景中的视觉观感验收。
-5. Unity 完整工程当前不是 Git 仓库；已把接收脚本、batch 验收脚本、包清单和编辑器版本
+3. 2026-09-01 的真实运行和用户人工视觉检查已经补足此前“60 帧无手短跑”和“batch 不等于观感”的
+   证据缺口；完整结果见 [实时验收记录](live_runtime_acceptance_20260901.md)。它仍不是预测效用或真机验收。
+4. Unity 完整工程当前不是 Git 仓库；已把接收脚本、batch 验收脚本、包清单和编辑器版本
    作为 [最小可恢复快照](../integrations/unity_phase15_snapshot/README.md) 纳入本仓库，
    场景和第三方资源仍由原 Unity 工程保存。
+5. 真实摄像头域协议仍是 development 草稿；盲测门槛不得只依据一次 live session 冻结，必须先完成
+   开发视频的逐段分析和失败成本确认，再对全新 B1–B7 做一次正式判定。
 6. 实体 SVH 安全仍是独立阶段：协议、标定、限位、homing、ACK、watchdog、急停均未验收。
 
 后续冻结实验结果见 [延迟、抖动、丢包回放报告](intent_prediction_delay_injection.md)：H2O

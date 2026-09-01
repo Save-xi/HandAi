@@ -99,12 +99,23 @@ python -X utf8 experiments\intent_prediction\scripts\run_camera_domain_eval.py `
 报告自动记录视频/JSONL/config/protocol/checkpoint/selection SHA、Git revision、环境、PTS 回退次数、
 输入镜像选项及安全边界。
 
+显式运行 `src/main.py ... --save-jsonl` 时，Python 还会用同一个 `run_id` 生成三件旁路证据：
+
+- `session_<run_id>.jsonl`：实际发往 Unity 前冻结的 baseline 帧；
+- `prediction_session_<run_id>.jsonl`：latest-only worker 真正完成并落盘的影子结果；
+- `runtime_session_<run_id>.json`：原子冻结的配置 SHA、精确路径、日志 SHA/字节数/行数、首末帧、
+  模型身份与 worker 提交/完成/丢弃计数。
+
+`run_id` 只存在于文件名和 manifest，不进入 canonical payload 或 UDP，因而不改变 Unity contract。
+
 ## 6. 三类指标必须分开解释
 
 ### 6.1 源视频与输入连续性
 
 - `nominal_fps`：容器声明帧率；
-- `effective_fps`：媒体时间戳相邻差的中位数换算；
+- `median_interval_fps`：媒体时间戳相邻差的中位数换算；
+- `duration_based_fps`：`(帧数 - 1) / (末 PTS - 首 PTS)`，表示整段首末时长均值；
+- `effective_fps`：仅为兼容旧 JSON 读取方保留的 `median_interval_fps` 别名，新报告不再把它笼统写成“源 FPS”；
 - `timestamp_source_counts`：容器 PTS 与回退帧数量；
 - `detected_fraction`、`control_ready_fraction`、`svh_valid_fraction`；
 - 连续片段数、warming_up/invalid_input 状态数。
@@ -127,12 +138,42 @@ python -X utf8 src\main.py --config configs\unity_udp_preview.yaml `
   --camera-index 0 --prediction-shadow --save-jsonl
 ```
 
-把对应 baseline 与 `prediction_session_*.jsonl` 同时传给评测脚本后，只分析：
+停止 Python 后，`runtime_session_<run_id>.json` 会从 `running` 原子冻结为 `completed`（Ctrl+C 为
+`interrupted`）。退出 Unity Play 后，Console 会打印 `unity_timing_*.json` 的实际路径；该文件默认写到
+`Application.persistentDataPath/HandAiDiagnostics/`，每项指标最多保留最近 4096 个样本，同时记录总样本数。
 
-- wall-clock source FPS 与 baseline latency；
+把同一 `run_id` 的两份 JSONL 与 Unity 摘要传给评测脚本：
+
+```powershell
+python -X utf8 experiments\intent_prediction\scripts\run_camera_domain_eval.py `
+  --role development `
+  --video V1=D:\HandAiVideos\V1.mp4 `
+  --video V2=D:\HandAiVideos\V2.mp4 `
+  --video V3=D:\HandAiVideos\V3.mp4 `
+  --video V4=D:\HandAiVideos\V4.mp4 `
+  --video V5=D:\HandAiVideos\V5.mp4 `
+  --video V6=D:\HandAiVideos\V6.mp4 `
+  --video V7=D:\HandAiVideos\V7.mp4 `
+  --input-not-mirrored `
+  --live-baseline-jsonl D:\...\session_<run_id>.jsonl `
+  --live-prediction-jsonl D:\...\prediction_session_<run_id>.jsonl `
+  --live-unity-timing-json C:\...\HandAiDiagnostics\unity_timing_*.json
+```
+
+manifest 默认从 baseline 同目录按 `run_id` 推导；也可显式传 `--live-session-manifest`。评测器会拒绝
+跨 run_id、重复帧、缺帧引用、逐帧时间戳错配、模型 SHA 漂移及日志 SHA/行数不符，不再对两份日志
+做宽松交集后假装配对成功。通过严格配对后只分析：
+
+- source timestamp 的中位间隔/首末时长 FPS；
+- Python `source.read()` 返回后的处理与 UDP send attempt 耗时；
 - worker 结果覆盖；
 - predicted 覆盖；
-- 推理耗时与状态计数。
+- 推理耗时与状态计数；
+- 可选的 UDP delivery、Unity 主线程排队及 `source.read()` 返回后到目标应用的 P50/P95/max；
+- Unity accepted/overwritten/frame-gap/rejected/stale/watchdog 计数及三项硬件关闭边界。
+
+这里的 timing 起点是输入源 `read()` 已经返回，不包含相机曝光、此前等待、显示刷新、人体反应或
+实体机械响应；Unity 的“target apply”也不等于画面已经渲染。
 
 它不代替 6.2 的算法效用结果。
 
@@ -177,3 +218,10 @@ python -X utf8 src\main.py --config configs\unity_udp_preview.yaml `
 2026-08-28 单条摄像头日志曾得到：条件预测率约 65.17%、接收覆盖约 94.97%、端到端预测覆盖
 约 61.90%、中位处理 FPS 约 12.5。由于该日志使用 wall-clock 且只有一个 session，只保留为历史诊断，
 不能用于冻结最终结论。
+
+2026-09-01 的真实 Play 运行严格配对 1,093 帧：source 时长均值 22.78 FPS、worker 结果覆盖 100%、
+有效控制帧 predicted 覆盖 85.12%、Unity 应用 1,090 帧、frame gap 3、rejected/stale 均为 0，
+source.read 返回后至 Unity 应用 P95 53.79 ms。用户另行确认充分张开、握拳/捏合跟随和遮挡后
+安全张开三项视觉检查均通过。完整证据见
+[2026-09-01 实时验收记录](live_runtime_acceptance_20260901.md)。这些值仍只作为 development 参考，
+不参与未来 B1–B7 的门槛回填。

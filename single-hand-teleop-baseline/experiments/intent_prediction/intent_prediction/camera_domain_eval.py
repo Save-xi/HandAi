@@ -22,6 +22,7 @@ import logging
 import math
 from pathlib import Path
 import platform
+import re
 import subprocess
 import sys
 import time
@@ -35,6 +36,7 @@ from main import RuntimeMode, _apply_extension_chain, _build_baseline_payload, _
 from output.frame_payload_contract import prepare_frame_payload
 from prediction.shadow_predictor import build_prediction_shadow
 from utils.config import load_config
+from utils.runtime_session import RUNTIME_SESSION_SCHEMA_VERSION
 
 from intent_prediction.delay_injection import (
     RuntimeTraceGroup,
@@ -52,6 +54,7 @@ EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONFIG_PATH = EXPERIMENT_ROOT / "configs" / "camera_domain_eval_v1.json"
 DEFAULT_OUTPUT_ROOT = EXPERIMENT_ROOT / "outputs" / "camera_domain_eval_v1"
 REPORT_SCHEMA_VERSION = "camera-domain-eval-report-v1"
+UNITY_TIMING_SUMMARY_SCHEMA_VERSION = "handai-unity-timing-summary-v1"
 
 
 @dataclass(frozen=True)
@@ -417,8 +420,15 @@ def process_video_to_baseline_jsonl(
     deltas_ms = np.diff(np.asarray(timestamps_ms, dtype=np.float64))
     if deltas_ms.size and np.any(deltas_ms <= 0.0):
         raise RuntimeError("内部错误：媒体时间轴不是严格递增")
-    effective_fps = float(1000.0 / np.median(deltas_ms)) if deltas_ms.size else nominal_fps
+    median_interval_fps = (
+        float(1000.0 / np.median(deltas_ms)) if deltas_ms.size else nominal_fps
+    )
     duration_ms = float(timestamps_ms[-1] - timestamps_ms[0]) if frame_index > 1 else 0.0
+    duration_based_fps = (
+        float((frame_index - 1) * 1000.0 / duration_ms)
+        if frame_index > 1 and duration_ms > 0.0
+        else nominal_fps
+    )
     return {
         "video_id": spec.video_id,
         "video_path": str(spec.path),
@@ -440,7 +450,10 @@ def process_video_to_baseline_jsonl(
             "first_media_timestamp_ms": timestamps_ms[0],
             "last_media_timestamp_ms": timestamps_ms[-1],
             "duration_ms": duration_ms,
-            "effective_fps": effective_fps,
+            "median_interval_fps": median_interval_fps,
+            "duration_based_fps": duration_based_fps,
+            # 兼容 v1 报告读取方；新报告与 Markdown 不再把它笼统称为“源 FPS”。
+            "effective_fps": median_interval_fps,
             "timestamp_source_counts": timestamp_source_counts,
         },
         "offline_processing_capacity": {
@@ -480,22 +493,294 @@ def _load_jsonl(path: Path) -> list[dict[str, Any]]:
     return rows
 
 
-def analyze_live_runtime_logs(baseline_path: Path, prediction_path: Path) -> dict[str, Any]:
-    """分析真实异步 worker 日志；它与固定视频的同步算法重放互不替代。"""
+def _extract_session_run_id(path: Path, *, prefix: str) -> str:
+    pattern = re.compile(rf"^{re.escape(prefix)}_(?P<run_id>[A-Za-z0-9][A-Za-z0-9.-]*)\.jsonl$")
+    match = pattern.fullmatch(path.name)
+    if match is None:
+        raise ValueError(
+            f"{path.name} 不符合严格会话命名 {prefix}_<run_id>.jsonl；"
+            "请使用新版 --save-jsonl 产生的日志"
+        )
+    return match.group("run_id")
+
+
+def _same_resolved_path(first: Path, second: Path) -> bool:
+    return str(first.resolve()).casefold() == str(second.resolve()).casefold()
+
+
+def _validate_manifest_output(
+    record: Any,
+    *,
+    expected_path: Path,
+    expected_rows: int,
+    label: str,
+) -> None:
+    if not isinstance(record, dict):
+        raise ValueError(f"runtime manifest 缺少 {label} 输出记录")
+    recorded_path = record.get("path")
+    if not isinstance(recorded_path, str) or not _same_resolved_path(Path(recorded_path), expected_path):
+        raise ValueError(f"runtime manifest 的 {label} 路径与传入日志不一致")
+    if record.get("exists") is not True:
+        raise ValueError(f"runtime manifest 标记 {label} 不存在")
+    if record.get("rows") != expected_rows:
+        raise ValueError(
+            f"runtime manifest 的 {label} 行数不一致："
+            f"manifest={record.get('rows')}, actual={expected_rows}"
+        )
+    if record.get("bytes") != expected_path.stat().st_size:
+        raise ValueError(f"runtime manifest 的 {label} 字节数不一致")
+    if record.get("sha256") != _hash_file(expected_path):
+        raise ValueError(f"runtime manifest 的 {label} SHA-256 不一致")
+
+
+def _validate_runtime_manifest(
+    manifest_path: Path,
+    *,
+    run_id: str,
+    baseline_path: Path,
+    prediction_path: Path,
+    baseline_rows: list[dict[str, Any]],
+    prediction_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    manifest_path = manifest_path.resolve()
+    manifest = _read_json(manifest_path)
+    if manifest.get("schema_version") != RUNTIME_SESSION_SCHEMA_VERSION:
+        raise ValueError("runtime manifest schema_version 不受支持")
+    if manifest.get("run_id") != run_id:
+        raise ValueError("runtime manifest run_id 与日志文件名不一致")
+    if manifest.get("status") not in {"completed", "interrupted"}:
+        raise ValueError(f"runtime manifest 尚不可用于评估：status={manifest.get('status')}")
+    outputs = manifest.get("outputs")
+    if not isinstance(outputs, dict):
+        raise ValueError("runtime manifest 缺少 outputs")
+    _validate_manifest_output(
+        outputs.get("baseline_jsonl"),
+        expected_path=baseline_path,
+        expected_rows=len(baseline_rows),
+        label="baseline_jsonl",
+    )
+    _validate_manifest_output(
+        outputs.get("prediction_jsonl"),
+        expected_path=prediction_path,
+        expected_rows=len(prediction_rows),
+        label="prediction_jsonl",
+    )
+    frames = manifest.get("frames")
+    if not isinstance(frames, dict) or frames.get("processed") != len(baseline_rows):
+        raise ValueError("runtime manifest 的 processed 帧数与 baseline JSONL 不一致")
+    first = baseline_rows[0]
+    last = baseline_rows[-1]
+    expected_frame_fields = {
+        "first_frame_index": first.get("frame_index"),
+        "last_frame_index": last.get("frame_index"),
+        "first_timestamp_unix_s": first.get("timestamp"),
+        "last_timestamp_unix_s": last.get("timestamp"),
+    }
+    for key, expected in expected_frame_fields.items():
+        actual = frames.get(key)
+        if _finite_number(expected):
+            if not _finite_number(actual) or not math.isclose(
+                float(actual), float(expected), rel_tol=0.0, abs_tol=1e-9
+            ):
+                raise ValueError(f"runtime manifest 的 {key} 与 baseline JSONL 不一致")
+        elif actual != expected:
+            raise ValueError(f"runtime manifest 的 {key} 与 baseline JSONL 不一致")
+    config = manifest.get("config")
+    if (
+        not isinstance(config, dict)
+        or not isinstance(config.get("path"), str)
+        or not isinstance(config.get("sha256"), str)
+        or len(config["sha256"]) != 64
+    ):
+        raise ValueError("runtime manifest 缺少配置文件身份")
+    runtime = manifest.get("runtime")
+    if not isinstance(runtime, dict) or runtime.get("prediction_shadow_requested") is not True:
+        raise ValueError("runtime manifest 未证明本次运行请求了 prediction shadow")
+    safety = manifest.get("safety")
+    if not isinstance(safety, dict) or safety.get("prediction_modifies_unity_udp") is not False:
+        raise ValueError("runtime manifest 缺少 prediction 不改 UDP 的安全边界")
+    return manifest
+
+
+def _validate_unity_timing_summary(
+    path: Path,
+    *,
+    baseline_by_index: dict[int, dict[str, Any]],
+) -> dict[str, Any]:
+    resolved = path.resolve()
+    summary = _read_json(resolved)
+    if summary.get("schema_version") != UNITY_TIMING_SUMMARY_SCHEMA_VERSION:
+        raise ValueError("Unity timing summary schema_version 不受支持")
+    source = summary.get("source_session")
+    if not isinstance(source, dict):
+        raise ValueError("Unity timing summary 缺少 source_session")
+    first_index = source.get("first_frame_index")
+    last_index = source.get("last_frame_index")
+    if (
+        not isinstance(first_index, int)
+        or isinstance(first_index, bool)
+        or not isinstance(last_index, int)
+        or isinstance(last_index, bool)
+        or first_index > last_index
+        or first_index not in baseline_by_index
+        or last_index not in baseline_by_index
+    ):
+        raise ValueError("Unity timing summary 的首末 frame_index 无法与 baseline 配对")
+    for index, key in (
+        (first_index, "first_source_timestamp_unix_ms"),
+        (last_index, "last_source_timestamp_unix_ms"),
+    ):
+        actual = source.get(key)
+        expected = float(baseline_by_index[index]["timestamp"]) * 1000.0
+        if not _finite_number(actual) or not math.isclose(
+            float(actual), expected, rel_tol=0.0, abs_tol=0.01
+        ):
+            raise ValueError(f"Unity timing summary 的 {key} 与 baseline 不一致")
+    accepted = summary.get("accepted_packet_count")
+    if (
+        not isinstance(accepted, int)
+        or isinstance(accepted, bool)
+        or accepted <= 0
+        or accepted > len(baseline_by_index)
+    ):
+        raise ValueError("Unity timing summary 的 accepted_packet_count 无效")
+    metrics = summary.get("metrics")
+    required_metrics = (
+        "python_post_capture_to_udp_ms",
+        "udp_delivery_ms",
+        "unity_main_thread_queue_ms",
+        "source_read_end_to_target_apply_ms",
+    )
+    if not isinstance(metrics, dict):
+        raise ValueError("Unity timing summary 缺少 metrics")
+    for name in required_metrics:
+        metric = metrics.get(name)
+        if not isinstance(metric, dict):
+            raise ValueError(f"Unity timing summary 缺少指标 {name}")
+        total = metric.get("total_sample_count")
+        retained = metric.get("retained_sample_count")
+        capacity = metric.get("capacity")
+        if (
+            not isinstance(total, int)
+            or isinstance(total, bool)
+            or not isinstance(retained, int)
+            or isinstance(retained, bool)
+            or not isinstance(capacity, int)
+            or isinstance(capacity, bool)
+            or capacity <= 0
+            or total != accepted
+            or retained != min(total, capacity)
+        ):
+            raise ValueError(f"Unity timing summary 指标 {name} 的样本计数无效")
+        p50 = metric.get("p50_ms")
+        p95 = metric.get("p95_ms")
+        maximum = metric.get("max_ms")
+        if (
+            not _finite_number(p50)
+            or not _finite_number(p95)
+            or not _finite_number(maximum)
+            or float(p50) > float(p95)
+            or float(p95) > float(maximum)
+        ):
+            raise ValueError(f"Unity timing summary 指标 {name} 的分位数无效")
+
+    counters = summary.get("counters")
+    required_counters = (
+        "overwritten_packet_count",
+        "frame_gap_count",
+        "rejected_packet_count",
+        "stale_packet_count",
+        "watchdog_open_count",
+    )
+    if not isinstance(counters, dict):
+        raise ValueError("Unity timing summary 缺少 counters")
+    for name in required_counters:
+        value = counters.get(name)
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            raise ValueError(f"Unity timing summary 计数器 {name} 无效")
+
+    safety = summary.get("safety")
+    if not isinstance(safety, dict):
+        raise ValueError("Unity timing summary 缺少 safety")
+    required_false_safety = (
+        "baseline_udp_hardware_forwarding_compiled",
+        "apply_baseline_preview_to_hardware",
+        "real_svh_in_scope",
+    )
+    for name in required_false_safety:
+        if safety.get(name) is not False:
+            raise ValueError(f"Unity timing summary 安全边界 {name} 未保持关闭")
+    return {
+        "path": str(resolved),
+        "sha256": _hash_file(resolved),
+        "pairing_policy": (
+            "first_and_last_source_frame_plus_timestamp_with_timing_counters_and_safety"
+        ),
+        "summary": summary,
+    }
+
+
+def analyze_live_runtime_logs(
+    baseline_path: Path,
+    prediction_path: Path,
+    *,
+    manifest_path: Path | None = None,
+    unity_timing_path: Path | None = None,
+) -> dict[str, Any]:
+    """严格配对并分析真实异步 worker 日志；不替代同步算法重放。"""
 
     baseline_path = baseline_path.resolve()
     prediction_path = prediction_path.resolve()
+    baseline_run_id = _extract_session_run_id(baseline_path, prefix="session")
+    prediction_run_id = _extract_session_run_id(
+        prediction_path,
+        prefix="prediction_session",
+    )
+    if baseline_run_id != prediction_run_id:
+        raise ValueError("live baseline 与 prediction JSONL 的 run_id 不一致")
     baseline_rows = _load_jsonl(baseline_path)
     prediction_rows = _load_jsonl(prediction_path)
     if not baseline_rows:
         raise ValueError("live baseline JSONL 为空")
-    baseline_by_index = {
-        int(row["frame_index"]): row
-        for row in baseline_rows
-        if isinstance(row.get("frame_index"), int) and not isinstance(row.get("frame_index"), bool)
-    }
-    if not baseline_by_index:
-        raise ValueError("live baseline JSONL 没有合法 frame_index")
+
+    baseline_by_index: dict[int, dict[str, Any]] = {}
+    baseline_order: list[int] = []
+    timestamps: list[float] = []
+    for row_number, row in enumerate(baseline_rows, start=1):
+        frame_index = row.get("frame_index")
+        timestamp = row.get("timestamp")
+        if not isinstance(frame_index, int) or isinstance(frame_index, bool):
+            raise ValueError(f"live baseline 第 {row_number} 行 frame_index 非法")
+        if frame_index in baseline_by_index:
+            raise ValueError(f"live baseline 存在重复 frame_index={frame_index}")
+        if not _finite_number(timestamp):
+            raise ValueError(f"live baseline 第 {row_number} 行 timestamp 非法")
+        baseline_by_index[frame_index] = row
+        baseline_order.append(frame_index)
+        timestamps.append(float(timestamp))
+    if len(baseline_order) >= 2 and np.any(np.diff(np.asarray(baseline_order)) <= 0):
+        raise ValueError("live baseline frame_index 未严格递增")
+    timestamp_deltas = np.diff(np.asarray(timestamps, dtype=np.float64))
+    if timestamp_deltas.size and np.any(timestamp_deltas <= 0.0):
+        raise ValueError("live baseline timestamp 未严格递增")
+
+    resolved_manifest = (
+        manifest_path.resolve()
+        if manifest_path is not None
+        else baseline_path.parent / f"runtime_session_{baseline_run_id}.json"
+    )
+    manifest = _validate_runtime_manifest(
+        resolved_manifest,
+        run_id=baseline_run_id,
+        baseline_path=baseline_path,
+        prediction_path=prediction_path,
+        baseline_rows=baseline_rows,
+        prediction_rows=prediction_rows,
+    )
+    prediction_identity = manifest.get("prediction")
+    if not isinstance(prediction_identity, dict) or prediction_identity.get("enabled") is not True:
+        raise ValueError("runtime manifest 缺少已启用的 prediction 身份")
+
     valid_indexes = {
         index
         for index, row in baseline_by_index.items()
@@ -504,50 +789,116 @@ def analyze_live_runtime_logs(baseline_path: Path, prediction_path: Path) -> dic
         and row["svh_preview"].get("valid") is True
     }
     prediction_by_index: dict[int, dict[str, Any]] = {}
+    prediction_order: list[int] = []
     status_counts: dict[str, int] = {}
     inference_ms: list[float] = []
     observed_fps: list[float] = []
-    for row in prediction_rows:
+    identity_fields = {
+        "model_label": "model_label",
+        "device": "device",
+        "history_frames_required": "history_frames",
+        "horizon_ms": "horizon_ms",
+        "selection_sha256": "selection_sha256",
+        "checkpoint_sha256": "checkpoint_sha256",
+    }
+    for row_number, row in enumerate(prediction_rows, start=1):
         diagnostics = row.get("prediction_diagnostics")
         if not isinstance(diagnostics, dict):
-            continue
+            raise ValueError(f"live prediction 第 {row_number} 行缺少 prediction_diagnostics")
         source_index = diagnostics.get("source_frame_index")
         if not isinstance(source_index, int) or isinstance(source_index, bool):
-            continue
+            raise ValueError(f"live prediction 第 {row_number} 行 source_frame_index 非法")
+        if source_index in prediction_by_index:
+            raise ValueError(f"live prediction 存在重复 source_frame_index={source_index}")
+        if source_index not in baseline_by_index:
+            raise ValueError(f"live prediction 引用了 baseline 中不存在的 frame_index={source_index}")
+        if row.get("frame_index") != source_index:
+            raise ValueError(f"live prediction 顶层 frame_index 与诊断源帧不一致：{source_index}")
+        baseline_timestamp = float(baseline_by_index[source_index]["timestamp"])
+        if not _finite_number(row.get("timestamp")) or not math.isclose(
+            float(row["timestamp"]), baseline_timestamp, rel_tol=0.0, abs_tol=1e-9
+        ):
+            raise ValueError(f"live prediction 与 baseline timestamp 不一致：frame_index={source_index}")
+        source_timestamp_ms = diagnostics.get("source_timestamp_unix_ms")
+        if not _finite_number(source_timestamp_ms) or not math.isclose(
+            float(source_timestamp_ms), baseline_timestamp * 1000.0, rel_tol=0.0, abs_tol=0.01
+        ):
+            raise ValueError(
+                f"live prediction 诊断源时间戳与 baseline 不一致：frame_index={source_index}"
+            )
+        for diagnostic_key, manifest_key in identity_fields.items():
+            if diagnostics.get(diagnostic_key) != prediction_identity.get(manifest_key):
+                raise ValueError(
+                    f"live prediction 的 {diagnostic_key} 与 runtime manifest 不一致"
+                )
         prediction_by_index[source_index] = diagnostics
+        prediction_order.append(source_index)
         status = str(diagnostics.get("status", "unknown"))
         status_counts[status] = status_counts.get(status, 0) + 1
         if _finite_number(diagnostics.get("inference_ms")):
             inference_ms.append(float(diagnostics["inference_ms"]))
         if _finite_number(diagnostics.get("observed_fps")):
             observed_fps.append(float(diagnostics["observed_fps"]))
-    baseline_indexes = set(baseline_by_index)
-    result_indexes = set(prediction_by_index) & baseline_indexes
+    if len(prediction_order) >= 2 and np.any(np.diff(np.asarray(prediction_order)) <= 0):
+        raise ValueError("live prediction source_frame_index 未严格递增")
+
+    result_indexes = set(prediction_by_index)
     predicted_indexes = {
         index
         for index, diagnostics in prediction_by_index.items()
-        if index in baseline_indexes and diagnostics.get("status") == "predicted"
+        if diagnostics.get("status") == "predicted"
     }
     baseline_count = len(baseline_by_index)
     valid_count = len(valid_indexes)
-    timestamps = [
-        float(row["timestamp"])
-        for row in baseline_rows
-        if _finite_number(row.get("timestamp"))
-    ]
-    source_fps = None
-    source_timeline_strict = False
-    if len(timestamps) >= 2 and np.all(np.diff(np.asarray(timestamps, dtype=np.float64)) > 0.0):
-        source_timeline_strict = True
-        source_fps = float((len(timestamps) - 1) / (timestamps[-1] - timestamps[0]))
+    source_duration_fps = (
+        float((len(timestamps) - 1) / (timestamps[-1] - timestamps[0]))
+        if len(timestamps) >= 2
+        else None
+    )
+    source_median_interval_fps = (
+        float(1.0 / np.median(timestamp_deltas)) if timestamp_deltas.size else None
+    )
     latency_values = [
         float(row["latency_ms"])
         for row in baseline_rows
         if _finite_number(row.get("latency_ms"))
     ]
+    source_read_call_ms: list[float] = []
+    python_post_capture_to_udp_ms: list[float] = []
+    for row in baseline_rows:
+        timing = row.get("timing")
+        if not isinstance(timing, dict) or timing.get("schema_version") != 1:
+            continue
+        read_start = timing.get("source_read_start_unix_ms")
+        read_end = timing.get("source_read_end_unix_ms")
+        udp_send = timing.get("udp_send_attempt_unix_ms")
+        if _finite_number(read_start) and _finite_number(read_end):
+            source_read_call_ms.append(float(read_end) - float(read_start))
+        if _finite_number(read_end) and _finite_number(udp_send):
+            python_post_capture_to_udp_ms.append(float(udp_send) - float(read_end))
+    unity_timing = (
+        _validate_unity_timing_summary(
+            unity_timing_path,
+            baseline_by_index=baseline_by_index,
+        )
+        if unity_timing_path is not None
+        else None
+    )
+    config_record = manifest["config"]
+    current_config_path = Path(config_record["path"])
+    config_current_match = (
+        current_config_path.is_file()
+        and config_record["sha256"] == _hash_file(current_config_path)
+    )
     return {
         "claim_status": "real_time_worker_diagnostics",
         "meaning": "只衡量真实运行吞吐、队列结果覆盖与状态；不替代媒体时间轴上的算法效用评测。",
+        "run_id": baseline_run_id,
+        "pairing_policy": "shared_run_id_plus_manifest_paths_hashes_rows_and_per_frame_identity",
+        "manifest_path": str(resolved_manifest),
+        "manifest_sha256": _hash_file(resolved_manifest),
+        "manifest_status": manifest["status"],
+        "manifest_config_current_match": config_current_match,
         "baseline_path": str(baseline_path),
         "baseline_sha256": _hash_file(baseline_path),
         "prediction_path": str(prediction_path),
@@ -562,11 +913,21 @@ def analyze_live_runtime_logs(baseline_path: Path, prediction_path: Path) -> dic
             float(len(predicted_indexes & valid_indexes) / valid_count) if valid_count else None
         ),
         "status_counts": status_counts,
-        "source_timeline_strictly_increasing": source_timeline_strict,
-        "source_wallclock_fps": source_fps,
-        "baseline_latency_ms": _percentiles(latency_values),
+        "source_timeline_strictly_increasing": True,
+        "source_duration_based_fps": source_duration_fps,
+        "source_median_interval_fps": source_median_interval_fps,
+        "baseline_processing_ms": _percentiles(latency_values),
+        "source_read_call_ms": _percentiles(source_read_call_ms),
+        "python_post_capture_to_udp_ms": _percentiles(python_post_capture_to_udp_ms),
         "prediction_observed_fps": _percentiles(observed_fps),
         "inference_ms": _percentiles(inference_ms),
+        "prediction_identity": prediction_identity,
+        "worker_manifest": prediction_identity.get("worker"),
+        "unity_timing": unity_timing,
+        "timing_boundary": (
+            "Python post-capture 从 source.read() 返回后开始；Unity source->target apply 从同一边界到主线程应用。"
+            "不包含相机曝光、传感器读取前等待、显示刷新或人体/机械响应。"
+        ),
     }
 
 
@@ -603,6 +964,18 @@ def _evaluate_trace_set(
     summary = {
         "source_count": len(groups),
         "segment_count": len(traces),
+        "source_rows": {
+            "total_rows": sum(group.total_rows for group in groups),
+            "valid_rows": sum(group.valid_rows for group in groups),
+            "evaluable_rows": sum(group.evaluable_rows for group in groups),
+            "discarded_short_segment_rows": sum(
+                group.discarded_short_segment_rows for group in groups
+            ),
+            "discarded_short_segment_count": sum(
+                group.discarded_short_segment_count for group in groups
+            ),
+            "predicted_rows": sum(group.predicted_rows for group in groups),
+        },
         "primary_delays_ms": sorted(primary_delays),
         "primary_delay_summary": _summarize_arrays(primary_arrays),
         "no_impairment_summary": _summarize_arrays(no_impairment) if no_impairment is not None else None,
@@ -693,6 +1066,9 @@ def evaluate_camera_algorithm_utility(
         per_video[video_id]["source"] = {
             "total_rows": group.total_rows,
             "valid_rows": group.valid_rows,
+            "evaluable_rows": group.evaluable_rows,
+            "discarded_short_segment_rows": group.discarded_short_segment_rows,
+            "discarded_short_segment_count": group.discarded_short_segment_count,
             "predicted_rows": group.predicted_rows,
             "status_counts": group.status_counts,
             "segment_count": len(group.traces),
@@ -726,6 +1102,8 @@ def _write_video_csv(path: Path, videos: list[dict[str, Any]], algorithm: dict[s
         "video_id",
         "decoded_frames",
         "nominal_fps",
+        "source_median_interval_fps",
+        "source_duration_based_fps",
         "effective_source_fps",
         "throughput_fps",
         "detected_fraction",
@@ -747,6 +1125,8 @@ def _write_video_csv(path: Path, videos: list[dict[str, Any]], algorithm: dict[s
                     "video_id": video["video_id"],
                     "decoded_frames": video["metadata"]["decoded_frame_count"],
                     "nominal_fps": video["metadata"]["nominal_fps"],
+                    "source_median_interval_fps": video["source_timeline"]["median_interval_fps"],
+                    "source_duration_based_fps": video["source_timeline"]["duration_based_fps"],
                     "effective_source_fps": video["source_timeline"]["effective_fps"],
                     "throughput_fps": video["offline_processing_capacity"]["throughput_fps"],
                     "detected_fraction": video["observation_counts"]["detected_fraction"],
@@ -776,18 +1156,19 @@ def _write_markdown(path: Path, report: dict[str, Any]) -> None:
         "",
         "## 固定视频与时间轴",
         "",
-        "| 视频 | 帧数 | nominal FPS | 源时间轴 FPS | 离线吞吐 FPS | control ready | PTS/回退 |",
-        "|---|---:|---:|---:|---:|---:|---|",
+        "| 视频 | 帧数 | nominal FPS | PTS 中位间隔 FPS | PTS 时长均值 FPS | 离线吞吐 FPS | control ready | PTS/回退 |",
+        "|---|---:|---:|---:|---:|---:|---:|---|",
     ]
     for video in report["videos"]:
         counts = video["source_timeline"]["timestamp_source_counts"]
         source_text = ", ".join(f"{key}:{value}" for key, value in sorted(counts.items()))
         lines.append(
-            "| {video_id} | {frames} | {nominal:.3f} | {source:.3f} | {throughput:.3f} | {ready:.2%} | {counts} |".format(
+            "| {video_id} | {frames} | {nominal:.3f} | {median:.3f} | {duration:.3f} | {throughput:.3f} | {ready:.2%} | {counts} |".format(
                 video_id=video["video_id"],
                 frames=video["metadata"]["decoded_frame_count"],
                 nominal=video["metadata"]["nominal_fps"],
-                source=video["source_timeline"]["effective_fps"],
+                median=video["source_timeline"]["median_interval_fps"],
+                duration=video["source_timeline"]["duration_based_fps"],
                 throughput=video["offline_processing_capacity"]["throughput_fps"] or 0.0,
                 ready=video["observation_counts"]["control_ready_fraction"],
                 counts=source_text,
@@ -804,6 +1185,13 @@ def _write_markdown(path: Path, report: dict[str, Any]) -> None:
                 f"- 条件预测覆盖：{primary['conditional_prediction_available_fraction']:.6f}",
                 f"- 端到端预测覆盖：{primary['end_to_end_prediction_coverage_fraction']:.6f}",
                 f"- 动态 q90 gated RMSE 改善：{dynamic['improvement_percent_vs_hold']['gated_rmse'] if dynamic else None}",
+                (
+                    "- trace 行数口径："
+                    f"valid={algorithm['aggregate']['source_rows']['valid_rows']}，"
+                    f"evaluable={algorithm['aggregate']['source_rows']['evaluable_rows']}，"
+                    "因不足 2 帧被丢弃="
+                    f"{algorithm['aggregate']['source_rows']['discarded_short_segment_rows']}"
+                ),
             ]
         )
     else:
@@ -817,11 +1205,53 @@ def _write_markdown(path: Path, report: dict[str, Any]) -> None:
                 "",
                 "## 真实异步运行能力",
                 "",
+                f"- 严格配对 run_id：`{live['run_id']}`",
+                f"- manifest：`{live['manifest_path']}`",
                 f"- worker 结果覆盖：{live['worker_result_coverage_all_frames']:.6f}",
                 f"- 全帧 predicted 覆盖：{live['predicted_coverage_all_frames']:.6f}",
                 f"- 有效控制帧 predicted 覆盖：{live['predicted_coverage_valid_frames']}",
+                (
+                    "- Python source.read 返回后至 UDP send attempt："
+                    f"P50={live['python_post_capture_to_udp_ms']['p50']} ms，"
+                    f"P95={live['python_post_capture_to_udp_ms']['p95']} ms"
+                ),
             ]
         )
+        unity_timing = live.get("unity_timing")
+        if isinstance(unity_timing, dict):
+            unity_summary = unity_timing["summary"]
+            metrics = unity_summary["metrics"]
+            source_to_target = metrics["source_read_end_to_target_apply_ms"]
+            counters = unity_summary["counters"]
+            safety = unity_summary["safety"]
+            lines.extend(
+                [
+                    f"- Unity timing：`{unity_timing['path']}`",
+                    (
+                        "- source.read 返回后至 Unity 主线程应用："
+                        f"P50={source_to_target['p50_ms']} ms，"
+                        f"P95={source_to_target['p95_ms']} ms，"
+                        f"max={source_to_target['max_ms']} ms"
+                    ),
+                    (
+                        "- Unity 数据包/安全计数："
+                        f"accepted={unity_summary['accepted_packet_count']}，"
+                        f"overwritten={counters['overwritten_packet_count']}，"
+                        f"frame_gap={counters['frame_gap_count']}，"
+                        f"rejected={counters['rejected_packet_count']}，"
+                        f"stale={counters['stale_packet_count']}，"
+                        f"watchdog_open={counters['watchdog_open_count']}"
+                    ),
+                    (
+                        "- Unity 硬件边界："
+                        "hardware_forwarding_compiled="
+                        f"{safety['baseline_udp_hardware_forwarding_compiled']}，"
+                        "apply_preview_to_hardware="
+                        f"{safety['apply_baseline_preview_to_hardware']}，"
+                        f"real_svh_in_scope={safety['real_svh_in_scope']}"
+                    ),
+                ]
+            )
     lines.extend(
         [
             "",
@@ -829,6 +1259,8 @@ def _write_markdown(path: Path, report: dict[str, Any]) -> None:
             "",
             "- 固定视频指标使用视觉映射的未来 `svh_preview` 作为伪真值，不是实体手关节或真实意图真值。",
             "- 离线吞吐、源视频 FPS、真实异步 worker 覆盖是三个不同指标。",
+            "- PTS 中位间隔 FPS 与首末时间戳时长均值 FPS 分列报告；前者不是完整视频时长均值。",
+            "- timing 起点是 `source.read()` 返回后，不包含相机曝光、此前等待、显示刷新或人体/机械响应。",
             "- development 阶段不产生 release/上线结论；盲测前必须另行冻结门槛和双 SHA。",
             "- 本工具不创建 UDP exporter，预测结果仍不进入 Unity payload。",
         ]
@@ -959,6 +1391,8 @@ def run_camera_domain_evaluation(
     expected_protocol_sha256: str | None = None,
     live_baseline_jsonl: Path | None = None,
     live_prediction_jsonl: Path | None = None,
+    live_session_manifest: Path | None = None,
+    live_unity_timing_json: Path | None = None,
     logger: logging.Logger | None = None,
 ) -> Path:
     if role not in {"development", "blind"}:
@@ -1037,8 +1471,17 @@ def run_camera_domain_evaluation(
     live_runtime = None
     if (live_baseline_jsonl is None) != (live_prediction_jsonl is None):
         raise ValueError("--live-baseline-jsonl 与 --live-prediction-jsonl 必须同时提供")
+    if live_baseline_jsonl is None and (
+        live_session_manifest is not None or live_unity_timing_json is not None
+    ):
+        raise ValueError("live manifest/Unity timing 必须与两份 live JSONL 一起提供")
     if live_baseline_jsonl is not None and live_prediction_jsonl is not None:
-        live_runtime = analyze_live_runtime_logs(live_baseline_jsonl, live_prediction_jsonl)
+        live_runtime = analyze_live_runtime_logs(
+            live_baseline_jsonl,
+            live_prediction_jsonl,
+            manifest_path=live_session_manifest,
+            unity_timing_path=live_unity_timing_json,
+        )
     decision: dict[str, Any]
     if role == "development":
         decision = {

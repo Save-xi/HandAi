@@ -198,6 +198,8 @@ def test_video_processing_uses_media_timeline_not_wall_clock(tmp_path, monkeypat
         [1700000000.0, 1700000000.0 + 1.0 / 30.0, 1700000000.0 + 0.066666]
     )
     assert summary["source_timeline"]["effective_fps"] == pytest.approx(30.0, rel=2e-4)
+    assert summary["source_timeline"]["median_interval_fps"] == pytest.approx(30.0, rel=2e-4)
+    assert summary["source_timeline"]["duration_based_fps"] == pytest.approx(30.0003, rel=2e-4)
     assert summary["source_timeline"]["timestamp_source_counts"] == {
         "container_pts_ms": 2,
         "frame_index_over_nominal_fps": 1,
@@ -206,9 +208,21 @@ def test_video_processing_uses_media_timeline_not_wall_clock(tmp_path, monkeypat
     assert [row["frame_index"] for row in rows] == [0, 1, 2]
 
 
-def test_live_runtime_analysis_is_separate_from_algorithm_replay(tmp_path):
-    baseline_path = tmp_path / "baseline.jsonl"
-    prediction_path = tmp_path / "prediction.jsonl"
+def _write_live_runtime_fixture(tmp_path):
+    run_id = "20260901T120000000000Z-1234-deadbeef"
+    baseline_path = tmp_path / f"session_{run_id}.jsonl"
+    prediction_path = tmp_path / f"prediction_session_{run_id}.jsonl"
+    manifest_path = tmp_path / f"runtime_session_{run_id}.json"
+    config_path = tmp_path / "runtime.yaml"
+    config_path.write_text("prediction_shadow_enabled: true\n", encoding="utf-8")
+    identity = {
+        "model_label": "test-shadow",
+        "device": "cpu",
+        "history_frames": 30,
+        "horizon_ms": [50, 100, 150],
+        "selection_sha256": "selection-sha",
+        "checkpoint_sha256": "checkpoint-sha",
+    }
     baseline_rows = [
         {
             "frame_index": index,
@@ -216,26 +230,34 @@ def test_live_runtime_analysis_is_separate_from_algorithm_replay(tmp_path):
             "latency_ms": 10.0 + index,
             "control_ready": index > 0,
             "svh_preview": {"valid": index > 0},
+            "timing": {
+                "schema_version": 1,
+                "source_read_start_unix_ms": 2000.0 + index * 40.0,
+                "source_read_end_unix_ms": 2001.0 + index * 40.0,
+                "udp_send_attempt_unix_ms": 2011.0 + index * 40.0,
+            },
         }
         for index in range(4)
     ]
     prediction_rows = [
         {
+            "frame_index": source_index,
+            "timestamp": baseline_rows[source_index]["timestamp"],
             "prediction_diagnostics": {
-                "source_frame_index": 1,
-                "status": "warming_up",
+                "source_frame_index": source_index,
+                "source_timestamp_unix_ms": baseline_rows[source_index]["timestamp"] * 1000.0,
+                "status": status,
                 "observed_fps": 25.0,
-                "inference_ms": None,
-            }
-        },
-        {
-            "prediction_diagnostics": {
-                "source_frame_index": 2,
-                "status": "predicted",
-                "observed_fps": 25.0,
-                "inference_ms": 2.0,
-            }
-        },
+                "inference_ms": 2.0 if status == "predicted" else None,
+                "model_label": identity["model_label"],
+                "device": identity["device"],
+                "history_frames_required": identity["history_frames"],
+                "horizon_ms": identity["horizon_ms"],
+                "selection_sha256": identity["selection_sha256"],
+                "checkpoint_sha256": identity["checkpoint_sha256"],
+            },
+        }
+        for source_index, status in ((1, "warming_up"), (2, "predicted"))
     ]
     baseline_path.write_text(
         "\n".join(json.dumps(row) for row in baseline_rows) + "\n",
@@ -245,11 +267,217 @@ def test_live_runtime_analysis_is_separate_from_algorithm_replay(tmp_path):
         "\n".join(json.dumps(row) for row in prediction_rows) + "\n",
         encoding="utf-8",
     )
-    report = camera_eval.analyze_live_runtime_logs(baseline_path, prediction_path)
+    manifest = {
+        "schema_version": "handai-runtime-session-v1",
+        "run_id": run_id,
+        "status": "completed",
+        "config": {
+            "path": str(config_path.resolve()),
+            "sha256": hashlib.sha256(config_path.read_bytes()).hexdigest(),
+        },
+        "runtime": {"prediction_shadow_requested": True},
+        "outputs": {
+            "baseline_jsonl": {
+                "path": str(baseline_path.resolve()),
+                "exists": True,
+                "bytes": baseline_path.stat().st_size,
+                "sha256": hashlib.sha256(baseline_path.read_bytes()).hexdigest(),
+                "rows": len(baseline_rows),
+            },
+            "prediction_jsonl": {
+                "path": str(prediction_path.resolve()),
+                "exists": True,
+                "bytes": prediction_path.stat().st_size,
+                "sha256": hashlib.sha256(prediction_path.read_bytes()).hexdigest(),
+                "rows": len(prediction_rows),
+            },
+        },
+        "frames": {
+            "processed": len(baseline_rows),
+            "first_frame_index": 0,
+            "last_frame_index": 3,
+            "first_timestamp_unix_s": baseline_rows[0]["timestamp"],
+            "last_timestamp_unix_s": baseline_rows[-1]["timestamp"],
+        },
+        "prediction": {
+            "enabled": True,
+            **identity,
+            "initialization_error": None,
+            "worker": {
+                "submitted": 4,
+                "completed": 2,
+                "dropped_input": 2,
+                "dropped_result": 0,
+                "stopped": True,
+            },
+        },
+        "safety": {"prediction_modifies_unity_udp": False},
+    }
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    return baseline_path, prediction_path, manifest_path, baseline_rows
+
+
+def _timing_metric(sample_count: int) -> dict:
+    return {
+        "total_sample_count": sample_count,
+        "retained_sample_count": sample_count,
+        "capacity": 4096,
+        "p50_ms": 5.0,
+        "p95_ms": 8.0,
+        "max_ms": 10.0,
+    }
+
+
+def test_live_runtime_analysis_is_separate_from_algorithm_replay(tmp_path):
+    baseline_path, prediction_path, _, baseline_rows = _write_live_runtime_fixture(tmp_path)
+    unity_path = tmp_path / "unity_timing_test.json"
+    unity_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "handai-unity-timing-summary-v1",
+                "accepted_packet_count": 2,
+                "source_session": {
+                    "first_frame_index": 1,
+                    "last_frame_index": 2,
+                    "first_source_timestamp_unix_ms": baseline_rows[1]["timestamp"] * 1000.0,
+                    "last_source_timestamp_unix_ms": baseline_rows[2]["timestamp"] * 1000.0,
+                },
+                "metrics": {
+                    "python_post_capture_to_udp_ms": _timing_metric(2),
+                    "udp_delivery_ms": _timing_metric(2),
+                    "unity_main_thread_queue_ms": _timing_metric(2),
+                    "source_read_end_to_target_apply_ms": _timing_metric(2),
+                },
+                "counters": {
+                    "overwritten_packet_count": 1,
+                    "frame_gap_count": 1,
+                    "rejected_packet_count": 0,
+                    "stale_packet_count": 0,
+                    "watchdog_open_count": 1,
+                },
+                "safety": {
+                    "baseline_udp_hardware_forwarding_compiled": False,
+                    "apply_baseline_preview_to_hardware": False,
+                    "real_svh_in_scope": False,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    report = camera_eval.analyze_live_runtime_logs(
+        baseline_path,
+        prediction_path,
+        unity_timing_path=unity_path,
+    )
     assert report["worker_result_coverage_all_frames"] == 0.5
     assert report["predicted_coverage_all_frames"] == 0.25
     assert report["predicted_coverage_valid_frames"] == pytest.approx(1.0 / 3.0)
-    assert report["source_wallclock_fps"] == pytest.approx(25.0)
+    assert report["source_duration_based_fps"] == pytest.approx(25.0)
+    assert report["source_median_interval_fps"] == pytest.approx(25.0)
+    assert report["python_post_capture_to_udp_ms"]["p50"] == 10.0
+    assert report["unity_timing"]["summary"]["accepted_packet_count"] == 2
+
+    markdown_path = tmp_path / "live_runtime.md"
+    camera_eval._write_markdown(
+        markdown_path,
+        {
+            "protocol": {"role": "development", "protocol_stage": "development"},
+            "git": {},
+            "decision": {"status": "development_only_no_release_decision"},
+            "videos": [],
+            "algorithm_utility": {"status": "not_evaluated", "source_errors": []},
+            "live_runtime": report,
+        },
+    )
+    markdown = markdown_path.read_text(encoding="utf-8")
+    assert "accepted=2" in markdown
+    assert "overwritten=1" in markdown
+    assert "frame_gap=1" in markdown
+    assert "watchdog_open=1" in markdown
+    assert "real_svh_in_scope=False" in markdown
+
+
+def test_live_runtime_analysis_rejects_incomplete_unity_safety_evidence(tmp_path):
+    baseline_path, prediction_path, _, baseline_rows = _write_live_runtime_fixture(tmp_path)
+    unity_path = tmp_path / "unity_timing_invalid.json"
+    summary = {
+        "schema_version": "handai-unity-timing-summary-v1",
+        "accepted_packet_count": 2,
+        "source_session": {
+            "first_frame_index": 1,
+            "last_frame_index": 2,
+            "first_source_timestamp_unix_ms": baseline_rows[1]["timestamp"] * 1000.0,
+            "last_source_timestamp_unix_ms": baseline_rows[2]["timestamp"] * 1000.0,
+        },
+        "metrics": {
+            "python_post_capture_to_udp_ms": _timing_metric(2),
+            "udp_delivery_ms": _timing_metric(2),
+            "unity_main_thread_queue_ms": _timing_metric(2),
+            "source_read_end_to_target_apply_ms": _timing_metric(2),
+        },
+        "counters": {
+            "overwritten_packet_count": 0,
+            "frame_gap_count": 0,
+            "rejected_packet_count": 0,
+            "stale_packet_count": 0,
+            "watchdog_open_count": 0,
+        },
+        "safety": {
+            "baseline_udp_hardware_forwarding_compiled": False,
+            "apply_baseline_preview_to_hardware": True,
+            "real_svh_in_scope": False,
+        },
+    }
+    unity_path.write_text(json.dumps(summary), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="apply_baseline_preview_to_hardware"):
+        camera_eval.analyze_live_runtime_logs(
+            baseline_path,
+            prediction_path,
+            unity_timing_path=unity_path,
+        )
+
+
+def test_live_runtime_analysis_rejects_duplicate_baseline_frame_index(tmp_path):
+    baseline_path, prediction_path, _, _ = _write_live_runtime_fixture(tmp_path)
+    first_line = baseline_path.read_text(encoding="utf-8").splitlines()[0]
+    with baseline_path.open("a", encoding="utf-8") as handle:
+        handle.write(first_line + "\n")
+    with pytest.raises(ValueError, match="重复 frame_index"):
+        camera_eval.analyze_live_runtime_logs(baseline_path, prediction_path)
+
+
+def test_live_runtime_analysis_rejects_cross_session_pair_before_loose_intersection(tmp_path):
+    baseline_path = tmp_path / "session_run-a.jsonl"
+    prediction_path = tmp_path / "prediction_session_run-b.jsonl"
+    baseline_path.write_text("{}\n", encoding="utf-8")
+    prediction_path.write_text("{}\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="run_id 不一致"):
+        camera_eval.analyze_live_runtime_logs(baseline_path, prediction_path)
+
+
+def test_live_runtime_analysis_rejects_prediction_identity_drift(tmp_path):
+    baseline_path, prediction_path, manifest_path, _ = _write_live_runtime_fixture(tmp_path)
+    prediction_rows = [
+        json.loads(line)
+        for line in prediction_path.read_text(encoding="utf-8").splitlines()
+    ]
+    prediction_rows[0]["prediction_diagnostics"]["selection_sha256"] = "wrong-selection"
+    prediction_path.write_text(
+        "\n".join(json.dumps(row) for row in prediction_rows) + "\n",
+        encoding="utf-8",
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["outputs"]["prediction_jsonl"].update(
+        {
+            "bytes": prediction_path.stat().st_size,
+            "sha256": hashlib.sha256(prediction_path.read_bytes()).hexdigest(),
+        }
+    )
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="selection_sha256"):
+        camera_eval.analyze_live_runtime_logs(baseline_path, prediction_path)
 
 
 def test_camera_domain_module_does_not_create_udp_exporter():

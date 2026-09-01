@@ -70,6 +70,18 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="可选：与 live baseline 对应的 prediction JSONL",
     )
+    parser.add_argument(
+        "--live-session-manifest",
+        type=Path,
+        default=None,
+        help="可选：runtime_session_<run_id>.json；未给出时从 baseline 同目录严格推导",
+    )
+    parser.add_argument(
+        "--live-unity-timing-json",
+        type=Path,
+        default=None,
+        help="可选：Unity 退出 Play 后生成的有界 timing summary",
+    )
     return parser.parse_args()
 
 
@@ -94,6 +106,8 @@ def main() -> int:
         expected_protocol_sha256=args.expected_protocol_sha256,
         live_baseline_jsonl=args.live_baseline_jsonl,
         live_prediction_jsonl=args.live_prediction_jsonl,
+        live_session_manifest=args.live_session_manifest,
+        live_unity_timing_json=args.live_unity_timing_json,
     )
     report = json.loads(report_path.read_text(encoding="utf-8"))
     print(

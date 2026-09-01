@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "captured_on": "2026-08-30",
+  "captured_on": "2026-09-01",
   "scope": "single-right-hand Unity UDP virtual preview only; no hardware control",
   "unity_project_source": "D:\\SVH\\RoboticArm",
   "unity_editor_version": "2020.3.49f1",
@@ -9,8 +9,8 @@
     {
       "snapshot_path": "Assets/Scripts/RobotControlScript.cs",
       "source_relative_path": "Assets/Scripts/RobotControlScript.cs",
-      "bytes": 40073,
-      "sha256": "6a825441e9bab8d17402af2ee3f04af00cb02a98780ef81b7ae077f2526cf43f"
+      "bytes": 50440,
+      "sha256": "ce03a837854b8196359cf9ec23413b7cfa49ef812b9b72e026210c218890d4e9"
     },
     {
       "snapshot_path": "Assets/Scripts/RobotControlScript.cs.meta",

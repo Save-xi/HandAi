@@ -45,3 +45,14 @@ def test_legacy_hardware_requires_explicit_master_gate():
     assert "private bool allowLegacyHardwareControl = false" in source
     assert "if (!allowLegacyHardwareControl" in source
     assert "已忽略本次 COM/IP 参数" in source
+
+
+def test_unity_timing_summary_is_bounded_and_kept_out_of_udp_contract():
+    source = UNITY_SCRIPT.read_text(encoding="utf-8")
+
+    assert "private int baselineTimingSampleCapacity = 4096" in source
+    assert "private sealed class BoundedTimingSeries" in source
+    assert 'schema_version = "handai-unity-timing-summary-v1"' in source
+    assert "Application.persistentDataPath" in source
+    assert 'WriteBaselineTimingSummary("component_destroyed")' in source
+    assert "public string run_id" not in source
