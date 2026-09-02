@@ -30,6 +30,8 @@ def _write_video(path: Path, content: bytes) -> Path:
 
 
 def _locked_environment() -> dict:
+    conda_explicit_spec = "@EXPLICIT\nhttps://example.invalid/pkg.tar.bz2\n"
+    pip_freeze = "example==1.0\n"
     return {
         "python": "3.10.0",
         "python_executable": "C:/miniconda/envs/handai-intent-prediction/python.exe",
@@ -39,12 +41,18 @@ def _locked_environment() -> dict:
         "conda_default_env": "handai-intent-prediction",
         "conda_environment_name": "handai-intent-prediction",
         "conda_executable": "C:/miniconda/Scripts/conda.exe",
-        "conda_explicit_spec_sha256": "2" * 64,
-        "conda_explicit_spec_line_count": 42,
+        "conda_explicit_spec_sha256": hashlib.sha256(
+            conda_explicit_spec.encode("utf-8")
+        ).hexdigest(),
+        "conda_explicit_spec_line_count": len(conda_explicit_spec.splitlines()),
         "conda_explicit_spec_error": None,
-        "pip_freeze_sha256": "3" * 64,
-        "pip_freeze_line_count": 17,
+        "conda_explicit_spec": conda_explicit_spec,
+        "pip_freeze_sha256": hashlib.sha256(
+            pip_freeze.encode("utf-8")
+        ).hexdigest(),
+        "pip_freeze_line_count": len(pip_freeze.splitlines()),
         "pip_freeze_error": None,
+        "pip_freeze": pip_freeze,
         "cuda_available": True,
     }
 
@@ -486,9 +494,9 @@ def test_attempt_receipt_is_atomic_one_time_and_uses_default_path(
     state_root = tmp_path / "blind-state"
     monkeypatch.setattr(blind_freeze, "BLIND_FREEZE_STATE_ROOT", state_root)
     token = "a" * 64
-    receipt_path = blind_freeze.default_attempt_receipt_path(token)
-    assert receipt_path == (state_root / "attempt_receipts" / f"{token}.json").resolve()
-    # manifest 放到哪里都不能改变同一确定性身份的 receipt。
+    receipt_path = blind_freeze.default_attempt_receipt_path()
+    assert receipt_path == (state_root / "campaign_receipt.json").resolve()
+    # token 或 checkout 改变都不能为同一 campaign 分裂出另一份 receipt。
     assert receipt_path == blind_freeze.default_attempt_receipt_path(token)
     video_path = _write_video(tmp_path / "B1.mp4", b"video")
     baseline_path = tmp_path / "B1.jsonl"
@@ -496,6 +504,7 @@ def test_attempt_receipt_is_atomic_one_time_and_uses_default_path(
     freeze_state = {
         "path": str(tmp_path / "copied-anywhere.json"),
         "sha256": "c" * 64,
+        "campaign_id": blind_freeze.BLIND_CAMPAIGN_ID,
         "attempt_token": token,
         "attempt_identity_sha256": token,
         "git": {"revision": "d" * 40},
@@ -561,6 +570,318 @@ def test_formal_cli_exposes_no_manifest_or_receipt_path_override():
     assert '"--output"' not in freeze_script
 
 
+def test_campaign_state_root_must_be_outside_checkout(tmp_path, monkeypatch):
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    monkeypatch.setattr(blind_freeze, "PROJECT_ROOT", checkout)
+    monkeypatch.setattr(
+        blind_freeze, "BLIND_FREEZE_STATE_ROOT", checkout / "ignored-output"
+    )
+    with pytest.raises(RuntimeError, match="Git checkout 之外"):
+        blind_freeze.default_attempt_receipt_path()
+
+
+def test_configured_default_campaign_state_root_is_not_checkout_local():
+    state_root = blind_freeze.BLIND_FREEZE_STATE_ROOT.resolve()
+    with pytest.raises(ValueError):
+        state_root.relative_to(blind_freeze.PROJECT_ROOT.resolve())
+
+
+def test_campaign_registry_is_shared_across_worktrees_and_tokens(
+    tmp_path, monkeypatch
+):
+    state_root = tmp_path / "shared-campaign-state"
+    checkout_a = tmp_path / "checkout-a"
+    checkout_b = tmp_path / "checkout-b"
+    checkout_a.mkdir()
+    checkout_b.mkdir()
+    monkeypatch.setattr(blind_freeze, "BLIND_FREEZE_STATE_ROOT", state_root)
+
+    monkeypatch.setattr(blind_freeze, "PROJECT_ROOT", checkout_a)
+    manifest_from_a = blind_freeze.default_blind_freeze_manifest_path()
+    receipt_from_a = blind_freeze.default_attempt_receipt_path()
+    monkeypatch.setattr(blind_freeze, "PROJECT_ROOT", checkout_b)
+    manifest_from_b = blind_freeze.default_blind_freeze_manifest_path()
+    receipt_from_b = blind_freeze.default_attempt_receipt_path()
+
+    assert manifest_from_a == manifest_from_b == (
+        state_root / "campaign_manifest.json"
+    ).resolve()
+    assert receipt_from_a == receipt_from_b == (
+        state_root / "campaign_receipt.json"
+    ).resolve()
+
+    video_path = _write_video(tmp_path / "B1.mp4", b"video")
+    baseline_path = tmp_path / "B1.jsonl"
+    baseline_path.write_text("{}\n", encoding="utf-8")
+    summary = {
+        "video_id": "B1",
+        "video_path": str(video_path),
+        "video_sha256": _sha256(video_path),
+        "video_bytes": video_path.stat().st_size,
+        "baseline_jsonl_path": str(baseline_path),
+        "baseline_jsonl_sha256": _sha256(baseline_path),
+    }
+
+    def freeze_state(token: str) -> dict:
+        return {
+            "path": str(manifest_from_a),
+            "sha256": "c" * 64,
+            "campaign_id": blind_freeze.BLIND_CAMPAIGN_ID,
+            "attempt_token": token,
+            "attempt_identity_sha256": token,
+            "git": {"revision": "d" * 40},
+            "blind_inputs": {
+                "videos": {
+                    "B1": {
+                        "path": str(video_path),
+                        "path_scope": "absolute",
+                        "bytes": video_path.stat().st_size,
+                        "sha256": _sha256(video_path),
+                    }
+                }
+            },
+        }
+
+    blind_freeze.reserve_blind_attempt(
+        receipt_path=receipt_from_a,
+        freeze_state=freeze_state("a" * 64),
+        video_summaries=[summary],
+    )
+    with pytest.raises(RuntimeError, match="campaign receipt 已存在"):
+        blind_freeze.reserve_blind_attempt(
+            receipt_path=receipt_from_b,
+            freeze_state=freeze_state("b" * 64),
+            video_summaries=[summary],
+        )
+
+
+def test_manifest_from_checkout_a_verifies_against_checkout_b(
+    tmp_path, monkeypatch
+):
+    state_root = tmp_path / "shared-campaign-state"
+    checkout_a = tmp_path / "checkout-a"
+    checkout_b = tmp_path / "checkout-b"
+    video_path = _write_video(tmp_path / "B1.mp4", b"blind-video")
+    config = {
+        "schema_version": "camera-domain-eval-config-v1",
+        "protocol_stage": "blind_frozen",
+        "campaign_id": blind_freeze.BLIND_CAMPAIGN_ID,
+        "required_conda_environment": "handai-intent-prediction",
+        "input_mirrored": False,
+        "video_sets": {"blind": ["B1"]},
+        "blind_policy": {
+            "enabled": True,
+            "gate": {"frozen": True},
+            "forbidden_video_sha256": [],
+        },
+    }
+
+    def materialize_checkout(root: Path) -> dict[str, Path]:
+        files = {
+            "config": root / "frozen" / "config.json",
+            "protocol": root / "frozen" / "protocol.md",
+            "runtime": root / "frozen" / "runtime.yaml",
+            "delay": root / "frozen" / "delay.json",
+            "selection": root / "frozen" / "selection.json",
+            "checkpoint": root / "frozen" / "checkpoint.pt",
+            "report": root / "frozen" / "report.json",
+        }
+        files["config"].parent.mkdir(parents=True)
+        files["config"].write_text(json.dumps(config), encoding="utf-8")
+        files["protocol"].write_text("protocol", encoding="utf-8")
+        files["runtime"].write_text("runtime", encoding="utf-8")
+        files["delay"].write_text("{}", encoding="utf-8")
+        files["selection"].write_text("{}", encoding="utf-8")
+        files["checkpoint"].write_bytes(b"checkpoint")
+        files["report"].write_text(
+            json.dumps(
+                {
+                    "motion_strata_thresholds_from_validation": {"q90": 0.25},
+                    "acceptance": {"offline_gate_passed": False},
+                }
+            ),
+            encoding="utf-8",
+        )
+        return files
+
+    files_a = materialize_checkout(checkout_a)
+    files_b = materialize_checkout(checkout_b)
+
+    def runtime_config(path: Path) -> dict:
+        base = path.resolve().parent
+        return {
+            "input_mirrored": False,
+            "prediction_shadow_selection_path": str(base / "selection.json"),
+            "prediction_shadow_checkpoint_path": str(base / "checkpoint.pt"),
+            "prediction_shadow_report_path": str(base / "report.json"),
+        }
+
+    def predictor(runtime_cfg, **kwargs):
+        del kwargs
+        return SimpleNamespace(
+            initialization_error=None,
+            model_label="residual_motion4",
+            device="cuda",
+            history_frames=30,
+            horizon_ms=[50, 100, 150],
+            selection_sha256=_sha256(
+                Path(runtime_cfg["prediction_shadow_selection_path"])
+            ),
+            checkpoint_sha256=_sha256(
+                Path(runtime_cfg["prediction_shadow_checkpoint_path"])
+            ),
+        )
+
+    git = {
+        "available": True,
+        "revision": "1" * 40,
+        "tree": "2" * 40,
+        "origin_main": "1" * 40,
+        "branch": "main",
+        "tracked_worktree_clean": True,
+        "worktree_clean": True,
+        "tracked_status_lines": [],
+        "untracked_status_lines": [],
+    }
+    monkeypatch.setattr(blind_freeze, "BLIND_FREEZE_STATE_ROOT", state_root)
+    monkeypatch.setattr(blind_freeze, "git_snapshot", lambda: deepcopy(git))
+    monkeypatch.setattr(blind_freeze, "environment_identity", _locked_environment)
+    monkeypatch.setattr(
+        blind_freeze, "prepare_effective_runtime_config", runtime_config
+    )
+    monkeypatch.setattr(blind_freeze, "build_prediction_shadow", predictor)
+    monkeypatch.setattr(
+        blind_freeze,
+        "assert_mapping_implementation_compatible",
+        lambda _: "implementation-sha",
+    )
+    monkeypatch.setattr(
+        blind_freeze, "mapping_contract_sha256", lambda _: "contract-sha"
+    )
+
+    monkeypatch.setattr(blind_freeze, "PROJECT_ROOT", checkout_a)
+    created = blind_freeze.create_blind_freeze_manifest(
+        evaluation_config_path=files_a["config"],
+        protocol_path=files_a["protocol"],
+        runtime_config_path=files_a["runtime"],
+        delay_config_path=files_a["delay"],
+        blind_video_paths={"B1": video_path},
+        logger=SimpleNamespace(),
+    )
+    assert all(
+        record["path_scope"] == "project_relative"
+        for record in created["manifest"]["artifacts"].values()
+    )
+
+    monkeypatch.setattr(blind_freeze, "PROJECT_ROOT", checkout_b)
+    verified = blind_freeze.verify_blind_freeze_manifest(
+        manifest_path=Path(created["path"]),
+        expected_manifest_sha256=created["sha256"],
+        evaluation_config_path=files_b["config"],
+        protocol_path=files_b["protocol"],
+        runtime_config_path=files_b["runtime"],
+        delay_config_path=files_b["delay"],
+        evaluation_config=config,
+        input_mirrored=False,
+        blind_video_paths={"B1": video_path},
+    )
+    assert verified["campaign_id"] == blind_freeze.BLIND_CAMPAIGN_ID
+    assert verified["attempt_token"] == created["manifest"]["attempt_token"]
+
+
+def test_freeze_fails_closed_when_receipt_survives_missing_manifest(
+    tmp_path, monkeypatch
+):
+    state_root = tmp_path / "shared-campaign-state"
+    monkeypatch.setattr(blind_freeze, "BLIND_FREEZE_STATE_ROOT", state_root)
+    receipt_path = blind_freeze.default_attempt_receipt_path()
+    receipt_path.parent.mkdir(parents=True)
+    receipt_path.write_text("{}\n", encoding="utf-8")
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "camera-domain-eval-config-v1",
+                "protocol_stage": "blind_frozen",
+                "campaign_id": blind_freeze.BLIND_CAMPAIGN_ID,
+                "required_conda_environment": "handai-intent-prediction",
+                "input_mirrored": False,
+                "video_sets": {"blind": ["B1"]},
+                "blind_policy": {
+                    "enabled": True,
+                    "gate": {},
+                    "forbidden_video_sha256": [],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        blind_freeze,
+        "git_snapshot",
+        lambda: {
+            "available": True,
+            "revision": "1" * 40,
+            "origin_main": "1" * 40,
+            "worktree_clean": True,
+        },
+    )
+    monkeypatch.setattr(blind_freeze, "environment_identity", _locked_environment)
+    monkeypatch.setattr(
+        blind_freeze,
+        "prepare_effective_runtime_config",
+        lambda _: {"input_mirrored": False},
+    )
+
+    def predictor_must_not_load(*args, **kwargs):
+        raise AssertionError("surviving receipt must fail before model load")
+
+    monkeypatch.setattr(
+        blind_freeze, "build_prediction_shadow", predictor_must_not_load
+    )
+    with pytest.raises(RuntimeError, match="receipt 已存在"):
+        blind_freeze.create_blind_freeze_manifest(
+            evaluation_config_path=config_path,
+            protocol_path=tmp_path / "protocol.md",
+            runtime_config_path=tmp_path / "runtime.yaml",
+            delay_config_path=tmp_path / "delay.json",
+            blind_video_paths={"B1": tmp_path / "B1.mp4"},
+            logger=SimpleNamespace(),
+        )
+    assert not blind_freeze.default_blind_freeze_manifest_path().exists()
+
+
+def test_blind_runner_rejects_shared_campaign_receipt_before_staging_or_output(
+    tmp_path, monkeypatch
+):
+    _, config_path, manifest_path = _patch_blind_run_preflight(
+        tmp_path, monkeypatch
+    )
+    receipt_path = blind_freeze.default_attempt_receipt_path()
+    receipt_path.parent.mkdir(parents=True, exist_ok=True)
+    receipt_path.write_text("{}\n", encoding="utf-8")
+
+    def must_not_run(*args, **kwargs):
+        raise AssertionError("existing shared campaign receipt must fail pre-decode")
+
+    monkeypatch.setattr(camera_eval, "stage_blind_video_inputs", must_not_run)
+    monkeypatch.setattr(camera_eval, "_unique_run_dir", must_not_run)
+    video_path = _write_video(tmp_path / "B1.mp4", b"B1")
+    with pytest.raises(RuntimeError, match="receipt 已存在"):
+        camera_eval.run_camera_domain_evaluation(
+            video_specs=[camera_eval.VideoSpec("B1", video_path)],
+            evaluation_config_path=config_path,
+            output_root=tmp_path / "outputs",
+            role="blind",
+            expected_config_sha256="e" * 64,
+            expected_protocol_sha256="f" * 64,
+            blind_freeze_manifest_path=manifest_path,
+            expected_blind_freeze_manifest_sha256="a" * 64,
+        )
+    assert not (tmp_path / "outputs").exists()
+
+
 def test_freeze_manifest_binds_git_artifacts_environment_and_b_videos(
     tmp_path, monkeypatch
 ):
@@ -577,6 +898,7 @@ def test_freeze_manifest_binds_git_artifacts_environment_and_b_videos(
     config = {
         "schema_version": "camera-domain-eval-config-v1",
         "protocol_stage": "blind_frozen",
+        "campaign_id": blind_freeze.BLIND_CAMPAIGN_ID,
         "required_conda_environment": "handai-intent-prediction",
         "input_mirrored": False,
         "video_sets": {"blind": video_ids},
@@ -670,12 +992,11 @@ def test_freeze_manifest_binds_git_artifacts_environment_and_b_videos(
     manifest_path = Path(created["path"])
     attempt_token = created["manifest"]["attempt_token"]
     assert attempt_token == created["manifest"]["attempt_identity_sha256"]
-    assert manifest_path == blind_freeze.default_blind_freeze_manifest_path(
-        attempt_token
-    )
+    assert manifest_path == blind_freeze.default_blind_freeze_manifest_path()
     assert created["attempt_receipt_path"] == str(
-        blind_freeze.default_attempt_receipt_path(attempt_token)
+        blind_freeze.default_attempt_receipt_path()
     )
+    assert created["manifest"]["campaign_id"] == blind_freeze.BLIND_CAMPAIGN_ID
     assert created["manifest"]["environment"] == current_environment
     verified = blind_freeze.verify_blind_freeze_manifest(
         manifest_path=manifest_path,
@@ -690,7 +1011,9 @@ def test_freeze_manifest_binds_git_artifacts_environment_and_b_videos(
     )
     assert verified["git"]["revision"] == "1" * 40
     assert set(verified["blind_inputs"]["videos"]) == set(video_ids)
-    with pytest.raises(RuntimeError, match="身份已登记"):
+    # 即使替换 B1 导致 attempt token 改变，同一 campaign 也不能登记第二份 manifest。
+    video_paths["B1"].write_bytes(b"replacement-B1")
+    with pytest.raises(RuntimeError, match="campaign 已登记"):
         blind_freeze.create_blind_freeze_manifest(
             evaluation_config_path=config_path,
             protocol_path=protocol_path,
@@ -699,6 +1022,7 @@ def test_freeze_manifest_binds_git_artifacts_environment_and_b_videos(
             blind_video_paths=video_paths,
             logger=SimpleNamespace(),
         )
+    video_paths["B1"].write_bytes(b"B1")
 
     with pytest.raises(ValueError, match="路径不可覆盖"):
         blind_freeze.create_blind_freeze_manifest(
@@ -719,7 +1043,14 @@ def test_freeze_manifest_binds_git_artifacts_environment_and_b_videos(
         record["path_scope"] = "project_relative"
     assert blind_freeze.attempt_identity_sha256(identity_variant) == attempt_token
 
-    current_environment["conda_explicit_spec_sha256"] = "4" * 64
+    changed_spec = "@EXPLICIT\nhttps://example.invalid/changed.tar.bz2\n"
+    current_environment["conda_explicit_spec"] = changed_spec
+    current_environment["conda_explicit_spec_sha256"] = hashlib.sha256(
+        changed_spec.encode("utf-8")
+    ).hexdigest()
+    current_environment["conda_explicit_spec_line_count"] = len(
+        changed_spec.splitlines()
+    )
     with pytest.raises(ValueError, match="环境"):
         blind_freeze.verify_blind_freeze_manifest(
             manifest_path=manifest_path,
@@ -732,7 +1063,7 @@ def test_freeze_manifest_binds_git_artifacts_environment_and_b_videos(
             input_mirrored=False,
             blind_video_paths=video_paths,
         )
-    current_environment["conda_explicit_spec_sha256"] = "2" * 64
+    current_environment.update(_locked_environment())
 
     video_paths["B1"].write_bytes(b"tampered")
     with pytest.raises(ValueError, match="B1 SHA-256 漂移"):
@@ -777,6 +1108,7 @@ def test_freeze_creation_rejects_nonclean_worktree_before_model_load(
         json.dumps(
                 {
                     "protocol_stage": "blind_frozen",
+                    "campaign_id": blind_freeze.BLIND_CAMPAIGN_ID,
                     "required_conda_environment": "handai-intent-prediction",
                     "input_mirrored": False,
                     "video_sets": {"blind": ["B1"]},
@@ -810,7 +1142,6 @@ def test_freeze_creation_rejects_nonclean_worktree_before_model_load(
             runtime_config_path=tmp_path / "runtime.yaml",
             delay_config_path=tmp_path / "delay.json",
             blind_video_paths={"B1": tmp_path / "B1.mp4"},
-            output_path=tmp_path / "freeze.json",
             logger=SimpleNamespace(),
         )
 
@@ -820,7 +1151,9 @@ def test_freeze_creation_rejects_nonclean_worktree_before_model_load(
     [
         {"conda_environment_name": "single-right-hand-baseline"},
         {"conda_explicit_spec_sha256": None},
+        {"conda_explicit_spec": None},
         {"pip_freeze_sha256": None},
+        {"pip_freeze": None},
     ],
 )
 def test_freeze_rejects_wrong_or_unlocked_conda_before_model_load(
@@ -831,6 +1164,7 @@ def test_freeze_rejects_wrong_or_unlocked_conda_before_model_load(
         json.dumps(
             {
                 "protocol_stage": "blind_frozen",
+                "campaign_id": blind_freeze.BLIND_CAMPAIGN_ID,
                 "required_conda_environment": "handai-intent-prediction",
                 "input_mirrored": False,
                 "video_sets": {"blind": ["B1"]},
@@ -865,7 +1199,7 @@ def test_freeze_rejects_wrong_or_unlocked_conda_before_model_load(
     monkeypatch.setattr(
         blind_freeze, "build_prediction_shadow", model_must_not_load
     )
-    with pytest.raises(RuntimeError, match="Conda 环境|环境未形成"):
+    with pytest.raises(RuntimeError, match="Conda 环境|环境未形成|环境未保存"):
         blind_freeze.create_blind_freeze_manifest(
             evaluation_config_path=config_path,
             protocol_path=tmp_path / "protocol.md",
@@ -884,6 +1218,7 @@ def test_stage_blind_video_is_content_addressed_read_only_and_detects_drift(
     source = _write_video(tmp_path / "B1.mp4", b"frozen-video-bytes")
     token = "a" * 64
     freeze_state = {
+        "campaign_id": blind_freeze.BLIND_CAMPAIGN_ID,
         "attempt_token": token,
         "blind_inputs": {
             "videos": {
@@ -945,6 +1280,7 @@ def _patch_blind_run_preflight(tmp_path: Path, monkeypatch) -> tuple[dict, Path,
     freeze_state = {
         "path": str(manifest_path),
         "sha256": "a" * 64,
+        "campaign_id": blind_freeze.BLIND_CAMPAIGN_ID,
         "attempt_token": token,
         "attempt_identity_sha256": token,
         "git": {"revision": "b" * 40},
@@ -1029,7 +1365,7 @@ def test_blind_input_failure_skips_algorithm_and_does_not_consume_receipt(
         "evaluate_camera_algorithm_utility",
         algorithm_must_not_run,
     )
-    receipt_path = blind_freeze.default_attempt_receipt_path("1" * 64)
+    receipt_path = blind_freeze.default_attempt_receipt_path()
     video_path = _write_video(tmp_path / "B1.mp4", b"B1")
     report_path = camera_eval.run_camera_domain_evaluation(
         video_specs=[camera_eval.VideoSpec("B1", video_path)],
@@ -1132,7 +1468,7 @@ def test_blind_algorithm_baseexception_consumes_attempt_as_failed_receipt(
         "evaluate_camera_algorithm_utility",
         algorithm_fails,
     )
-    receipt_path = blind_freeze.default_attempt_receipt_path("1" * 64)
+    receipt_path = blind_freeze.default_attempt_receipt_path()
     video_path = _write_video(tmp_path / "B1.mp4", b"B1")
     with pytest.raises(expected_type):
         camera_eval.run_camera_domain_evaluation(
@@ -1186,7 +1522,7 @@ def test_blind_report_phase_baseexception_finalizes_failed_receipt(
 
     monkeypatch.setattr(camera_eval, "_write_markdown", interrupt_report)
     video_path = _write_video(tmp_path / "B1.mp4", b"B1")
-    receipt_path = blind_freeze.default_attempt_receipt_path("1" * 64)
+    receipt_path = blind_freeze.default_attempt_receipt_path()
     with pytest.raises(KeyboardInterrupt):
         camera_eval.run_camera_domain_evaluation(
             video_specs=[camera_eval.VideoSpec("B1", video_path)],
@@ -1229,7 +1565,7 @@ def test_receipt_finalize_failure_does_not_mask_original_baseexception(
 
     monkeypatch.setattr(camera_eval, "finalize_blind_attempt", fail_finalize)
     video_path = _write_video(tmp_path / "B1.mp4", b"B1")
-    receipt_path = blind_freeze.default_attempt_receipt_path("1" * 64)
+    receipt_path = blind_freeze.default_attempt_receipt_path()
     with pytest.raises(KeyboardInterrupt):
         camera_eval.run_camera_domain_evaluation(
             video_specs=[camera_eval.VideoSpec("B1", video_path)],

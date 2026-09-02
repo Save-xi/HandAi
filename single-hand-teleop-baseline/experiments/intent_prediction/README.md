@@ -237,7 +237,7 @@ JSONL 生成后同步重放，因此不会因离线快读触发 latest-only 丢�
 
 完整开发集命令、V1–V7 动作清单和证据边界见
 `docs/camera_domain_protocol_v1.md`；正式 B1–B7 的 task-aware 输入门、P95/最差视频门、
-Git/模型/Conda 环境锁、内容寻址只读视频副本、确定性 attempt 与固定一次性 receipt 见
+Git/模型/Conda 环境锁、内容寻址只读视频副本、确定性 attempt 与本机固定路径的 campaign 流程性 receipt（本地防误重跑，不是抗篡改 WORM）见
 `docs/camera_domain_blind_protocol_v1.md`。
 开发冒烟示例：
 

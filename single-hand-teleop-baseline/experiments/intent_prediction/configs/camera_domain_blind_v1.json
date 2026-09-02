@@ -1,6 +1,7 @@
 {
   "schema_version": "camera-domain-eval-config-v1",
   "protocol_stage": "blind_frozen",
+  "campaign_id": "camera-domain-blind-v1",
   "claim_status": "camera_domain_pseudo_ground_truth_shadow_only",
   "required_conda_environment": "handai-intent-prediction",
   "input_mirrored": false,
@@ -24,7 +25,7 @@
   },
   "blind_policy": {
     "enabled": true,
-    "note": "正式盲测只允许完整 B1-B7 一次性判定；协议、配置、运行时、模型与原始视频身份由仓库外 freeze manifest 在合并后记录，配置内不填写 Git revision、配置 SHA 或协议 SHA。",
+    "note": "正式盲测 campaign 固定为 camera-domain-blind-v1；本机固定状态目录未被删除或篡改时，正常 CLI 只允许登记一份 B1-B7 manifest 和一份流程性 receipt。协议、配置、运行时、模型与原始视频身份由 freeze manifest 在合并后记录，配置内不填写 Git revision、配置 SHA 或协议 SHA。",
     "forbidden_video_sha256": [
       "ef2ca9ca57f82fcfd5d6c52e580b10d1c032d6d6014f4dc450fe7ebb7d8b7d04",
       "1da631b3a9425e5057e25d1927a1094976856fdab5755eac963fe6aba6fc5268",

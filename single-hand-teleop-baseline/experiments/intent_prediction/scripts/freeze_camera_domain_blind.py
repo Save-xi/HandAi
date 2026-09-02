@@ -71,6 +71,7 @@ def main() -> int:
             {
                 "manifest": result["path"],
                 "sha256": result["sha256"],
+                "campaign_id": result["manifest"]["campaign_id"],
                 "git_revision": result["manifest"]["git"]["revision"],
                 "attempt_token": result["manifest"]["attempt_token"],
                 "attempt_receipt": result["attempt_receipt_path"],

@@ -35,12 +35,13 @@ from utils.config import load_config
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 BLIND_FREEZE_SCHEMA_VERSION = "handai-camera-domain-blind-freeze-v1"
 BLIND_ATTEMPT_RECEIPT_SCHEMA_VERSION = "handai-camera-domain-blind-attempt-v1"
+BLIND_CAMPAIGN_ID = "camera-domain-blind-v1"
+# 正式 campaign 状态必须脱离任一 Git checkout；否则不同 worktree 会各自拥有
+# 一份 receipt，破坏“同一 campaign 只作一次正式算法判定”的流程约束。
 BLIND_FREEZE_STATE_ROOT = (
-    PROJECT_ROOT
-    / "experiments"
-    / "intent_prediction"
-    / "outputs"
-    / "camera_domain_blind_freeze"
+    Path("D:/HandAiVideos/camera_domain_blind_v1/.blind_state")
+    if os.name == "nt"
+    else Path.home() / ".handai" / "camera_domain_blind_v1" / ".blind_state"
 )
 
 _RUNTIME_PATH_KEYS = {
@@ -195,7 +196,9 @@ def _conda_executable() -> Path | None:
     return None
 
 
-def _command_fingerprint(command: list[str]) -> tuple[str | None, int, str | None]:
+def _command_lock_content(
+    command: list[str],
+) -> tuple[str | None, int, str | None, str | None]:
     try:
         completed = subprocess.run(
             command,
@@ -206,14 +209,15 @@ def _command_fingerprint(command: list[str]) -> tuple[str | None, int, str | Non
             errors="replace",
         )
     except (OSError, subprocess.CalledProcessError) as exc:
-        return None, 0, f"{type(exc).__name__}: {exc}"
+        return None, 0, f"{type(exc).__name__}: {exc}", None
     normalized = _canonical_command_output(completed.stdout)
     if not normalized.strip():
-        return None, 0, "command returned no lock content"
+        return None, 0, "command returned no lock content", None
     return (
         hashlib.sha256(normalized.encode("utf-8")).hexdigest(),
         len(normalized.splitlines()),
         None,
+        normalized,
     )
 
 
@@ -224,8 +228,14 @@ def environment_identity() -> dict[str, Any]:
     conda_sha256: str | None = None
     conda_line_count = 0
     conda_error: str | None = "conda executable not found"
+    conda_explicit_spec: str | None = None
     if conda_executable is not None:
-        conda_sha256, conda_line_count, conda_error = _command_fingerprint(
+        (
+            conda_sha256,
+            conda_line_count,
+            conda_error,
+            conda_explicit_spec,
+        ) = _command_lock_content(
             [
                 str(conda_executable),
                 "list",
@@ -234,7 +244,7 @@ def environment_identity() -> dict[str, Any]:
                 str(prefix),
             ]
         )
-    pip_sha256, pip_line_count, pip_error = _command_fingerprint(
+    pip_sha256, pip_line_count, pip_error, pip_freeze = _command_lock_content(
         [str(executable), "-m", "pip", "freeze", "--all"]
     )
     identity: dict[str, str | int | bool | None] = {
@@ -251,9 +261,11 @@ def environment_identity() -> dict[str, Any]:
         "conda_explicit_spec_sha256": conda_sha256,
         "conda_explicit_spec_line_count": conda_line_count,
         "conda_explicit_spec_error": conda_error,
+        "conda_explicit_spec": conda_explicit_spec,
         "pip_freeze_sha256": pip_sha256,
         "pip_freeze_line_count": pip_line_count,
         "pip_freeze_error": pip_error,
+        "pip_freeze": pip_freeze,
         "numpy": _package_version("numpy"),
         "opencv_contrib_python": _package_version("opencv-contrib-python"),
         "mediapipe": _package_version("mediapipe"),
@@ -299,6 +311,23 @@ def _validate_required_environment(
         value = environment.get(field)
         if not isinstance(value, str) or not re_full_sha256(value.lower()):
             raise RuntimeError(f"正式盲测环境未形成可验证锁：{field}")
+    for field in ("conda_explicit_spec", "pip_freeze"):
+        value = environment.get(field)
+        if not isinstance(value, str) or not value.strip():
+            raise RuntimeError(f"正式盲测环境未保存可重建锁内容：{field}")
+    for content_field, sha_field, count_field in (
+        (
+            "conda_explicit_spec",
+            "conda_explicit_spec_sha256",
+            "conda_explicit_spec_line_count",
+        ),
+        ("pip_freeze", "pip_freeze_sha256", "pip_freeze_line_count"),
+    ):
+        content = str(environment[content_field])
+        if hashlib.sha256(content.encode("utf-8")).hexdigest() != environment[sha_field]:
+            raise RuntimeError(f"正式盲测环境锁内容与 SHA 不一致：{content_field}")
+        if len(content.splitlines()) != environment.get(count_field):
+            raise RuntimeError(f"正式盲测环境锁内容与行数不一致：{content_field}")
 
 
 def git_snapshot() -> dict[str, Any]:
@@ -439,6 +468,7 @@ def attempt_identity_payload(manifest: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError("blind freeze manifest 缺少视频身份")
     return {
         "schema_version": manifest.get("schema_version"),
+        "campaign_id": manifest.get("campaign_id"),
         "claim_status": manifest.get("claim_status"),
         "git": {
             "revision": git.get("revision"),
@@ -458,18 +488,41 @@ def attempt_identity_sha256(manifest: Mapping[str, Any]) -> str:
     return json_sha256(attempt_identity_payload(manifest))
 
 
-def default_blind_freeze_manifest_path(attempt_token: str) -> Path:
-    token = str(attempt_token).lower()
-    if not re_full_sha256(token):
-        raise ValueError("attempt_token 必须是 64 位十六进制身份")
-    return (BLIND_FREEZE_STATE_ROOT / "manifests" / f"{token}.json").resolve()
+def _shared_campaign_state_root() -> Path:
+    root = BLIND_FREEZE_STATE_ROOT.resolve()
+    try:
+        root.relative_to(PROJECT_ROOT.resolve())
+    except ValueError:
+        return root
+    raise RuntimeError("blind campaign state root 必须位于 Git checkout 之外")
 
 
-def default_attempt_receipt_path(attempt_token: str) -> Path:
-    token = str(attempt_token).lower()
-    if not re_full_sha256(token):
+def _required_campaign_id(evaluation_config: Mapping[str, Any]) -> str:
+    campaign_id = evaluation_config.get("campaign_id")
+    if campaign_id != BLIND_CAMPAIGN_ID:
+        raise ValueError(
+            "正式盲测 campaign_id 必须固定为 "
+            f"{BLIND_CAMPAIGN_ID!r}，当前为 {campaign_id!r}"
+        )
+    return BLIND_CAMPAIGN_ID
+
+
+def default_blind_freeze_manifest_path(
+    _attempt_token: str | None = None,
+) -> Path:
+    """返回 campaign 固定 manifest；旧版 token 参数仅为调用兼容保留。"""
+
+    if _attempt_token is not None and not re_full_sha256(str(_attempt_token).lower()):
         raise ValueError("attempt_token 必须是 64 位十六进制身份")
-    return (BLIND_FREEZE_STATE_ROOT / "attempt_receipts" / f"{token}.json").resolve()
+    return (_shared_campaign_state_root() / "campaign_manifest.json").resolve()
+
+
+def default_attempt_receipt_path(_attempt_token: str | None = None) -> Path:
+    """返回 campaign 固定 receipt；旧版 token 参数仅为调用兼容保留。"""
+
+    if _attempt_token is not None and not re_full_sha256(str(_attempt_token).lower()):
+        raise ValueError("attempt_token 必须是 64 位十六进制身份")
+    return (_shared_campaign_state_root() / "campaign_receipt.json").resolve()
 
 
 def _set_read_only(path: Path) -> None:
@@ -495,6 +548,8 @@ def stage_blind_video_inputs(
     attempt_token = str(freeze_state.get("attempt_token", "")).lower()
     if not re_full_sha256(attempt_token):
         raise ValueError("freeze state 缺少确定性 attempt_token")
+    if freeze_state.get("campaign_id") != BLIND_CAMPAIGN_ID:
+        raise ValueError("freeze state 的 campaign_id 不受支持")
     blind_inputs = freeze_state.get("blind_inputs")
     frozen_videos = (
         blind_inputs.get("videos") if isinstance(blind_inputs, Mapping) else None
@@ -504,7 +559,9 @@ def stage_blind_video_inputs(
     if set(blind_video_paths) != set(frozen_videos):
         raise ValueError("待封存的 B1-B7 输入集合与 freeze state 不一致")
 
-    sealed_root = (BLIND_FREEZE_STATE_ROOT / "sealed_inputs" / attempt_token).resolve()
+    sealed_root = (
+        _shared_campaign_state_root() / "sealed_inputs" / attempt_token
+    ).resolve()
     sealed_root.mkdir(parents=True, exist_ok=True)
     staged: dict[str, Path] = {}
     for video_id in sorted(frozen_videos):
@@ -559,6 +616,7 @@ def create_blind_freeze_manifest(
 
     evaluation_config_path = evaluation_config_path.resolve()
     evaluation_config = read_json_object(evaluation_config_path)
+    campaign_id = _required_campaign_id(evaluation_config)
     blind_policy = evaluation_config.get("blind_policy")
     if evaluation_config.get("protocol_stage") != "blind_frozen":
         raise ValueError("只有 protocol_stage=blind_frozen 的配置才能生成盲测冻结清单")
@@ -571,6 +629,23 @@ def create_blind_freeze_manifest(
         raise ValueError("正式盲测配置缺少 required_conda_environment")
     if not isinstance(evaluation_config.get("input_mirrored"), bool):
         raise ValueError("正式盲测配置必须冻结 input_mirrored")
+    canonical_output_path = default_blind_freeze_manifest_path()
+    canonical_receipt_path = default_attempt_receipt_path()
+    if output_path is not None and output_path.resolve() != canonical_output_path:
+        raise ValueError(
+            "blind freeze manifest 路径不可覆盖；固定路径为 "
+            f"{canonical_output_path}"
+        )
+    if canonical_output_path.exists():
+        raise RuntimeError(
+            "正式盲测 campaign 已登记冻结清单，拒绝更换输入或重复生成："
+            f"{canonical_output_path}"
+        )
+    if canonical_receipt_path.exists():
+        raise RuntimeError(
+            "正式盲测 campaign receipt 已存在但 manifest 缺失或正在重建；"
+            f"拒绝生成新 manifest：{canonical_receipt_path}"
+        )
 
     git = git_snapshot()
     if git.get("available") is not True:
@@ -669,6 +744,7 @@ def create_blind_freeze_manifest(
     }
     payload: dict[str, Any] = {
         "schema_version": BLIND_FREEZE_SCHEMA_VERSION,
+        "campaign_id": campaign_id,
         "created_at_utc": created_at_utc,
         "claim_status": "camera_domain_pseudo_ground_truth_shadow_only",
         "git": {
@@ -692,20 +768,17 @@ def create_blind_freeze_manifest(
     identity_sha256 = attempt_identity_sha256(payload)
     payload["attempt_identity_sha256"] = identity_sha256
     payload["attempt_token"] = identity_sha256
-    canonical_output_path = default_blind_freeze_manifest_path(identity_sha256)
-    if output_path is not None and output_path.resolve() != canonical_output_path:
-        raise ValueError(
-            "blind freeze manifest 路径不可覆盖；固定路径为 "
-            f"{canonical_output_path}"
-        )
     try:
         _atomic_create_json(canonical_output_path, payload)
     except FileExistsError as exc:
-        raise RuntimeError(f"冻结清单身份已登记，拒绝重复生成：{canonical_output_path}") from exc
+        raise RuntimeError(
+            "正式盲测 campaign 已登记冻结清单，拒绝更换输入或重复生成："
+            f"{canonical_output_path}"
+        ) from exc
     return {
         "path": str(canonical_output_path),
         "sha256": file_sha256(canonical_output_path),
-        "attempt_receipt_path": str(default_attempt_receipt_path(identity_sha256)),
+        "attempt_receipt_path": str(default_attempt_receipt_path()),
         "manifest": payload,
     }
 
@@ -756,6 +829,9 @@ def verify_blind_freeze_manifest(
     manifest = read_json_object(manifest_path)
     if manifest.get("schema_version") != BLIND_FREEZE_SCHEMA_VERSION:
         raise ValueError("blind freeze manifest schema_version 不受支持")
+    campaign_id = _required_campaign_id(evaluation_config)
+    if manifest.get("campaign_id") != campaign_id:
+        raise ValueError("blind freeze manifest 的 campaign_id 不一致")
     if manifest.get("claim_status") != "camera_domain_pseudo_ground_truth_shadow_only":
         raise ValueError("blind freeze manifest claim_status 不受支持")
     attempt_token = str(manifest.get("attempt_token", "")).lower()
@@ -765,7 +841,7 @@ def verify_blind_freeze_manifest(
         raise ValueError("blind freeze manifest 的确定性 attempt_token 身份不一致")
     if frozen_identity != computed_identity:
         raise ValueError("blind freeze manifest 的 attempt_identity_sha256 不一致")
-    canonical_manifest_path = default_blind_freeze_manifest_path(attempt_token)
+    canonical_manifest_path = default_blind_freeze_manifest_path()
     if manifest_path != canonical_manifest_path:
         raise ValueError(
             "blind freeze manifest 必须使用确定性固定路径："
@@ -897,9 +973,10 @@ def verify_blind_freeze_manifest(
     return {
         "path": str(manifest_path),
         "sha256": actual_sha,
+        "campaign_id": campaign_id,
         "attempt_token": attempt_token,
         "attempt_identity_sha256": computed_identity,
-        "attempt_receipt_path": str(default_attempt_receipt_path(attempt_token)),
+        "attempt_receipt_path": str(default_attempt_receipt_path()),
         "git": current_git,
         "artifacts": artifacts,
         "model_identity": model_identity,
@@ -1000,9 +1077,9 @@ def reserve_blind_attempt(
     """输入门通过后、模型指标计算前原子占用本次正式盲测机会。"""
 
     verify_processed_video_identities(video_summaries, freeze_state)
-    canonical_receipt_path = default_attempt_receipt_path(
-        str(freeze_state.get("attempt_token", ""))
-    )
+    if freeze_state.get("campaign_id") != BLIND_CAMPAIGN_ID:
+        raise ValueError("freeze state 的 campaign_id 不受支持")
+    canonical_receipt_path = default_attempt_receipt_path()
     if receipt_path.resolve() != canonical_receipt_path:
         raise ValueError(
             "正式盲测 receipt 路径不可覆盖；固定路径为 "
@@ -1010,6 +1087,7 @@ def reserve_blind_attempt(
         )
     payload = {
         "schema_version": BLIND_ATTEMPT_RECEIPT_SCHEMA_VERSION,
+        "campaign_id": BLIND_CAMPAIGN_ID,
         "status": "reserved",
         "reserved_at_utc": utc_now_iso(),
         "completed_at_utc": None,
@@ -1036,7 +1114,8 @@ def reserve_blind_attempt(
         _atomic_create_json(canonical_receipt_path, payload)
     except FileExistsError as exc:
         raise RuntimeError(
-            f"正式盲测 receipt 已存在，拒绝重复计算算法结果：{canonical_receipt_path}"
+            "正式盲测 campaign receipt 已存在，拒绝重复计算算法结果："
+            f"{canonical_receipt_path}"
         ) from exc
     return payload
 
@@ -1054,8 +1133,10 @@ def finalize_blind_attempt(
     receipt = read_json_object(path)
     if receipt.get("schema_version") != BLIND_ATTEMPT_RECEIPT_SCHEMA_VERSION:
         raise ValueError("blind attempt receipt schema_version 不受支持")
-    if path != default_attempt_receipt_path(str(receipt.get("attempt_token", ""))):
-        raise ValueError("blind attempt receipt 不在确定性固定路径")
+    if receipt.get("campaign_id") != BLIND_CAMPAIGN_ID:
+        raise ValueError("blind attempt receipt campaign_id 不受支持")
+    if path != default_attempt_receipt_path():
+        raise ValueError("blind attempt receipt 不在 campaign 固定路径")
     if receipt.get("attempt_identity_sha256") != receipt.get("attempt_token"):
         raise ValueError("blind attempt receipt 身份不一致")
     if receipt.get("status") != "reserved":

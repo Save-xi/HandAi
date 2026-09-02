@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
 from pathlib import Path
@@ -128,13 +129,25 @@ def main() -> int:
         ),
     )
     report = json.loads(report_path.read_text(encoding="utf-8"))
+    receipt_path_raw = report.get("blind_attempt_receipt_path")
+    receipt_path = Path(receipt_path_raw) if receipt_path_raw else None
+    receipt_sha256 = (
+        hashlib.sha256(receipt_path.read_bytes()).hexdigest()
+        if receipt_path is not None and receipt_path.is_file()
+        else None
+    )
     print(
         json.dumps(
             {
                 "report": str(report_path),
+                "report_sha256": hashlib.sha256(report_path.read_bytes()).hexdigest(),
                 "role": report["protocol"]["role"],
                 "decision": report["decision"]["status"],
                 "udp_created": report["safety"]["udp_created"],
+                "blind_attempt_receipt": (
+                    str(receipt_path) if receipt_path is not None else None
+                ),
+                "blind_attempt_receipt_sha256": receipt_sha256,
             },
             ensure_ascii=False,
         )

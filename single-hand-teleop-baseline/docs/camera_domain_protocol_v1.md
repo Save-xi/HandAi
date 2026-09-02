@@ -52,13 +52,7 @@
 
 ### 3.2 盲测集 B（开发结束并冻结协议后另录）
 
-重复相同任务，但必须是新录制文件，命名 B1–B7。盲测前需要同时冻结：
-
-- 本 Markdown 的 SHA-256；
-- `camera_domain_eval_v1.json` 的 SHA-256；
-- 机器可读 `blind_policy.gate`；
-- runtime config、selection 与 checkpoint；
-- Git revision。
+本节只保留开发阶段如何形成候选门槛的历史说明，不提供正式盲测操作。正式 B1–B7 的采集、身份、共享 campaign 状态和命令仅以 `camera_domain_blind_protocol_v1.md` 与 `camera_domain_blind_v1.json` 为准；不得把本开发配置或本文 SHA 当作正式盲测凭据。
 
 当前机器配置仍是 `protocol_stage=development`、`blind_policy.enabled=false`，程序会主动拒绝
 `--role blind`，因此还不能误跑成正式准入。
@@ -192,7 +186,7 @@ manifest 默认从 baseline 同目录按 `run_id` 推导；也可显式传 `--li
 - 项目能够接受的实际失败成本；
 - 仍不可放宽的零越界与 shadow-only 约束。
 
-冻结后只允许用全新的 B1–B7 做一次正式判定。
+正式判定转入 `camera-domain-blind-v1` campaign 后，按 `camera_domain_blind_protocol_v1.md` 的本机流程性单次纪律执行；本开发草稿不提供 WORM 或跨机器一次性保证。
 
 ## 8. 三分支决策逻辑
 

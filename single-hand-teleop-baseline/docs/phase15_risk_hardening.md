@@ -271,8 +271,9 @@ test 对比：
 4. Unity 完整工程当前不是 Git 仓库；已把接收脚本、batch 验收脚本、包清单和编辑器版本
    作为 [最小可恢复快照](../integrations/unity_phase15_snapshot/README.md) 纳入本仓库，
    场景和第三方资源仍由原 Unity 工程保存。
-5. 真实摄像头域协议仍是 development 草稿；盲测门槛不得只依据一次 live session 冻结，必须先完成
-   开发视频的逐段分析和失败成本确认，再对全新 B1–B7 做一次正式判定。
+5. 真实摄像头域开发协议先完成了逐段分析和失败成本确认；正式 B1–B7 已转入
+   [盲测冻结协议](camera_domain_blind_protocol_v1.md)，其 receipt 是本机非对抗流程证据，
+   不是 WORM 或跨机器不可重复保证。
 6. 实体 SVH 安全仍是独立阶段：协议、标定、限位、homing、ACK、watchdog、急停均未验收。
 
 后续冻结实验结果见 [延迟、抖动、丢包回放报告](intent_prediction_delay_injection.md)：H2O

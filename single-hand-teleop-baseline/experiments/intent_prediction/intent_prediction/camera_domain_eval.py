@@ -38,6 +38,7 @@ from prediction.shadow_predictor import build_prediction_shadow
 from utils.runtime_session import RUNTIME_SESSION_SCHEMA_VERSION
 
 from intent_prediction.camera_domain_blind_freeze import (
+    BLIND_CAMPAIGN_ID,
     default_attempt_receipt_path,
     finalize_blind_attempt,
     prepare_effective_runtime_config,
@@ -499,6 +500,14 @@ def load_evaluation_config(path: Path) -> dict[str, Any]:
         blind_video_ids=[str(value) for value in video_sets["blind"]],
         required_conda_environment=config.get("required_conda_environment"),
     )
+    if (
+        config.get("blind_policy", {}).get("enabled") is True
+        and config.get("campaign_id") != BLIND_CAMPAIGN_ID
+    ):
+        raise ValueError(
+            "已启用盲测时 campaign_id 必须固定为 "
+            f"{BLIND_CAMPAIGN_ID!r}"
+        )
     if config.get("blind_policy", {}).get("enabled") is True and not isinstance(
         config.get("input_mirrored"), bool
     ):
@@ -1538,7 +1547,7 @@ def _write_markdown(path: Path, report: dict[str, Any]) -> None:
                 "",
                 f"- freeze manifest：`{freeze['path']}`",
                 f"- freeze manifest SHA-256：`{freeze['sha256']}`",
-                f"- 一次性 receipt：`{report['blind_attempt_receipt_path']}`",
+                f"- campaign 流程性 receipt：`{report['blind_attempt_receipt_path']}`",
                 (
                     "- task-aware 输入门："
                     f"{sum(bool(value) for value in input_criteria.values())}/"
@@ -2182,6 +2191,15 @@ def run_camera_domain_evaluation(
             raise ValueError("正式盲测禁止 --protocol 覆盖")
         if input_mirrored_override is not None:
             raise ValueError("正式盲测禁止镜像约定覆盖")
+        if (
+            blind_attempt_receipt_path is not None
+            and blind_attempt_receipt_path.resolve()
+            != default_attempt_receipt_path()
+        ):
+            raise ValueError(
+                "正式盲测 receipt 路径不可覆盖；固定路径为 "
+                f"{default_attempt_receipt_path()}"
+            )
         if any(
             value is not None
             for value in (
@@ -2266,17 +2284,7 @@ def run_camera_domain_evaluation(
             video_specs,
             blind_policy=evaluation_config["blind_policy"],
         )
-        resolved_receipt_path = default_attempt_receipt_path(
-            freeze_state["attempt_token"]
-        )
-        if (
-            blind_attempt_receipt_path is not None
-            and blind_attempt_receipt_path.resolve() != resolved_receipt_path
-        ):
-            raise ValueError(
-                "正式盲测 receipt 路径不可覆盖；固定路径为 "
-                f"{resolved_receipt_path}"
-            )
+        resolved_receipt_path = default_attempt_receipt_path()
         if resolved_receipt_path.exists():
             raise RuntimeError(
                 f"正式盲测 receipt 已存在，拒绝重复运行：{resolved_receipt_path}"
