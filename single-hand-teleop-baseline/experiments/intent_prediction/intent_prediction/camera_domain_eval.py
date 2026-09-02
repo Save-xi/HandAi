@@ -26,7 +26,7 @@ import re
 import subprocess
 import sys
 import time
-from typing import Any, Callable, Iterable
+from typing import Any, Callable, Iterable, Mapping
 
 import cv2
 import numpy as np
@@ -35,9 +35,18 @@ from gesture.rule_based_gesture import GestureStabilizer
 from main import RuntimeMode, _apply_extension_chain, _build_baseline_payload, _build_detector
 from output.frame_payload_contract import prepare_frame_payload
 from prediction.shadow_predictor import build_prediction_shadow
-from utils.config import load_config
 from utils.runtime_session import RUNTIME_SESSION_SCHEMA_VERSION
 
+from intent_prediction.camera_domain_blind_freeze import (
+    default_attempt_receipt_path,
+    finalize_blind_attempt,
+    prepare_effective_runtime_config,
+    reserve_blind_attempt,
+    stage_blind_video_inputs,
+    verify_algorithm_identity,
+    verify_blind_freeze_manifest,
+    verify_processed_video_identities,
+)
 from intent_prediction.delay_injection import (
     RuntimeTraceGroup,
     _concat_scenario_arrays,
@@ -52,6 +61,7 @@ from intent_prediction.delay_injection import (
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONFIG_PATH = EXPERIMENT_ROOT / "configs" / "camera_domain_eval_v1.json"
+DEFAULT_BLIND_CONFIG_PATH = EXPERIMENT_ROOT / "configs" / "camera_domain_blind_v1.json"
 DEFAULT_OUTPUT_ROOT = EXPERIMENT_ROOT / "outputs" / "camera_domain_eval_v1"
 REPORT_SCHEMA_VERSION = "camera-domain-eval-report-v1"
 UNITY_TIMING_SUMMARY_SCHEMA_VERSION = "handai-unity-timing-summary-v1"
@@ -104,6 +114,274 @@ def _finite_number(value: Any) -> bool:
         and not isinstance(value, bool)
         and math.isfinite(float(value))
     )
+
+
+def _probability(value: Any) -> bool:
+    return _finite_number(value) and 0.0 <= float(value) <= 1.0
+
+
+def _sha256_text(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value.lower())
+    )
+
+
+def _validate_blind_policy_config(
+    blind_policy: Any,
+    *,
+    blind_video_ids: list[str],
+    required_conda_environment: Any,
+) -> None:
+    if not isinstance(blind_policy, dict):
+        raise ValueError("blind_policy 必须是对象")
+    if blind_policy.get("enabled") is not True:
+        return
+    if (
+        not isinstance(required_conda_environment, str)
+        or not required_conda_environment.strip()
+    ):
+        raise ValueError("已启用盲测时 required_conda_environment 必须是非空字符串")
+    gate = blind_policy.get("gate")
+    if not isinstance(gate, dict):
+        raise ValueError("已启用的 blind_policy 必须包含 gate 对象")
+    primary_delays = gate.get("primary_delays_ms")
+    if (
+        not isinstance(primary_delays, list)
+        or not primary_delays
+        or any(not _finite_number(value) or float(value) <= 0.0 for value in primary_delays)
+        or len({float(value) for value in primary_delays}) != len(primary_delays)
+    ):
+        raise ValueError("blind gate.primary_delays_ms 必须是唯一的正数列表")
+    finite_fields = (
+        "minimum_primary_gated_rmse_improvement_percent",
+        "minimum_primary_dynamic_gated_rmse_improvement_percent",
+        "minimum_primary_gated_p95_improvement_percent",
+        "minimum_each_video_gated_rmse_improvement_percent",
+        "minimum_each_video_gated_p95_improvement_percent",
+        "minimum_each_video_evaluable_rows",
+    )
+    probability_fields = (
+        "minimum_primary_conditional_prediction_available_fraction",
+        "minimum_primary_end_to_end_prediction_coverage_fraction",
+        "maximum_primary_range_violation_rate",
+    )
+    for field in finite_fields:
+        if not _finite_number(gate.get(field)):
+            raise ValueError(f"blind gate 缺少有限数值字段：{field}")
+    for field in probability_fields:
+        if not _probability(gate.get(field)):
+            raise ValueError(f"blind gate 概率字段必须位于 [0,1]：{field}")
+    minimum_evaluable_rows = gate["minimum_each_video_evaluable_rows"]
+    if (
+        not isinstance(minimum_evaluable_rows, int)
+        or isinstance(minimum_evaluable_rows, bool)
+        or minimum_evaluable_rows < 2
+    ):
+        raise ValueError("minimum_each_video_evaluable_rows 必须是至少为 2 的整数")
+    if not isinstance(gate.get("require_live_runtime"), bool):
+        raise ValueError("blind gate.require_live_runtime 必须是布尔值")
+
+    requirements = gate.get("video_requirements")
+    if not isinstance(requirements, dict) or set(requirements) != set(blind_video_ids):
+        raise ValueError("blind gate.video_requirements 必须恰好覆盖全部 B1-B7")
+    for video_id in blind_video_ids:
+        rule = requirements[video_id]
+        if not isinstance(rule, dict):
+            raise ValueError(f"{video_id} video requirement 必须是对象")
+        if rule.get("profile") not in {"clean", "intentional_invalid"}:
+            raise ValueError(f"{video_id}.profile 不受支持")
+        numeric_fields = (
+            "minimum_duration_ms",
+            "maximum_duration_ms",
+            "minimum_nominal_fps",
+            "maximum_nominal_fps",
+            "minimum_duration_based_fps",
+            "maximum_duration_based_fps",
+            "minimum_width",
+            "minimum_height",
+            "maximum_timestamp_fallback_fraction",
+            "minimum_control_ready_fraction",
+            "minimum_svh_valid_fraction",
+        )
+        for field in numeric_fields:
+            if not _finite_number(rule.get(field)):
+                raise ValueError(f"{video_id} 缺少有限视频规格：{field}")
+        for minimum, maximum in (
+            ("minimum_duration_ms", "maximum_duration_ms"),
+            ("minimum_nominal_fps", "maximum_nominal_fps"),
+            ("minimum_duration_based_fps", "maximum_duration_based_fps"),
+        ):
+            if float(rule[minimum]) > float(rule[maximum]):
+                raise ValueError(f"{video_id} 的 {minimum} 不能大于 {maximum}")
+        for field in (
+            "maximum_timestamp_fallback_fraction",
+            "minimum_control_ready_fraction",
+            "minimum_svh_valid_fraction",
+        ):
+            if not _probability(rule[field]):
+                raise ValueError(f"{video_id}.{field} 必须位于 [0,1]")
+        if rule.get("require_metadata_frame_count_match") is not True:
+            raise ValueError(f"{video_id} 必须要求 decoded frame 与 metadata frame 一致")
+        if rule["profile"] == "clean":
+            if not _finite_number(rule.get("maximum_invalid_run_duration_ms")):
+                raise ValueError(f"{video_id} clean profile 缺少最大连续 invalid 时长")
+            if not _finite_number(rule.get("minimum_longest_ready_run_ms")) or float(
+                rule["minimum_longest_ready_run_ms"]
+            ) <= 0.0:
+                raise ValueError(f"{video_id} clean profile 缺少最短连续 ready 证据")
+            gestures = rule.get("minimum_stable_gesture_frames", {})
+            if not isinstance(gestures, dict) or any(
+                not isinstance(count, int) or isinstance(count, bool) or count < 0
+                for count in gestures.values()
+            ):
+                raise ValueError(f"{video_id} minimum_stable_gesture_frames 非法")
+            task_evidence = rule.get("task_evidence")
+            if not isinstance(task_evidence, dict) or not task_evidence:
+                raise ValueError(f"{video_id} clean profile 缺少 task_evidence")
+            gesture_sequence = task_evidence.get("gesture_sequence")
+            grasp_sequence = task_evidence.get("grasp_close_sequence")
+            has_gesture_sequence = isinstance(gesture_sequence, list) and len(
+                gesture_sequence
+            ) >= 2
+            has_grasp_sequence = isinstance(grasp_sequence, list) and len(
+                grasp_sequence
+            ) >= 2
+            has_transition_count = isinstance(
+                task_evidence.get("minimum_gesture_transition_count"), int
+            ) and not isinstance(
+                task_evidence.get("minimum_gesture_transition_count"), bool
+            )
+            if not (has_gesture_sequence or has_grasp_sequence or has_transition_count):
+                raise ValueError(f"{video_id}.task_evidence 没有可执行任务门")
+            if has_gesture_sequence:
+                if any(
+                    not isinstance(value, str) or not value
+                    for value in gesture_sequence
+                ):
+                    raise ValueError(f"{video_id}.gesture_sequence 非法")
+                occurrences = task_evidence.get(
+                    "minimum_gesture_sequence_occurrences"
+                )
+                if not isinstance(occurrences, int) or isinstance(
+                    occurrences, bool
+                ) or occurrences <= 0:
+                    raise ValueError(
+                        f"{video_id} 缺少 minimum_gesture_sequence_occurrences"
+                    )
+            if has_transition_count and int(
+                task_evidence["minimum_gesture_transition_count"]
+            ) <= 0:
+                raise ValueError(f"{video_id} gesture transition count 必须大于 0")
+            maximum_transition_ms = task_evidence.get(
+                "maximum_median_gesture_transition_ms"
+            )
+            if maximum_transition_ms is not None and (
+                not _finite_number(maximum_transition_ms)
+                or float(maximum_transition_ms) <= 0.0
+            ):
+                raise ValueError(f"{video_id} median gesture transition 门非法")
+            if has_grasp_sequence:
+                if grasp_sequence != ["low", "high", "low"]:
+                    raise ValueError(
+                        f"{video_id}.grasp_close_sequence 仅支持 low-high-low"
+                    )
+                for field in (
+                    "grasp_close_low_maximum",
+                    "grasp_close_high_minimum",
+                    "minimum_grasp_close_range",
+                    "minimum_grasp_sequence_occurrences",
+                ):
+                    if not _finite_number(task_evidence.get(field)):
+                        raise ValueError(f"{video_id}.task_evidence 缺少 {field}")
+                if not 0.0 <= float(
+                    task_evidence["grasp_close_low_maximum"]
+                ) < float(task_evidence["grasp_close_high_minimum"]) <= 1.0:
+                    raise ValueError(f"{video_id} grasp close 高低阈值非法")
+                if float(task_evidence["minimum_grasp_close_range"]) <= 0.0:
+                    raise ValueError(f"{video_id} grasp close range 必须大于 0")
+                occurrences = task_evidence["minimum_grasp_sequence_occurrences"]
+                if int(occurrences) != float(occurrences) or int(occurrences) <= 0:
+                    raise ValueError(f"{video_id} grasp sequence 次数非法")
+        else:
+            for field in (
+                "maximum_control_ready_fraction",
+                "maximum_svh_valid_fraction",
+            ):
+                if not _probability(rule.get(field)):
+                    raise ValueError(f"{video_id}.{field} 必须位于 [0,1]")
+            windows = rule.get("windows")
+            if not isinstance(windows, list) or not windows:
+                raise ValueError(f"{video_id} intentional_invalid profile 缺少固定时间窗")
+            for field in (
+                "required_invalid_episode_count",
+                "minimum_recovery_count",
+            ):
+                value = rule.get(field)
+                if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+                    raise ValueError(f"{video_id}.{field} 必须是正整数")
+            for field in (
+                "minimum_invalid_run_duration_ms",
+                "maximum_invalid_run_duration_ms",
+            ):
+                if not _finite_number(rule.get(field)) or float(rule[field]) <= 0.0:
+                    raise ValueError(f"{video_id}.{field} 必须是正数")
+            if float(rule["minimum_invalid_run_duration_ms"]) > float(
+                rule["maximum_invalid_run_duration_ms"]
+            ):
+                raise ValueError(f"{video_id} invalid run 时长上下界颠倒")
+            if rule.get("require_starts_ready") is not True or rule.get(
+                "require_ends_ready"
+            ) is not True:
+                raise ValueError(f"{video_id} 必须冻结 starts/ends ready")
+            names: set[str] = set()
+            previous_end_ms = -1.0
+            previous_expected: str | None = None
+            invalid_window_count = 0
+            for window in windows:
+                if not isinstance(window, dict):
+                    raise ValueError(f"{video_id} 时间窗必须是对象")
+                name = window.get("name")
+                if not isinstance(name, str) or not name or name in names:
+                    raise ValueError(f"{video_id} 时间窗名称为空或重复")
+                names.add(name)
+                if window.get("expected") not in {"ready", "invalid"}:
+                    raise ValueError(f"{video_id}.{name} expected 只能是 ready/invalid")
+                if not _finite_number(window.get("start_ms")) or not _finite_number(
+                    window.get("end_ms")
+                ):
+                    raise ValueError(f"{video_id}.{name} 时间边界必须是有限数字")
+                if float(window["start_ms"]) < 0.0 or float(window["end_ms"]) <= float(
+                    window["start_ms"]
+                ):
+                    raise ValueError(f"{video_id}.{name} 时间边界非法")
+                if float(window["start_ms"]) < previous_end_ms:
+                    raise ValueError(f"{video_id}.{name} 与前一时间窗重叠或乱序")
+                expected = str(window["expected"])
+                if previous_expected == expected:
+                    raise ValueError(f"{video_id} 相邻时间窗必须 ready/invalid 交替")
+                if expected == "invalid":
+                    invalid_window_count += 1
+                previous_end_ms = float(window["end_ms"])
+                previous_expected = expected
+                if not _probability(window.get("minimum_matching_fraction")) or float(
+                    window["minimum_matching_fraction"]
+                ) <= 0.0:
+                    raise ValueError(f"{video_id}.{name} matching fraction 非法")
+            if windows[0]["expected"] != "ready" or windows[-1]["expected"] != "ready":
+                raise ValueError(f"{video_id} 固定时间窗必须由 ready 开始并以 ready 结束")
+            if invalid_window_count != int(rule["required_invalid_episode_count"]):
+                raise ValueError(f"{video_id} invalid 窗数量与 episode 预注册不一致")
+
+    forbidden = blind_policy.get("forbidden_video_sha256")
+    if not isinstance(forbidden, list) or not forbidden:
+        raise ValueError("blind_policy 必须冻结开发视频 SHA 禁止清单")
+    normalized = [str(value).lower() for value in forbidden]
+    if len(set(normalized)) != len(normalized) or any(
+        not _sha256_text(value) for value in normalized
+    ):
+        raise ValueError("forbidden_video_sha256 必须是唯一的 64 位 SHA-256 列表")
 
 
 def _percentiles(values: Iterable[float]) -> dict[str, float | None]:
@@ -216,6 +494,15 @@ def load_evaluation_config(path: Path) -> dict[str, Any]:
         raise ValueError("minimum_nominal_fps 必须大于 0")
     if float(timeline["maximum_nominal_fps"]) <= float(timeline["minimum_nominal_fps"]):
         raise ValueError("maximum_nominal_fps 必须大于 minimum_nominal_fps")
+    _validate_blind_policy_config(
+        config.get("blind_policy"),
+        blind_video_ids=[str(value) for value in video_sets["blind"]],
+        required_conda_environment=config.get("required_conda_environment"),
+    )
+    if config.get("blind_policy", {}).get("enabled") is True and not isinstance(
+        config.get("input_mirrored"), bool
+    ):
+        raise ValueError("input_mirrored 必须显式冻结为布尔值")
     return config
 
 
@@ -336,6 +623,58 @@ def _build_video_payload_processor(
     return process, detector.close
 
 
+def _summarize_readiness_runs(
+    readiness: list[bool],
+    timestamps_ms: list[float],
+    *,
+    nominal_fps: float,
+) -> dict[str, Any]:
+    if len(readiness) != len(timestamps_ms) or not readiness:
+        raise ValueError("readiness 与媒体时间戳必须等长且非空")
+    period_ms = 1000.0 / float(nominal_fps)
+    runs: list[dict[str, Any]] = []
+    start = 0
+    for end_exclusive in range(1, len(readiness) + 1):
+        if end_exclusive < len(readiness) and readiness[end_exclusive] == readiness[start]:
+            continue
+        end = end_exclusive - 1
+        duration_ms = float(timestamps_ms[end] - timestamps_ms[start] + period_ms)
+        runs.append(
+            {
+                "ready": bool(readiness[start]),
+                "start_frame_index": start,
+                "end_frame_index": end,
+                "frame_count": end_exclusive - start,
+                "start_media_timestamp_ms": float(timestamps_ms[start]),
+                "end_media_timestamp_ms": float(timestamps_ms[end]),
+                "duration_ms": max(0.0, duration_ms),
+            }
+        )
+        start = end_exclusive
+    valid_runs = [run for run in runs if run["ready"]]
+    invalid_runs = [run for run in runs if not run["ready"]]
+    return {
+        "starts_ready": bool(readiness[0]),
+        "ends_ready": bool(readiness[-1]),
+        "ready_run_count": len(valid_runs),
+        "invalid_run_count": len(invalid_runs),
+        "recovery_count": sum(
+            1
+            for previous, current in zip(runs, runs[1:])
+            if previous["ready"] is False and current["ready"] is True
+        ),
+        "longest_ready_run_ms": max(
+            (float(run["duration_ms"]) for run in valid_runs),
+            default=0.0,
+        ),
+        "longest_invalid_run_ms": max(
+            (float(run["duration_ms"]) for run in invalid_runs),
+            default=0.0,
+        ),
+        "runs": runs,
+    }
+
+
 def process_video_to_baseline_jsonl(
     spec: VideoSpec,
     *,
@@ -381,6 +720,8 @@ def process_video_to_baseline_jsonl(
     detected_frames = 0
     control_ready_frames = 0
     svh_valid_frames = 0
+    readiness: list[bool] = []
+    stable_gesture_counts: dict[str, int] = {}
     wall_started = time.perf_counter()
     try:
         with output_path.open("w", encoding="utf-8", newline="\n") as handle:
@@ -408,7 +749,13 @@ def process_video_to_baseline_jsonl(
                 detected_frames += int(payload.get("detected") is True)
                 control_ready_frames += int(payload.get("control_ready") is True)
                 preview = payload.get("svh_preview")
-                svh_valid_frames += int(isinstance(preview, dict) and preview.get("valid") is True)
+                preview_valid = isinstance(preview, dict) and preview.get("valid") is True
+                svh_valid_frames += int(preview_valid)
+                readiness.append(payload.get("control_ready") is True and preview_valid)
+                stable_gesture = str(payload.get("gesture_stable", "unknown"))
+                stable_gesture_counts[stable_gesture] = (
+                    stable_gesture_counts.get(stable_gesture, 0) + 1
+                )
                 handle.write(json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n")
                 frame_index += 1
     finally:
@@ -428,6 +775,11 @@ def process_video_to_baseline_jsonl(
         float((frame_index - 1) * 1000.0 / duration_ms)
         if frame_index > 1 and duration_ms > 0.0
         else nominal_fps
+    )
+    readiness_summary = _summarize_readiness_runs(
+        readiness,
+        timestamps_ms,
+        nominal_fps=nominal_fps,
     )
     return {
         "video_id": spec.video_id,
@@ -473,7 +825,9 @@ def process_video_to_baseline_jsonl(
             "detected_fraction": float(detected_frames / frame_index),
             "control_ready_fraction": float(control_ready_frames / frame_index),
             "svh_valid_fraction": float(svh_valid_frames / frame_index),
+            "stable_gesture_counts": stable_gesture_counts,
         },
+        "observation_continuity": readiness_summary,
     }
 
 
@@ -1174,6 +1528,24 @@ def _write_markdown(path: Path, report: dict[str, Any]) -> None:
                 counts=source_text,
             )
         )
+    freeze = report.get("blind_freeze")
+    if isinstance(freeze, dict):
+        input_criteria = report["decision"].get("criteria", {}).get("input", {})
+        lines.extend(
+            [
+                "",
+                "## 正式盲测冻结身份",
+                "",
+                f"- freeze manifest：`{freeze['path']}`",
+                f"- freeze manifest SHA-256：`{freeze['sha256']}`",
+                f"- 一次性 receipt：`{report['blind_attempt_receipt_path']}`",
+                (
+                    "- task-aware 输入门："
+                    f"{sum(bool(value) for value in input_criteria.values())}/"
+                    f"{len(input_criteria)} 通过"
+                ),
+            ]
+        )
     algorithm = report["algorithm_utility"]
     lines.extend(["", "## 算法效用（媒体时间轴同步重放）", ""])
     if algorithm.get("status") == "evaluated":
@@ -1261,11 +1633,370 @@ def _write_markdown(path: Path, report: dict[str, Any]) -> None:
             "- 离线吞吐、源视频 FPS、真实异步 worker 覆盖是三个不同指标。",
             "- PTS 中位间隔 FPS 与首末时间戳时长均值 FPS 分列报告；前者不是完整视频时长均值。",
             "- timing 起点是 `source.read()` 返回后，不包含相机曝光、此前等待、显示刷新或人体/机械响应。",
-            "- development 阶段不产生 release/上线结论；盲测前必须另行冻结门槛和双 SHA。",
+            "- development 阶段不产生 release/上线结论；正式 blind 必须绑定 freeze manifest、Git、模型、配置/协议和 B1–B7 原始文件身份。",
             "- 本工具不创建 UDP exporter，预测结果仍不进入 Unity payload。",
         ]
     )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def verify_blind_video_inventory(
+    video_specs: list[VideoSpec],
+    *,
+    blind_policy: Mapping[str, Any],
+) -> dict[str, str]:
+    """解码前拒绝 B 文件互相复制或把开发视频改名冒充盲测。"""
+
+    forbidden = {
+        str(value).lower()
+        for value in blind_policy.get("forbidden_video_sha256", [])
+    }
+    by_id: dict[str, str] = {}
+    by_sha: dict[str, str] = {}
+    for spec in video_specs:
+        digest = _hash_file(spec.path).lower()
+        if digest in forbidden:
+            raise ValueError(f"{spec.video_id} 与开发集 V1-V7 原始视频 SHA 重合")
+        previous = by_sha.get(digest)
+        if previous is not None:
+            raise ValueError(f"{spec.video_id} 与 {previous} 视频内容 SHA 重复")
+        by_id[spec.video_id] = digest
+        by_sha[digest] = spec.video_id
+    return by_id
+
+
+def _window_match(
+    rows: list[dict[str, Any]],
+    *,
+    window: Mapping[str, Any],
+) -> dict[str, Any]:
+    if not rows:
+        return {"samples": 0, "matching_fraction": 0.0, "passed": False}
+    first_timestamp = float(rows[0]["timestamp"])
+    start_ms = float(window["start_ms"])
+    end_ms = float(window["end_ms"])
+    # JSON 浮点时间戳在 0.1 s 等边界上会出现 199.999.../200.000...。
+    # 先量化到微秒，再判断半开区间，避免相邻预注册窗口互相吞帧。
+    start_us = int(round(start_ms * 1000.0))
+    end_us = int(round(end_ms * 1000.0))
+    selected = []
+    for row in rows:
+        relative_us = int(
+            round((float(row["timestamp"]) - first_timestamp) * 1_000_000.0)
+        )
+        if start_us <= relative_us < end_us:
+            selected.append(row)
+    expected = str(window["expected"])
+
+    def matches(row: Mapping[str, Any]) -> bool:
+        control_ready = row.get("control_ready") is True
+        preview = row.get("svh_preview")
+        preview_valid = isinstance(preview, dict) and preview.get("valid") is True
+        if expected == "ready":
+            return control_ready and preview_valid
+        return not control_ready and not preview_valid
+
+    match_count = sum(matches(row) for row in selected)
+    fraction = float(match_count / len(selected)) if selected else 0.0
+    return {
+        "samples": len(selected),
+        "matching_frames": match_count,
+        "matching_fraction": fraction,
+        "expected": expected,
+        "start_ms": start_ms,
+        "end_ms": end_ms,
+        "minimum_matching_fraction": float(window["minimum_matching_fraction"]),
+        "passed": bool(
+            selected and fraction >= float(window["minimum_matching_fraction"])
+        ),
+    }
+
+
+def _ordered_sequence_occurrences(values: list[str], pattern: list[str]) -> int:
+    if not pattern or len(values) < len(pattern):
+        return 0
+    return sum(
+        values[index : index + len(pattern)] == pattern
+        for index in range(len(values) - len(pattern) + 1)
+    )
+
+
+def _evaluate_clean_task_evidence(
+    rows: list[dict[str, Any]],
+    *,
+    task_evidence: Mapping[str, Any],
+) -> tuple[dict[str, bool], dict[str, Any]]:
+    ready_rows = []
+    for row in rows:
+        preview = row.get("svh_preview")
+        if row.get("control_ready") is True and isinstance(
+            preview, dict
+        ) and preview.get("valid") is True:
+            ready_rows.append(row)
+
+    gesture_runs: list[dict[str, Any]] = []
+    for row in ready_rows:
+        gesture = str(row.get("gesture_stable", "unknown"))
+        if gesture in {"", "None", "none", "unknown"}:
+            continue
+        timestamp_ms = float(row["timestamp"]) * 1000.0
+        if not gesture_runs or gesture_runs[-1]["gesture"] != gesture:
+            gesture_runs.append(
+                {"gesture": gesture, "start_timestamp_ms": timestamp_ms}
+            )
+    gesture_labels = [str(run["gesture"]) for run in gesture_runs]
+    transition_intervals_ms = [
+        float(current["start_timestamp_ms"] - previous["start_timestamp_ms"])
+        for previous, current in zip(gesture_runs, gesture_runs[1:])
+    ]
+    median_transition_ms = (
+        float(np.median(np.asarray(transition_intervals_ms, dtype=np.float64)))
+        if transition_intervals_ms
+        else None
+    )
+
+    criteria: dict[str, bool] = {}
+    details: dict[str, Any] = {
+        "gesture_runs": gesture_labels,
+        "gesture_transition_count": max(0, len(gesture_runs) - 1),
+        "median_gesture_transition_ms": median_transition_ms,
+    }
+    raw_pattern = task_evidence.get("gesture_sequence")
+    if isinstance(raw_pattern, list) and raw_pattern:
+        pattern = [str(value) for value in raw_pattern]
+        occurrences = _ordered_sequence_occurrences(gesture_labels, pattern)
+        minimum = int(task_evidence["minimum_gesture_sequence_occurrences"])
+        criteria["gesture_sequence"] = occurrences >= minimum
+        details["gesture_sequence"] = {
+            "pattern": pattern,
+            "occurrences": occurrences,
+            "minimum_occurrences": minimum,
+        }
+    if "minimum_gesture_transition_count" in task_evidence:
+        minimum_transitions = int(task_evidence["minimum_gesture_transition_count"])
+        criteria["gesture_transition_count"] = (
+            max(0, len(gesture_runs) - 1) >= minimum_transitions
+        )
+        details["minimum_gesture_transition_count"] = minimum_transitions
+    if "maximum_median_gesture_transition_ms" in task_evidence:
+        maximum_transition_ms = float(
+            task_evidence["maximum_median_gesture_transition_ms"]
+        )
+        criteria["gesture_transition_speed"] = bool(
+            median_transition_ms is not None
+            and median_transition_ms <= maximum_transition_ms
+        )
+        details["maximum_median_gesture_transition_ms"] = maximum_transition_ms
+
+    raw_grasp_pattern = task_evidence.get("grasp_close_sequence")
+    if isinstance(raw_grasp_pattern, list) and raw_grasp_pattern:
+        low_maximum = float(task_evidence["grasp_close_low_maximum"])
+        high_minimum = float(task_evidence["grasp_close_high_minimum"])
+        grasp_values: list[float] = []
+        grasp_states: list[str] = []
+        for row in ready_rows:
+            control = row.get("control_representation")
+            value = control.get("grasp_close") if isinstance(control, dict) else None
+            if not _finite_number(value):
+                continue
+            grasp = float(value)
+            grasp_values.append(grasp)
+            state = (
+                "low"
+                if grasp <= low_maximum
+                else "high"
+                if grasp >= high_minimum
+                else None
+            )
+            if state is not None and (not grasp_states or grasp_states[-1] != state):
+                grasp_states.append(state)
+        grasp_range = max(grasp_values) - min(grasp_values) if grasp_values else 0.0
+        pattern = [str(value) for value in raw_grasp_pattern]
+        occurrences = _ordered_sequence_occurrences(grasp_states, pattern)
+        minimum_occurrences = int(
+            task_evidence["minimum_grasp_sequence_occurrences"]
+        )
+        minimum_range = float(task_evidence["minimum_grasp_close_range"])
+        criteria["grasp_close_range"] = grasp_range >= minimum_range
+        criteria["grasp_close_sequence"] = occurrences >= minimum_occurrences
+        details["grasp_close"] = {
+            "minimum": min(grasp_values) if grasp_values else None,
+            "maximum": max(grasp_values) if grasp_values else None,
+            "range": grasp_range,
+            "minimum_range": minimum_range,
+            "states": grasp_states,
+            "pattern": pattern,
+            "occurrences": occurrences,
+            "minimum_occurrences": minimum_occurrences,
+            "low_maximum": low_maximum,
+            "high_minimum": high_minimum,
+        }
+    return criteria, details
+
+
+def evaluate_blind_input_gate(
+    videos: list[dict[str, Any]],
+    *,
+    gate: Mapping[str, Any],
+) -> dict[str, Any]:
+    """先判输入与任务执行；失败时不得继续计算盲测算法指标。"""
+
+    requirements = gate["video_requirements"]
+    criteria: dict[str, bool] = {}
+    details: dict[str, Any] = {}
+    for video in videos:
+        video_id = str(video["video_id"])
+        rule = requirements[video_id]
+        metadata = video["metadata"]
+        timeline = video["source_timeline"]
+        observations = video["observation_counts"]
+        continuity = video["observation_continuity"]
+        frame_count = int(metadata["decoded_frame_count"])
+        source_counts = dict(timeline["timestamp_source_counts"])
+        fallback_count = sum(
+            int(value) for key, value in source_counts.items() if key != "container_pts_ms"
+        )
+        fallback_fraction = float(fallback_count / frame_count) if frame_count else 1.0
+        video_criteria = {
+            "duration": (
+                float(rule["minimum_duration_ms"])
+                <= float(timeline["duration_ms"])
+                <= float(rule["maximum_duration_ms"])
+            ),
+            "nominal_fps": (
+                float(rule["minimum_nominal_fps"])
+                <= float(metadata["nominal_fps"])
+                <= float(rule["maximum_nominal_fps"])
+            ),
+            "duration_based_fps": (
+                float(rule["minimum_duration_based_fps"])
+                <= float(timeline["duration_based_fps"])
+                <= float(rule["maximum_duration_based_fps"])
+            ),
+            "resolution": (
+                int(metadata["width"]) >= int(rule["minimum_width"])
+                and int(metadata["height"]) >= int(rule["minimum_height"])
+            ),
+            "metadata_frame_count": (
+                int(metadata["metadata_frame_count"]) == frame_count
+            ),
+            "timestamp_fallback": (
+                fallback_fraction
+                <= float(rule["maximum_timestamp_fallback_fraction"])
+            ),
+            "control_ready_minimum": (
+                float(observations["control_ready_fraction"])
+                >= float(rule["minimum_control_ready_fraction"])
+            ),
+            "svh_valid_minimum": (
+                float(observations["svh_valid_fraction"])
+                >= float(rule["minimum_svh_valid_fraction"])
+            ),
+        }
+        video_details: dict[str, Any] = {
+            "profile": rule["profile"],
+            "duration_ms": float(timeline["duration_ms"]),
+            "nominal_fps": float(metadata["nominal_fps"]),
+            "duration_based_fps": float(timeline["duration_based_fps"]),
+            "resolution": [int(metadata["width"]), int(metadata["height"])],
+            "decoded_frames": frame_count,
+            "metadata_frames": int(metadata["metadata_frame_count"]),
+            "timestamp_fallback_fraction": fallback_fraction,
+            "control_ready_fraction": float(observations["control_ready_fraction"]),
+            "svh_valid_fraction": float(observations["svh_valid_fraction"]),
+            "longest_invalid_run_ms": float(continuity["longest_invalid_run_ms"]),
+        }
+        if rule["profile"] == "clean":
+            video_criteria["invalid_run_duration"] = (
+                float(continuity["longest_invalid_run_ms"])
+                <= float(rule["maximum_invalid_run_duration_ms"])
+            )
+            if "minimum_longest_ready_run_ms" in rule:
+                video_criteria["ready_run_duration"] = (
+                    float(continuity.get("longest_ready_run_ms", 0.0))
+                    >= float(rule["minimum_longest_ready_run_ms"])
+                )
+            gestures = dict(observations.get("stable_gesture_counts", {}))
+            required_gestures = dict(rule.get("minimum_stable_gesture_frames", {}))
+            for gesture, minimum_frames in required_gestures.items():
+                video_criteria[f"gesture_{gesture}"] = (
+                    int(gestures.get(gesture, 0)) >= int(minimum_frames)
+                )
+            video_details["stable_gesture_counts"] = gestures
+            task_evidence = rule.get("task_evidence")
+            if isinstance(task_evidence, dict) and task_evidence:
+                rows = _load_jsonl(Path(video["baseline_jsonl_path"]))
+                task_criteria, task_details = _evaluate_clean_task_evidence(
+                    rows,
+                    task_evidence=task_evidence,
+                )
+                for key, passed in task_criteria.items():
+                    video_criteria[f"task_{key}"] = passed
+                video_details["task_evidence"] = task_details
+        else:
+            video_criteria["control_ready_maximum"] = (
+                float(observations["control_ready_fraction"])
+                <= float(rule["maximum_control_ready_fraction"])
+            )
+            video_criteria["svh_valid_maximum"] = (
+                float(observations["svh_valid_fraction"])
+                <= float(rule["maximum_svh_valid_fraction"])
+            )
+            rows = _load_jsonl(Path(video["baseline_jsonl_path"]))
+            windows: dict[str, Any] = {}
+            for window in rule["windows"]:
+                result = _window_match(rows, window=window)
+                name = str(window["name"])
+                windows[name] = result
+                video_criteria[f"window_{name}"] = bool(result["passed"])
+            video_details["windows"] = windows
+            if "required_invalid_episode_count" in rule:
+                minimum_invalid_ms = float(rule["minimum_invalid_run_duration_ms"])
+                maximum_invalid_ms = float(rule["maximum_invalid_run_duration_ms"])
+                invalid_run_durations = [
+                    float(run["duration_ms"])
+                    for run in continuity.get("runs", [])
+                    if run.get("ready") is False
+                    and float(run.get("duration_ms", 0.0)) >= minimum_invalid_ms
+                ]
+                video_criteria["invalid_episode_count"] = len(
+                    invalid_run_durations
+                ) == int(rule["required_invalid_episode_count"])
+                video_criteria["invalid_episode_duration"] = bool(
+                    invalid_run_durations
+                ) and all(
+                    duration <= maximum_invalid_ms
+                    for duration in invalid_run_durations
+                )
+                video_criteria["recovery_count"] = int(
+                    continuity.get("recovery_count", 0)
+                ) >= int(rule["minimum_recovery_count"])
+                first_window_name = str(rule["windows"][0]["name"])
+                last_window_name = str(rule["windows"][-1]["name"])
+                video_criteria["starts_ready_phase"] = bool(
+                    windows[first_window_name]["passed"]
+                )
+                video_criteria["ends_ready_phase"] = bool(
+                    windows[last_window_name]["passed"]
+                )
+                video_details["intentional_invalid_episodes"] = {
+                    "durations_ms": invalid_run_durations,
+                    "required_count": int(rule["required_invalid_episode_count"]),
+                    "minimum_duration_ms": minimum_invalid_ms,
+                    "maximum_duration_ms": maximum_invalid_ms,
+                    "recovery_count": int(continuity.get("recovery_count", 0)),
+                    "minimum_recovery_count": int(rule["minimum_recovery_count"]),
+                    "starts_ready": continuity.get("starts_ready"),
+                    "ends_ready": continuity.get("ends_ready"),
+                }
+        for key, passed in video_criteria.items():
+            criteria[f"{video_id}_{key}"] = bool(passed)
+        details[video_id] = video_details
+    return {
+        "passed": bool(criteria) and all(criteria.values()),
+        "criteria": criteria,
+        "details": details,
+    }
 
 
 def evaluate_blind_decision(
@@ -1274,14 +2005,17 @@ def evaluate_blind_decision(
     live_runtime: dict[str, Any] | None,
     *,
     gate: dict[str, Any],
+    input_gate: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """按冻结 gate 生成三分支结论；gate 为空时绝不能调用。"""
 
     required_fields = (
-        "minimum_each_control_ready_fraction",
-        "maximum_each_timestamp_fallback_fraction",
         "minimum_primary_gated_rmse_improvement_percent",
         "minimum_primary_dynamic_gated_rmse_improvement_percent",
+        "minimum_primary_gated_p95_improvement_percent",
+        "minimum_each_video_gated_rmse_improvement_percent",
+        "minimum_each_video_gated_p95_improvement_percent",
+        "minimum_each_video_evaluable_rows",
         "minimum_primary_conditional_prediction_available_fraction",
         "minimum_primary_end_to_end_prediction_coverage_fraction",
         "maximum_primary_range_violation_rate",
@@ -1289,25 +2023,17 @@ def evaluate_blind_decision(
     for field in required_fields:
         if not _finite_number(gate.get(field)):
             raise ValueError(f"blind gate 缺少有限数值字段：{field}")
-    input_criteria: dict[str, bool] = {}
-    for video in videos:
-        video_id = str(video["video_id"])
-        frame_count = int(video["metadata"]["decoded_frame_count"])
-        source_counts = dict(video["source_timeline"]["timestamp_source_counts"])
-        fallback_count = sum(
-            int(value) for key, value in source_counts.items() if key != "container_pts_ms"
-        )
-        fallback_fraction = float(fallback_count / frame_count) if frame_count else 1.0
-        input_criteria[f"{video_id}_control_ready"] = (
-            float(video["observation_counts"]["control_ready_fraction"])
-            >= float(gate["minimum_each_control_ready_fraction"])
-        )
-        input_criteria[f"{video_id}_timestamp_fallback"] = (
-            fallback_fraction <= float(gate["maximum_each_timestamp_fallback_fraction"])
-        )
-    input_criteria["algorithm_trace_evaluable"] = algorithm.get("status") == "evaluated"
-    input_criteria["all_video_sources_evaluable"] = not bool(algorithm.get("source_errors"))
-    algorithm_criteria: dict[str, bool] = {}
+    primary_delays = gate.get("primary_delays_ms")
+    if not isinstance(primary_delays, list) or not primary_delays or any(
+        not _finite_number(value) for value in primary_delays
+    ):
+        raise ValueError("blind gate 缺少 primary_delays_ms")
+    resolved_input_gate = input_gate or evaluate_blind_input_gate(videos, gate=gate)
+    input_criteria = dict(resolved_input_gate["criteria"])
+    algorithm_criteria: dict[str, bool] = {
+        "algorithm_trace_evaluable": algorithm.get("status") == "evaluated",
+        "all_video_sources_evaluable": not bool(algorithm.get("source_errors")),
+    }
     if algorithm.get("status") == "evaluated":
         primary = algorithm["aggregate"]["primary_delay_summary"]
         dynamic = primary.get("dynamic_q90")
@@ -1315,7 +2041,32 @@ def evaluate_blind_decision(
         dynamic_improvement = (
             dynamic["improvement_percent_vs_hold"]["gated_rmse"] if dynamic else None
         )
-        algorithm_criteria = {
+        per_video = algorithm.get("per_video")
+        per_video_rmse: list[float] = []
+        per_video_p95: list[float] = []
+        per_video_rows: list[int] = []
+        if isinstance(per_video, dict):
+            for video in videos:
+                summary = per_video.get(str(video["video_id"]))
+                if not isinstance(summary, dict):
+                    continue
+                video_primary = summary.get("primary_delay_summary")
+                source = summary.get("source")
+                if not isinstance(video_primary, dict) or not isinstance(source, dict):
+                    continue
+                improvement = video_primary.get("improvement_percent_vs_hold")
+                if not isinstance(improvement, dict):
+                    continue
+                if _finite_number(improvement.get("gated_rmse")):
+                    per_video_rmse.append(float(improvement["gated_rmse"]))
+                if _finite_number(improvement.get("gated_p95")):
+                    per_video_p95.append(float(improvement["gated_p95"]))
+                per_video_rows.append(int(source.get("evaluable_rows", 0)))
+        algorithm_criteria.update({
+            "primary_delay_identity": (
+                [float(value) for value in algorithm["aggregate"]["primary_delays_ms"]]
+                == sorted(float(value) for value in primary_delays)
+            ),
             "overall_gated_rmse": (
                 gated_improvement is not None
                 and float(gated_improvement)
@@ -1325,6 +2076,27 @@ def evaluate_blind_decision(
                 dynamic_improvement is not None
                 and float(dynamic_improvement)
                 >= float(gate["minimum_primary_dynamic_gated_rmse_improvement_percent"])
+            ),
+            "aggregate_gated_p95": (
+                _finite_number(
+                    primary["improvement_percent_vs_hold"].get("gated_p95")
+                )
+                and float(primary["improvement_percent_vs_hold"]["gated_p95"])
+                >= float(gate["minimum_primary_gated_p95_improvement_percent"])
+            ),
+            "each_video_gated_rmse": (
+                len(per_video_rmse) == len(videos)
+                and min(per_video_rmse)
+                >= float(gate["minimum_each_video_gated_rmse_improvement_percent"])
+            ),
+            "each_video_gated_p95": (
+                len(per_video_p95) == len(videos)
+                and min(per_video_p95)
+                >= float(gate["minimum_each_video_gated_p95_improvement_percent"])
+            ),
+            "each_video_evaluable_rows": (
+                len(per_video_rows) == len(videos)
+                and min(per_video_rows) >= int(gate["minimum_each_video_evaluable_rows"])
             ),
             "conditional_prediction_coverage": (
                 float(primary["conditional_prediction_available_fraction"])
@@ -1338,9 +2110,7 @@ def evaluate_blind_decision(
                 float(primary["methods"]["gated"]["range_violation_rate"])
                 <= float(gate["maximum_primary_range_violation_rate"])
             ),
-        }
-    else:
-        algorithm_criteria = {"algorithm_evaluable": False}
+        })
     runtime_criteria: dict[str, bool] = {}
     require_live = bool(gate.get("require_live_runtime", False))
     if require_live:
@@ -1374,6 +2144,7 @@ def evaluate_blind_decision(
             "algorithm": algorithm_criteria,
             "runtime": runtime_criteria,
         },
+        "input_details": resolved_input_gate.get("details", {}),
     }
 
 
@@ -1393,10 +2164,43 @@ def run_camera_domain_evaluation(
     live_prediction_jsonl: Path | None = None,
     live_session_manifest: Path | None = None,
     live_unity_timing_json: Path | None = None,
+    blind_freeze_manifest_path: Path | None = None,
+    expected_blind_freeze_manifest_sha256: str | None = None,
+    blind_attempt_receipt_path: Path | None = None,
     logger: logging.Logger | None = None,
 ) -> Path:
     if role not in {"development", "blind"}:
         raise ValueError("role 只能是 development 或 blind")
+    if role == "blind":
+        if blind_freeze_manifest_path is None:
+            raise ValueError("正式盲测必须显式提供 --blind-freeze-manifest")
+        if not expected_blind_freeze_manifest_sha256:
+            raise ValueError("正式盲测必须显式提供冻结 manifest 的预期 SHA-256")
+        if runtime_config_override is not None:
+            raise ValueError("正式盲测禁止 --runtime-config 覆盖")
+        if protocol_override is not None:
+            raise ValueError("正式盲测禁止 --protocol 覆盖")
+        if input_mirrored_override is not None:
+            raise ValueError("正式盲测禁止镜像约定覆盖")
+        if any(
+            value is not None
+            for value in (
+                live_baseline_jsonl,
+                live_prediction_jsonl,
+                live_session_manifest,
+                live_unity_timing_json,
+            )
+        ):
+            raise ValueError("正式离线 B1-B7 盲测禁止混入另一次 live/Unity 运行证据")
+    elif any(
+        value is not None
+        for value in (
+            blind_freeze_manifest_path,
+            expected_blind_freeze_manifest_sha256,
+            blind_attempt_receipt_path,
+        )
+    ):
+        raise ValueError("development 运行不得携带 blind freeze/receipt 参数")
     logger = logger or logging.getLogger("camera-domain-eval")
     evaluation_config_path = evaluation_config_path.resolve()
     evaluation_config = load_evaluation_config(evaluation_config_path)
@@ -1433,13 +2237,7 @@ def run_camera_domain_evaluation(
         expected_config_sha256=expected_config_sha256,
         expected_protocol_sha256=expected_protocol_sha256,
     )
-    runtime_cfg = load_config(str(runtime_config_path))
-    runtime_cfg["unity_udp_enabled"] = False
-    runtime_cfg["save_last_json"] = False
-    runtime_cfg["save_jsonl"] = False
-    runtime_cfg["prediction_shadow_enabled"] = True
-    runtime_cfg["enable_control_extension"] = True
-    runtime_cfg["svh_enable_preview"] = True
+    runtime_cfg = prepare_effective_runtime_config(runtime_config_path)
     input_mirrored = (
         bool(input_mirrored_override)
         if input_mirrored_override is not None
@@ -1447,11 +2245,59 @@ def run_camera_domain_evaluation(
     )
     delay_config_path = _resolve_relative(evaluation_config_path, evaluation_config["delay_config_path"])
     delay_config = _read_json(delay_config_path)
+    freeze_state: dict[str, Any] | None = None
+    resolved_receipt_path: Path | None = None
+    processing_video_specs = video_specs
+    if role == "blind":
+        assert blind_freeze_manifest_path is not None
+        assert expected_blind_freeze_manifest_sha256 is not None
+        freeze_state = verify_blind_freeze_manifest(
+            manifest_path=blind_freeze_manifest_path,
+            expected_manifest_sha256=expected_blind_freeze_manifest_sha256,
+            evaluation_config_path=evaluation_config_path,
+            protocol_path=protocol_path,
+            runtime_config_path=runtime_config_path,
+            delay_config_path=delay_config_path,
+            evaluation_config=evaluation_config,
+            input_mirrored=input_mirrored,
+            blind_video_paths={spec.video_id: spec.path for spec in video_specs},
+        )
+        verify_blind_video_inventory(
+            video_specs,
+            blind_policy=evaluation_config["blind_policy"],
+        )
+        resolved_receipt_path = default_attempt_receipt_path(
+            freeze_state["attempt_token"]
+        )
+        if (
+            blind_attempt_receipt_path is not None
+            and blind_attempt_receipt_path.resolve() != resolved_receipt_path
+        ):
+            raise ValueError(
+                "正式盲测 receipt 路径不可覆盖；固定路径为 "
+                f"{resolved_receipt_path}"
+            )
+        if resolved_receipt_path.exists():
+            raise RuntimeError(
+                f"正式盲测 receipt 已存在，拒绝重复运行：{resolved_receipt_path}"
+            )
+        sealed_video_paths = stage_blind_video_inputs(
+            {spec.video_id: spec.path for spec in video_specs},
+            freeze_state,
+        )
+        freeze_state["sealed_video_paths"] = {
+            video_id: str(path) for video_id, path in sealed_video_paths.items()
+        }
+        processing_video_specs = [
+            VideoSpec(spec.video_id, sealed_video_paths[spec.video_id])
+            for spec in video_specs
+        ]
     run_dir = _unique_run_dir(output_root)
     baseline_dir = run_dir / "baseline_jsonl"
     videos: list[dict[str, Any]] = []
-    for spec in video_specs:
-        logger.info("按媒体时间轴处理 %s：%s", spec.video_id, spec.path)
+    for spec in processing_video_specs:
+        source_label = "内容寻址冻结副本" if role == "blind" else "开发输入"
+        logger.info("按媒体时间轴处理 %s %s：%s", spec.video_id, source_label, spec.path)
         videos.append(
             process_video_to_baseline_jsonl(
                 spec,
@@ -1462,79 +2308,167 @@ def run_camera_domain_evaluation(
                 logger=logger,
             )
         )
-    algorithm, scenarios, sequence_rows = evaluate_camera_algorithm_utility(
-        videos,
-        runtime_cfg=runtime_cfg,
-        delay_config=delay_config,
-        logger=logger,
-    )
-    live_runtime = None
-    if (live_baseline_jsonl is None) != (live_prediction_jsonl is None):
-        raise ValueError("--live-baseline-jsonl 与 --live-prediction-jsonl 必须同时提供")
-    if live_baseline_jsonl is None and (
-        live_session_manifest is not None or live_unity_timing_json is not None
-    ):
-        raise ValueError("live manifest/Unity timing 必须与两份 live JSONL 一起提供")
-    if live_baseline_jsonl is not None and live_prediction_jsonl is not None:
-        live_runtime = analyze_live_runtime_logs(
-            live_baseline_jsonl,
-            live_prediction_jsonl,
-            manifest_path=live_session_manifest,
-            unity_timing_path=live_unity_timing_json,
-        )
-    decision: dict[str, Any]
-    if role == "development":
-        decision = {
-            "status": "development_only_no_release_decision",
-            "branch": None,
-            "reason": "开发集只用于校验时间轴、诊断输入并冻结盲测门槛，禁止据此宣称上线。",
+    input_gate: dict[str, Any] | None = None
+    receipt_reserved = False
+    try:
+        if role == "blind":
+            if freeze_state is None:
+                raise RuntimeError("盲测冻结状态未初始化")
+            verify_processed_video_identities(videos, freeze_state)
+            input_gate = evaluate_blind_input_gate(
+                videos,
+                gate=evaluation_config["blind_policy"]["gate"],
+            )
+            if not input_gate["passed"]:
+                algorithm = {
+                    "status": "not_evaluated_input_gate_failed",
+                    "claim_status": "camera_domain_pseudo_ground_truth_only",
+                    "source_errors": [],
+                    "per_video": {},
+                }
+                scenarios = []
+                sequence_rows = []
+            else:
+                if freeze_state is None or resolved_receipt_path is None:
+                    raise RuntimeError("盲测冻结状态未初始化")
+                reserve_blind_attempt(
+                    receipt_path=resolved_receipt_path,
+                    freeze_state=freeze_state,
+                    video_summaries=videos,
+                )
+                receipt_reserved = True
+                algorithm, scenarios, sequence_rows = evaluate_camera_algorithm_utility(
+                    videos,
+                    runtime_cfg=runtime_cfg,
+                    delay_config=delay_config,
+                    logger=logger,
+                )
+                verify_processed_video_identities(videos, freeze_state)
+                verify_algorithm_identity(algorithm, freeze_state)
+        else:
+            algorithm, scenarios, sequence_rows = evaluate_camera_algorithm_utility(
+                videos,
+                runtime_cfg=runtime_cfg,
+                delay_config=delay_config,
+                logger=logger,
+            )
+    except BaseException as exc:
+        if receipt_reserved and resolved_receipt_path is not None:
+            try:
+                finalize_blind_attempt(
+                    resolved_receipt_path,
+                    status="failed",
+                    error=f"{type(exc).__name__}: {exc}",
+                )
+            except BaseException as receipt_exc:
+                logger.error(
+                    "盲测失败且 receipt 封存也失败（保留原始异常）：%s: %s",
+                    type(receipt_exc).__name__,
+                    receipt_exc,
+                )
+        raise
+    try:
+        live_runtime = None
+        if (live_baseline_jsonl is None) != (live_prediction_jsonl is None):
+            raise ValueError("--live-baseline-jsonl 与 --live-prediction-jsonl 必须同时提供")
+        if live_baseline_jsonl is None and (
+            live_session_manifest is not None or live_unity_timing_json is not None
+        ):
+            raise ValueError("live manifest/Unity timing 必须与两份 live JSONL 一起提供")
+        if live_baseline_jsonl is not None and live_prediction_jsonl is not None:
+            live_runtime = analyze_live_runtime_logs(
+                live_baseline_jsonl,
+                live_prediction_jsonl,
+                manifest_path=live_session_manifest,
+                unity_timing_path=live_unity_timing_json,
+            )
+        decision: dict[str, Any]
+        if role == "development":
+            decision = {
+                "status": "development_only_no_release_decision",
+                "branch": None,
+                "reason": "开发集只用于校验时间轴、诊断输入并冻结盲测门槛，禁止据此宣称上线。",
+            }
+        else:
+            decision = evaluate_blind_decision(
+                videos,
+                algorithm,
+                live_runtime,
+                gate=dict(evaluation_config["blind_policy"]["gate"]),
+                input_gate=input_gate,
+            )
+        report = {
+            "schema_version": REPORT_SCHEMA_VERSION,
+            "created_at_utc": _utc_now(),
+            "claim_status": evaluation_config.get(
+                "claim_status",
+                "single_right_hand_unity_preview_camera_domain_diagnostic",
+            ),
+            "protocol": protocol,
+            "blind_freeze": freeze_state,
+            "blind_attempt_receipt_path": (
+                str(resolved_receipt_path)
+                if resolved_receipt_path is not None
+                else None
+            ),
+            "git": _git_snapshot(),
+            "environment": {
+                "python": sys.version,
+                "platform": platform.platform(),
+                "opencv": cv2.__version__,
+                "numpy": np.__version__,
+                "mediapipe": _package_version("mediapipe"),
+                "torch": _package_version("torch"),
+            },
+            "inputs": {
+                "runtime_config_path": str(runtime_config_path),
+                "runtime_config_sha256": _hash_file(runtime_config_path),
+                "delay_config_path": str(delay_config_path),
+                "delay_config_sha256": _hash_file(delay_config_path),
+                "input_mirrored": input_mirrored,
+                "allow_partial": allow_partial,
+                "missing_video_ids": missing_ids,
+            },
+            "videos": videos,
+            "algorithm_utility": algorithm,
+            "live_runtime": live_runtime,
+            "decision": decision,
+            "safety": {
+                "udp_created": False,
+                "unity_payload_modified_by_prediction": False,
+                "real_svh_in_scope": False,
+            },
         }
-    else:
-        decision = evaluate_blind_decision(
-            videos,
-            algorithm,
-            live_runtime,
-            gate=dict(evaluation_config["blind_policy"]["gate"]),
+        report_path = run_dir / "camera_domain_report.json"
+        report_path.write_text(
+            json.dumps(report, ensure_ascii=False, indent=2),
+            encoding="utf-8",
         )
-    report = {
-        "schema_version": REPORT_SCHEMA_VERSION,
-        "created_at_utc": _utc_now(),
-        "claim_status": "single_right_hand_unity_preview_camera_domain_diagnostic",
-        "protocol": protocol,
-        "git": _git_snapshot(),
-        "environment": {
-            "python": sys.version,
-            "platform": platform.platform(),
-            "opencv": cv2.__version__,
-            "numpy": np.__version__,
-            "mediapipe": _package_version("mediapipe"),
-            "torch": _package_version("torch"),
-        },
-        "inputs": {
-            "runtime_config_path": str(runtime_config_path),
-            "runtime_config_sha256": _hash_file(runtime_config_path),
-            "delay_config_path": str(delay_config_path),
-            "delay_config_sha256": _hash_file(delay_config_path),
-            "input_mirrored": input_mirrored,
-            "allow_partial": allow_partial,
-            "missing_video_ids": missing_ids,
-        },
-        "videos": videos,
-        "algorithm_utility": algorithm,
-        "live_runtime": live_runtime,
-        "decision": decision,
-        "safety": {
-            "udp_created": False,
-            "unity_payload_modified_by_prediction": False,
-            "real_svh_in_scope": False,
-        },
-    }
-    report_path = run_dir / "camera_domain_report.json"
-    report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-    _write_markdown(run_dir / "camera_domain_report.md", report)
-    _write_video_csv(run_dir / "video_summary.csv", videos, algorithm)
-    if scenarios:
-        _write_scenario_csv(run_dir / "scenario_metrics.csv", scenarios)
-    if sequence_rows:
-        _write_sequence_csv(run_dir / "sequence_metrics.csv", sequence_rows)
-    return report_path
+        _write_markdown(run_dir / "camera_domain_report.md", report)
+        _write_video_csv(run_dir / "video_summary.csv", videos, algorithm)
+        if scenarios:
+            _write_scenario_csv(run_dir / "scenario_metrics.csv", scenarios)
+        if sequence_rows:
+            _write_sequence_csv(run_dir / "sequence_metrics.csv", sequence_rows)
+        if receipt_reserved and resolved_receipt_path is not None:
+            finalize_blind_attempt(
+                resolved_receipt_path,
+                status="completed",
+                report_path=report_path,
+            )
+        return report_path
+    except BaseException as exc:
+        if receipt_reserved and resolved_receipt_path is not None:
+            try:
+                finalize_blind_attempt(
+                    resolved_receipt_path,
+                    status="failed",
+                    error=f"{type(exc).__name__}: {exc}",
+                )
+            except BaseException as receipt_exc:
+                logger.error(
+                    "盲测失败且 receipt 封存也失败（保留原始异常）：%s: %s",
+                    type(receipt_exc).__name__,
+                    receipt_exc,
+                )
+        raise

@@ -65,11 +65,11 @@ jobs:
 
       - name: 运行 Ruff 检查
         run: |
-          python -m ruff check src tests
+          python -m ruff check src tests experiments/intent_prediction/intent_prediction experiments/intent_prediction/scripts
 
       - name: 编译源码
         run: |
-          python -m compileall -q src
+          python -m compileall -q src experiments/intent_prediction/intent_prediction experiments/intent_prediction/scripts
 
       - name: 运行测试
         shell: bash
