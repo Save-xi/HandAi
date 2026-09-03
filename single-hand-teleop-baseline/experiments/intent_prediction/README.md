@@ -235,8 +235,11 @@ python -X utf8 experiments\intent_prediction\scripts\run_delay_injection.py `
 JSONL 生成后同步重放，因此不会因离线快读触发 latest-only 丢帧。离线算法效用、离线处理
 吞吐和真实摄像头异步 worker 覆盖会分别报告。
 
-完整开发集命令、V1–V7 动作清单、开发集/盲测集隔离和三分支判定见
-`docs/camera_domain_protocol_v1.md`。开发冒烟示例：
+完整开发集命令、V1–V7 动作清单和证据边界见
+`docs/camera_domain_protocol_v1.md`；正式 B1–B7 的 task-aware 输入门、P95/最差视频门、
+Git/模型/Conda 环境锁、内容寻址只读视频副本、确定性 attempt 与本机固定路径的 campaign 流程性 receipt（本地防误重跑，不是抗篡改 WORM）见
+`docs/camera_domain_blind_protocol_v1.md`。
+开发冒烟示例：
 
 ```powershell
 python -X utf8 experiments\intent_prediction\scripts\run_camera_domain_eval.py `
@@ -245,5 +248,7 @@ python -X utf8 experiments\intent_prediction\scripts\run_camera_domain_eval.py `
   --input-not-mirrored
 ```
 
-当前配置仍是 `development`，固定返回 `development_only_no_release_decision`，并主动拒绝
-`--role blind`。完成开发集后必须先冻结机器 gate、协议 SHA 与配置 SHA，再另录 B1–B7。
+默认 `camera_domain_eval_v1.json` 仍是 `development`，固定返回
+`development_only_no_release_decision`。正式盲测必须改用
+`camera_domain_blind_v1.json`，并显式提供合并后生成的 freeze manifest、manifest 外部 SHA、
+配置 SHA 与协议 SHA；缺任一身份都会在输出目录和视频解码之前拒绝。

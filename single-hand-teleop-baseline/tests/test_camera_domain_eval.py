@@ -489,37 +489,89 @@ def test_camera_domain_module_does_not_create_udp_exporter():
 def _blind_video(ready_fraction: float = 0.9):
     return {
         "video_id": "B1",
-        "metadata": {"decoded_frame_count": 100},
-        "source_timeline": {"timestamp_source_counts": {"container_pts_ms": 100}},
-        "observation_counts": {"control_ready_fraction": ready_fraction},
+        "metadata": {
+            "decoded_frame_count": 100,
+            "metadata_frame_count": 100,
+            "nominal_fps": 30.0,
+            "width": 1280,
+            "height": 720,
+        },
+        "source_timeline": {
+            "timestamp_source_counts": {"container_pts_ms": 100},
+            "duration_ms": 3_300.0,
+            "duration_based_fps": 30.0,
+        },
+        "observation_counts": {
+            "control_ready_fraction": ready_fraction,
+            "svh_valid_fraction": ready_fraction,
+            "stable_gesture_counts": {"open": 2},
+        },
+        "observation_continuity": {"longest_invalid_run_ms": 20.0},
     }
 
 
 def _blind_algorithm(gated_improvement: float = 4.0):
     return {
         "status": "evaluated",
+        "source_errors": [],
         "aggregate": {
+            "primary_delays_ms": [50.0, 100.0],
             "primary_delay_summary": {
-                "improvement_percent_vs_hold": {"gated_rmse": gated_improvement},
+                "improvement_percent_vs_hold": {
+                    "gated_rmse": gated_improvement,
+                    "gated_p95": 4.0,
+                },
                 "dynamic_q90": {"improvement_percent_vs_hold": {"gated_rmse": 6.0}},
                 "conditional_prediction_available_fraction": 0.95,
                 "end_to_end_prediction_coverage_fraction": 0.9,
                 "methods": {"gated": {"range_violation_rate": 0.0}},
             }
         },
+        "per_video": {
+            "B1": {
+                "source": {"evaluable_rows": 20},
+                "primary_delay_summary": {
+                    "improvement_percent_vs_hold": {
+                        "gated_rmse": gated_improvement,
+                        "gated_p95": 4.0,
+                    }
+                },
+            }
+        },
     }
 
 
 def _blind_gate():
+    b1_rule = {
+        "profile": "clean",
+        "minimum_duration_ms": 3_000.0,
+        "maximum_duration_ms": 4_000.0,
+        "minimum_nominal_fps": 20.0,
+        "maximum_nominal_fps": 60.0,
+        "minimum_duration_based_fps": 20.0,
+        "maximum_duration_based_fps": 60.0,
+        "minimum_width": 640,
+        "minimum_height": 480,
+        "maximum_timestamp_fallback_fraction": 0.1,
+        "minimum_control_ready_fraction": 0.8,
+        "minimum_svh_valid_fraction": 0.8,
+        "require_metadata_frame_count_match": True,
+        "maximum_invalid_run_duration_ms": 100.0,
+        "minimum_stable_gesture_frames": {"open": 1},
+    }
     return {
-        "minimum_each_control_ready_fraction": 0.8,
-        "maximum_each_timestamp_fallback_fraction": 0.1,
+        "primary_delays_ms": [50.0, 100.0],
         "minimum_primary_gated_rmse_improvement_percent": 3.0,
         "minimum_primary_dynamic_gated_rmse_improvement_percent": 5.0,
+        "minimum_primary_gated_p95_improvement_percent": 3.0,
+        "minimum_each_video_gated_rmse_improvement_percent": 3.0,
+        "minimum_each_video_gated_p95_improvement_percent": 3.0,
+        "minimum_each_video_evaluable_rows": 10,
         "minimum_primary_conditional_prediction_available_fraction": 0.9,
         "minimum_primary_end_to_end_prediction_coverage_fraction": 0.85,
         "maximum_primary_range_violation_rate": 0.0,
         "require_live_runtime": False,
+        "video_requirements": {"B1": b1_rule},
     }
 
 
@@ -558,14 +610,38 @@ def test_checked_in_camera_domain_config_is_valid():
     assert config["video_sets"]["blind"] == ["B1", "B2", "B3", "B4", "B5", "B6", "B7"]
     assert config["blind_policy"]["enabled"] is False
 
+    blind = camera_eval.load_evaluation_config(camera_eval.DEFAULT_BLIND_CONFIG_PATH)
+    assert blind["protocol_stage"] == "blind_frozen"
+    assert blind["required_conda_environment"] == "handai-intent-prediction"
+    assert blind["input_mirrored"] is False
+    assert blind["blind_policy"]["enabled"] is True
+    assert set(blind["blind_policy"]["gate"]["video_requirements"]) == {
+        "B1",
+        "B2",
+        "B3",
+        "B4",
+        "B5",
+        "B6",
+        "B7",
+    }
+    assert blind["blind_policy"]["gate"]["video_requirements"]["B6"][
+        "required_invalid_episode_count"
+    ] == 3
+
 
 def test_checked_in_development_config_refuses_blind_run_before_video_decode(tmp_path):
     specs = [camera_eval.VideoSpec(f"B{index}", tmp_path / f"B{index}.mp4") for index in range(1, 8)]
+    manifest_path = tmp_path / "placeholder-manifest.json"
+    manifest_path.write_text("{}", encoding="utf-8")
     with pytest.raises(ValueError, match="development"):
         camera_eval.run_camera_domain_evaluation(
             video_specs=specs,
             evaluation_config_path=camera_eval.DEFAULT_CONFIG_PATH,
             output_root=tmp_path / "outputs",
             role="blind",
+            blind_freeze_manifest_path=manifest_path,
+            expected_blind_freeze_manifest_sha256=hashlib.sha256(
+                manifest_path.read_bytes()
+            ).hexdigest(),
         )
     assert not (tmp_path / "outputs").exists()

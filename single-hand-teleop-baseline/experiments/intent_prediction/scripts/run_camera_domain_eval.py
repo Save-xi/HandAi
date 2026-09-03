@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
 from pathlib import Path
@@ -15,6 +16,7 @@ if str(PROJECT_ROOT / "src") not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from intent_prediction.camera_domain_eval import (  # noqa: E402
+    DEFAULT_BLIND_CONFIG_PATH,
     DEFAULT_CONFIG_PATH,
     DEFAULT_OUTPUT_ROOT,
     parse_video_specs,
@@ -59,6 +61,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--expected-config-sha256", default=None)
     parser.add_argument("--expected-protocol-sha256", default=None)
     parser.add_argument(
+        "--blind-freeze-manifest",
+        type=Path,
+        default=None,
+        help="正式盲测必填：合并后在 Git 树外生成的冻结清单",
+    )
+    parser.add_argument(
+        "--expected-blind-freeze-manifest-sha256",
+        default=None,
+        help="正式盲测必填：冻结清单的外部预期 SHA-256",
+    )
+    parser.add_argument(
         "--live-baseline-jsonl",
         type=Path,
         default=None,
@@ -93,6 +106,8 @@ def main() -> int:
         mirrored_override = True
     elif args.input_not_mirrored:
         mirrored_override = False
+    if args.role == "blind" and args.config.resolve() == DEFAULT_CONFIG_PATH.resolve():
+        args.config = DEFAULT_BLIND_CONFIG_PATH
     report_path = run_camera_domain_evaluation(
         video_specs=parse_video_specs(args.video),
         evaluation_config_path=args.config,
@@ -108,15 +123,31 @@ def main() -> int:
         live_prediction_jsonl=args.live_prediction_jsonl,
         live_session_manifest=args.live_session_manifest,
         live_unity_timing_json=args.live_unity_timing_json,
+        blind_freeze_manifest_path=args.blind_freeze_manifest,
+        expected_blind_freeze_manifest_sha256=(
+            args.expected_blind_freeze_manifest_sha256
+        ),
     )
     report = json.loads(report_path.read_text(encoding="utf-8"))
+    receipt_path_raw = report.get("blind_attempt_receipt_path")
+    receipt_path = Path(receipt_path_raw) if receipt_path_raw else None
+    receipt_sha256 = (
+        hashlib.sha256(receipt_path.read_bytes()).hexdigest()
+        if receipt_path is not None and receipt_path.is_file()
+        else None
+    )
     print(
         json.dumps(
             {
                 "report": str(report_path),
+                "report_sha256": hashlib.sha256(report_path.read_bytes()).hexdigest(),
                 "role": report["protocol"]["role"],
                 "decision": report["decision"]["status"],
                 "udp_created": report["safety"]["udp_created"],
+                "blind_attempt_receipt": (
+                    str(receipt_path) if receipt_path is not None else None
+                ),
+                "blind_attempt_receipt_sha256": receipt_sha256,
             },
             ensure_ascii=False,
         )

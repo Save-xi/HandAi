@@ -45,6 +45,8 @@
 [Phase 1.5 二审修补与算法复核记录](docs/phase15_second_review_remediation.md)。
 真实摄像头视频域的媒体时间轴、开发集/盲测集隔离和三分支决策见
 [真实摄像头域开发评测协议](docs/camera_domain_protocol_v1.md)。
+正式 B1–B7 的机器门、Git/模型/Conda 环境身份、内容寻址只读视频副本、确定性 attempt 与本机固定路径的 campaign 流程性 receipt（本地防误重跑，不是抗篡改 WORM）见
+[真实摄像头域盲测冻结协议](docs/camera_domain_blind_protocol_v1.md)。
 2026-09-01 的真实摄像头、CUDA 影子、Unity 时延和人工视觉闭环见
 [真实摄像头与 Unity 实时验收记录](docs/live_runtime_acceptance_20260901.md)。
 
