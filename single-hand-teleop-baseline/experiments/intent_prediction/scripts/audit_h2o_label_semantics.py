@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 from copy import deepcopy
-import hashlib
 import json
 from pathlib import Path
 import sys
@@ -32,10 +31,6 @@ from intent_prediction.h2o_adapter import (  # noqa: E402
 )
 from svh.svh_adapter import build_svh_command_preview  # noqa: E402
 from utils.config import load_config  # noqa: E402
-
-
-def _sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def _new_stats() -> dict[str, Any]:
@@ -212,7 +207,6 @@ def run_audit(
         "scope": "single_right_hand_pose_only_proxy_labels",
         "h2o_root": str(root),
         "mapping_config": str(config_path),
-        "mapping_config_sha256": _sha256(config_path),
         "split_policy": split_policy,
         "limit_takes": limit_takes,
         "definitions": {

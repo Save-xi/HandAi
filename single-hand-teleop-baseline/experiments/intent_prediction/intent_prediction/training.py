@@ -3,7 +3,6 @@ from __future__ import annotations
 """PyTorch 时序模型的统一训练、早停、测试与单样本延迟测量。"""
 
 import copy
-import hashlib
 import json
 import os
 import random
@@ -127,8 +126,13 @@ def predict_neural_checkpoint(
         torch.backends.cuda.enable_mem_efficient_sdp(False)
         torch.backends.cuda.enable_math_sdp(True)
     torch.use_deterministic_algorithms(True, warn_only=False)
-    checkpoint_bytes = checkpoint_path.read_bytes()
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
+    if int(checkpoint["history_frames"]) != split.x.shape[1]:
+        raise ValueError("checkpoint 历史帧数与评测窗口不一致")
+    if int(checkpoint["horizon_count"]) != len(split.horizon_ms):
+        raise ValueError("checkpoint 预测距离数量与评测窗口不一致")
+    if "horizon_ms" in checkpoint and checkpoint["horizon_ms"] != list(split.horizon_ms):
+        raise ValueError("checkpoint 预测时间距与评测窗口不一致")
     model = build_model(
         str(checkpoint["model_name"]),
         history_frames=int(checkpoint["history_frames"]),
@@ -141,7 +145,6 @@ def predict_neural_checkpoint(
     latency = _latency(model, split, device=resolved_device)
     return prediction, {
         "checkpoint": str(checkpoint_path.resolve()),
-        "checkpoint_sha256": hashlib.sha256(checkpoint_bytes).hexdigest(),
         "model_name": str(checkpoint["model_name"]),
         "seed": int(checkpoint["seed"]),
         "device": resolved_device,
@@ -316,6 +319,7 @@ def train_neural_model(
             "state_dict": best_state,
             "history_frames": int(train.x.shape[1]),
             "horizon_count": int(train.y.shape[1]),
+            "horizon_ms": list(train.horizon_ms),
             "architecture": architecture,
             "training_config": training_config,
             "seed": seed,
@@ -323,7 +327,6 @@ def train_neural_model(
         },
         checkpoint_path,
     )
-    checkpoint_sha256 = hashlib.sha256(checkpoint_path.read_bytes()).hexdigest()
     prediction = _predict(model, test, batch_size=batch_size, device=device)
     latency = _latency(model, test, device=device)
     total_model_pipeline_seconds = float(time.perf_counter() - started)
@@ -351,7 +354,6 @@ def train_neural_model(
         "latency_single_window": latency,
         "history": history,
         "checkpoint": str(checkpoint_path),
-        "checkpoint_sha256": checkpoint_sha256,
         "progress_log": str(progress_path),
     }
     return prediction, details

@@ -12,69 +12,35 @@ features、gesture、control、svh、output 等子模块里，方便单独测试
 """
 
 import argparse
-import logging
 import time
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 import cv2
 
 from capture.input_source import InputSource
 from capture.video_file import VideoFileSource
 from capture.webcam import WebcamSource
-from control.control_representation import build_control_representation, empty_control_representation
-from features.hand_features import empty_features, extract_hand_features, invalidate_control_features
-from gesture.rule_based_gesture import GestureStabilizer, infer_gesture_raw
 from output.frame_payload_contract import assert_valid_frame_payload, prepare_frame_payload
 from output.json_exporter import JsonExporter
-from perception.hand_filter import select_right_hand
-from perception.landmark_quality import assess_control_readiness
 from perception.mediapipe_hand import MediaPipeHandDetector
+from pipeline import HandPipeline, RuntimeMode, _build_runtime_mode
 from prediction.shadow_predictor import build_prediction_shadow
 from prediction.shadow_worker import PredictionShadowWorker
-from svh.svh_adapter import build_svh_command_preview, empty_svh_preview
 from utils.config import load_config
 from utils.logger import get_logger
-from utils.recent_frames import RecentFrameBuffer
 from utils.runtime_session import (
     RuntimeSessionRecorder,
     build_jsonl_session_path,
     create_runtime_session_artifacts,
 )
-from utils.timer import FrameTimer, now_ts
+from utils.timer import FrameTimer
 from visualize.overlay_2d import compose_view
 
 
-@dataclass(frozen=True)
-class RuntimeMode:
-    """一次运行里真正生效的模式开关。
-
-    配置文件和 CLI 参数会先合并成 cfg，然后再收敛成 RuntimeMode。
-    这样主循环不用到处判断原始配置字段，也能避免“SVH preview 开了但
-    control 没开”这类组合状态在代码里散落。
-    """
-
-    gui_enabled: bool
-    headless: bool
-    input_source_type: str
-    input_mirrored: bool
-    control_extension_enabled: bool
-    svh_preview_enabled: bool
-    video_file_path: str | None
-
-
-ExtensionDiagnostics = List[Dict[str, str]]
-"""扩展链路的非致命错误记录。
-
-baseline 的设计目标是：control / SVH preview 失败时，主感知链路仍然运行。
-这里记录的诊断信息主要给测试、日志和后续调试使用。
-"""
-
-
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="单右手遥操作 baseline 演示")
-    parser.add_argument("--config", default="configs/default.yaml", type=str)
+    parser = argparse.ArgumentParser(description="单右手 AI：姿态、手势、连续表示与可选预测")
+    parser.add_argument("--config", default="configs/ai.yaml", type=str)
     parser.add_argument("--camera-index", default=None, type=int, help="覆盖默认摄像头的相机索引")
     parser.add_argument("--video-file", default=None, type=str, help="从本地视频文件读取帧，而不是使用摄像头")
     parser.add_argument("--input-mirrored", action="store_true", help="把输入视为已经镜像/自拍视角")
@@ -90,6 +56,7 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="启用默认关闭的 9 通道预测影子诊断；不改变 Unity UDP 或 svh_preview",
     )
+    parser.add_argument("--prediction-model", help="预测模型 JSON 配置路径")
     return parser.parse_args()
 
 
@@ -129,28 +96,9 @@ def _apply_cli_overrides(cfg: Dict[str, Any], args: argparse.Namespace) -> Dict[
         cfg["save_jsonl"] = True
     if getattr(args, "prediction_shadow", False):
         cfg["prediction_shadow_enabled"] = True
+    if getattr(args, "prediction_model", None):
+        cfg["prediction_shadow_model_path"] = _resolve_user_path(args.prediction_model)
     return cfg
-
-
-def _build_runtime_mode(cfg: Dict[str, Any]) -> RuntimeMode:
-    """把松散配置收敛成主循环实际使用的运行模式。"""
-
-    svh_preview_enabled = bool(cfg.get("svh_enable_preview", False))
-    # SVH preview 依赖 control_representation；因此 preview 开启时隐式开启 control。
-    control_extension_enabled = bool(cfg.get("enable_control_extension", False) or svh_preview_enabled)
-    gui_enabled = bool(cfg.get("gui_enabled", True)) and not bool(cfg.get("headless", False))
-    headless = not gui_enabled
-    input_source_type = str(cfg.get("input_source_type", "webcam")).strip().lower() or "webcam"
-    video_file_path = str(cfg.get("video_file_path", "") or "").strip() or None
-    return RuntimeMode(
-        gui_enabled=gui_enabled,
-        headless=headless,
-        input_source_type=input_source_type,
-        input_mirrored=bool(cfg.get("input_mirrored", False)),
-        control_extension_enabled=control_extension_enabled,
-        svh_preview_enabled=svh_preview_enabled,
-        video_file_path=video_file_path,
-    )
 
 
 def _build_jsonl_session_path(
@@ -278,31 +226,6 @@ def _build_prediction_result_exporter(
     )
 
 
-def _build_svh_transport(cfg: Dict[str, Any], runtime: RuntimeMode, logger):
-    """创建 SVH preview 传输层。
-
-    当前只有 mock transport。真实 TCP / 串口 / RS485 还没有接入，
-    因此这里不能把非 mock 配置伪装成可用硬件链路。
-    """
-
-    if not runtime.svh_preview_enabled:
-        return None
-    svh_transport_name = str(cfg.get("svh_transport", "mock"))
-    if svh_transport_name == "mock":
-        from svh.svh_transport_mock import MockSvhTransport
-
-        logger.info("SVH 预览扩展已启用，当前使用 mock 传输。")
-        return MockSvhTransport(
-            logger=logger,
-            history_size=int(cfg.get("svh_mock_history_size", 32)),
-        )
-    logger.warning(
-        "不支持的 SVH transport '%s'；将继续以纯预览模式运行，不发送传输命令。",
-        svh_transport_name,
-    )
-    return None
-
-
 def _log_runtime_mode(runtime: RuntimeMode, cfg: Dict[str, Any], logger) -> None:
     """启动时集中打印运行模式，方便排查“我到底开了哪些扩展”。"""
 
@@ -333,79 +256,6 @@ def _log_runtime_mode(runtime: RuntimeMode, cfg: Dict[str, Any], logger) -> None
                 "预测影子模式需要有效的 svh_9ch preview；当前配置未启用 SVH preview，"
                 "因此只会记录 invalid_input。"
             )
-
-
-def _build_baseline_payload(
-    frame,
-    detector: MediaPipeHandDetector,
-    cfg: Dict[str, Any],
-    stabilizer: GestureStabilizer,
-    *,
-    draw_landmarks: bool,
-) -> Dict[str, Any]:
-    """从单帧图像生成 baseline payload。
-
-    这一层只做视觉 baseline：检测右手、提取几何特征、判断并稳定手势。
-    control_representation 和 svh_preview 在后续扩展链路里再补上。
-    """
-
-    detections = detector.detect(frame)
-    right = select_right_hand(detections)
-    ts = now_ts()
-
-    if right is None:
-        # 没有右手时仍返回规范形状，保证下游不会因为字段缺失崩掉。
-        payload = empty_features(ts)
-    else:
-        payload = extract_hand_features(
-            right.landmarks_2d,
-            right.handedness,
-            right.confidence,
-            ts,
-            landmarks_xyz=right.landmarks_xyz,
-        )
-        quality = assess_control_readiness(right.landmarks_2d, cfg)
-        if not bool(quality["control_ready"]):
-            # 低质量帧仍保留 detected / landmarks，便于调试；
-            # 但清空面向控制的连续特征，避免下游误用不稳定数据。
-            payload = invalidate_control_features(payload)
-        if draw_landmarks:
-            detector.draw_landmarks(frame, right.landmarks_2d)
-
-    payload["gesture_raw"] = infer_gesture_raw(payload, cfg)
-    payload["gesture_stable"] = stabilizer.update(payload["gesture_raw"])
-    return payload
-
-
-def _summarize_exception(exc: Exception, *, max_length: int = 160) -> str:
-    """把异常压成单行摘要，避免实时日志被长 traceback 淹没。"""
-
-    detail = str(exc).strip()
-    summary = type(exc).__name__ if not detail else f"{type(exc).__name__}: {detail}"
-    if len(summary) <= max_length:
-        return summary
-    return summary[: max_length - 3] + "..."
-
-
-def _record_extension_failure(
-    diagnostics: ExtensionDiagnostics,
-    *,
-    extension_name: str,
-    exc: Exception,
-    logger,
-    fallback_summary: str,
-) -> None:
-    """记录扩展失败，但不让扩展失败中断 baseline 主循环。"""
-
-    summary = _summarize_exception(exc)
-    diagnostics.append({"extension": extension_name, "error": summary})
-    logger.warning("%s 扩展失败（%s）；%s", extension_name, summary, fallback_summary)
-    if logger.isEnabledFor(logging.DEBUG):
-        logger.debug(
-            "%s 扩展的 traceback 如下。",
-            extension_name,
-            exc_info=(type(exc), exc, exc.__traceback__),
-        )
 
 
 def _unix_ms() -> float:
@@ -484,72 +334,6 @@ def _drain_prediction_results(
     return len(results)
 
 
-def _apply_extension_chain(
-    payload: Dict[str, Any],
-    cfg: Dict[str, Any],
-    runtime: RuntimeMode,
-    *,
-    svh_transport,
-    logger,
-) -> ExtensionDiagnostics:
-    """依次运行可选扩展层，并在失败时退回规范占位对象。
-
-    设计原则：
-    - baseline 视觉链路优先保持可运行；
-    - control / SVH preview 都是可选层；
-    - 扩展失败时 payload 仍要满足 frozen contract。
-    """
-
-    diagnostics: ExtensionDiagnostics = []
-    if runtime.control_extension_enabled:
-        try:
-            control_representation = build_control_representation(payload, cfg)
-        except Exception as exc:
-            _record_extension_failure(
-                diagnostics,
-                extension_name="control_representation",
-                exc=exc,
-                logger=logger,
-                fallback_summary="将继续使用规范的空 control 占位对象。",
-            )
-            control_representation = empty_control_representation()
-    else:
-        control_representation = empty_control_representation()
-
-    payload["control_representation"] = control_representation
-    # 顶层 control_ready 是给下游快速门控用的镜像字段。
-    payload["control_ready"] = bool(control_representation.get("command_ready", False))
-
-    if runtime.svh_preview_enabled:
-        try:
-            svh_preview = build_svh_command_preview(payload, cfg)
-        except Exception as exc:
-            _record_extension_failure(
-                diagnostics,
-                extension_name="svh_preview",
-                exc=exc,
-                logger=logger,
-                fallback_summary="将继续使用规范的空 SVH 预览占位对象。",
-            )
-            svh_preview = empty_svh_preview(cfg, enabled=True, mode=str(cfg.get("svh_preview_mode", "preview")))
-        if svh_transport is not None and svh_preview.get("valid"):
-            try:
-                svh_transport.send(svh_preview)
-            except Exception as exc:
-                _record_extension_failure(
-                    diagnostics,
-                    extension_name="svh_transport",
-                    exc=exc,
-                    logger=logger,
-                    fallback_summary="将保留预览 payload，但跳过这一帧的传输发送。",
-                )
-    else:
-        svh_preview = empty_svh_preview(cfg, enabled=False, mode="disabled")
-
-    payload["svh_preview"] = svh_preview
-    return diagnostics
-
-
 def main() -> None:
     """实时运行主循环。"""
 
@@ -587,12 +371,12 @@ def main() -> None:
                 runtime=runtime,
             )
             logger.info(
-                "运行证据会话已创建：run_id=%s，manifest=%s。",
+                "运行会话已创建：run_id=%s，manifest=%s。",
                 session_artifacts.run_id,
                 session_artifacts.manifest_path,
             )
         except OSError as exc:
-            logger.warning("无法创建运行证据 manifest；逐帧链路继续运行：%s", exc)
+            logger.warning("无法创建运行 manifest；逐帧链路继续运行：%s", exc)
     try:
         detector = _build_detector(cfg, runtime)
         exporter = _build_exporter(
@@ -609,7 +393,7 @@ def main() -> None:
             try:
                 session_recorder.record_prediction_identity(prediction_shadow)
             except OSError as exc:
-                logger.warning("更新运行证据 manifest 失败；逐帧链路继续运行：%s", exc)
+                logger.warning("更新运行 manifest 失败；逐帧链路继续运行：%s", exc)
                 session_recorder = None
         if prediction_shadow is not None:
             prediction_worker = PredictionShadowWorker(
@@ -628,13 +412,7 @@ def main() -> None:
                     else None
                 ),
             )
-        # history 当前只保留最近帧摘要，方便未来做时序模型或更复杂去抖。
-        history = RecentFrameBuffer(maxlen=int(cfg.get("recent_frames_buffer_size", 10)))
-        svh_transport = _build_svh_transport(cfg, runtime, logger)
-        stabilizer = GestureStabilizer(
-            confirm_frames=int(cfg.get("stable_gesture_min_consecutive", 2)),
-            unknown_confirm_frames=int(cfg.get("stable_unknown_consecutive", 1)),
-        )
+        pipeline = HandPipeline(cfg, detector=detector, logger=logger)
         print_every_n_frames = max(1, int(cfg.get("console_print_every_n_frames", 5)))
         landmarks_preview_count = max(0, int(cfg.get("console_landmarks_preview_count", 3)))
         draw_landmarks = runtime.gui_enabled and bool(cfg.get("draw_landmarks", True))
@@ -654,24 +432,11 @@ def main() -> None:
                 break
 
             t0 = time.perf_counter()
-            # 1. 先生成纯视觉 baseline payload。
-            payload = _build_baseline_payload(
-                frame,
-                detector,
-                cfg,
-                stabilizer,
-                draw_landmarks=draw_landmarks,
+            payload = pipeline.process_frame(
+                frame, frame_index=frame_index, draw_landmarks=draw_landmarks,
             )
-            baseline_end_unix_ms = _unix_ms()
-            # 2. 再按运行模式追加 control / SVH preview 扩展字段。
-            _apply_extension_chain(
-                payload,
-                cfg,
-                runtime,
-                svh_transport=svh_transport,
-                logger=logger,
-            )
-            preview_end_unix_ms = _unix_ms()
+            baseline_end_unix_ms = pipeline.last_stage_timing["baseline_end_unix_ms"]
+            preview_end_unix_ms = pipeline.last_stage_timing["preview_end_unix_ms"]
             payload["frame_index"] = frame_index
             dt = timer.tick()
             payload["fps"] = 1.0 / dt if dt > 1e-6 else 0.0
@@ -681,7 +446,7 @@ def main() -> None:
                 "clock": "unix_epoch_ms",
                 "source_read_start_unix_ms": source_read_start_unix_ms,
                 "source_read_end_unix_ms": source_read_end_unix_ms,
-                # _build_baseline_payload 在 detect + 右手筛选后生成 timestamp。
+                # pipeline 在检测完成后生成 timestamp。
                 "detection_end_unix_ms": float(payload["timestamp"]) * 1000.0,
                 "baseline_end_unix_ms": baseline_end_unix_ms,
                 "preview_end_unix_ms": preview_end_unix_ms,
@@ -690,7 +455,6 @@ def main() -> None:
             }
             # 3. 最后统一规范化并校验，保证输出满足 contract。
             payload = prepare_frame_payload(payload, include_deprecated_aliases=False)
-            history.append(payload)
             if session_recorder is not None:
                 session_recorder.observe_baseline(payload)
 
@@ -752,9 +516,9 @@ def main() -> None:
                     prediction_worker=prediction_worker,
                     prediction_worker_stopped=prediction_worker_stopped,
                 )
-                logger.info("运行证据 manifest 已冻结：%s。", session_recorder.manifest_path)
+                logger.info("运行会话信息已保存：%s。", session_recorder.manifest_path)
             except OSError as exc:
-                logger.warning("冻结运行证据 manifest 失败：%s", exc)
+                logger.warning("保存运行 manifest 失败：%s", exc)
         if detector is not None:
             detector.close()
         source.release()

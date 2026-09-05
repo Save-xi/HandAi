@@ -18,7 +18,6 @@ from features.geometry_utils import clamp01
 from output.frame_payload_contract import get_stable_gesture
 from svh.svh_command import SvhCommandPreview
 from svh.svh_layout import SVH_9CH_LAYOUT, SVH_9CH_NAMES, get_svh_9ch_tick_refs
-from svh.svh_protocol import SET_ALL_CHANNELS_ADDR, SET_CONTROL_STATE_ADDR
 
 COMPACT5_LAYOUT = "compact5"
 """轻量 5 通道预览：thumb/index/middle/ring/little。"""
@@ -86,9 +85,7 @@ def _protocol_hint(cfg: Dict) -> Dict[str, str]:
 
     layout = _layout(cfg)
     return {
-        "set_control_state_addr": f"0x{SET_CONTROL_STATE_ADDR:02X}",
-        "set_all_channels_addr": f"0x{SET_ALL_CHANNELS_ADDR:02X}",
-        "transport": str(cfg.get("svh_transport", "mock")),
+        "transport": "external_adapter",
         "channel_layout": layout,
         "channel_order": ",".join(SVH_9CH_NAMES) if layout == SVH_9CH_LAYOUT else "thumb,index,middle,ring,little",
         "position_units": "normalized_preview",

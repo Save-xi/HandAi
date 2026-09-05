@@ -1,11 +1,10 @@
 import logging
 
-import main as app_main
+import pipeline as app_main
 from features.hand_features import extract_hand_features
 from gesture.rule_based_gesture import GestureStabilizer, infer_gesture_raw
 from output.frame_payload_contract import normalize_frame_payload, validate_frame_payload
 from svh.svh_adapter import build_svh_command_preview
-from svh.svh_transport_mock import MockSvhTransport
 from control.control_representation import build_control_representation
 
 
@@ -33,8 +32,6 @@ def _run_pipeline(kind, synthetic_hand_pose, gesture_cfg, control_cfg, svh_cfg):
 
 def test_integration_pipeline_open_pose_reaches_valid_grasp_preview(synthetic_hand_pose, gesture_cfg, control_cfg, svh_cfg):
     payload = _run_pipeline("open", synthetic_hand_pose, gesture_cfg, control_cfg, svh_cfg)
-    transport = MockSvhTransport()
-    result = transport.send(payload["svh_preview"])
 
     assert payload["gesture_raw"] == "open"
     assert payload["gesture_stable"] == "open"
@@ -43,15 +40,11 @@ def test_integration_pipeline_open_pose_reaches_valid_grasp_preview(synthetic_ha
     assert payload["svh_preview"]["valid"] is True
     assert max(payload["svh_preview"]["target_positions"]) < 0.1
     assert payload["control_representation"]["valid"] == payload["control_representation"]["command_ready"]
-    assert result["accepted"] is True
-    assert result["recorded_count"] == 1
     assert validate_frame_payload(payload) == []
 
 
 def test_integration_pipeline_fist_pose_reaches_closed_grasp_preview(synthetic_hand_pose, gesture_cfg, control_cfg, svh_cfg):
     payload = _run_pipeline("fist", synthetic_hand_pose, gesture_cfg, control_cfg, svh_cfg)
-    transport = MockSvhTransport()
-    transport.send(payload["svh_preview"])
 
     assert payload["gesture_raw"] == "fist"
     assert payload["gesture_stable"] == "fist"
@@ -59,7 +52,6 @@ def test_integration_pipeline_fist_pose_reaches_closed_grasp_preview(synthetic_h
     assert payload["control_representation"]["grasp_close"] > 0.5
     assert payload["svh_preview"]["valid"] is True
     assert min(payload["svh_preview"]["target_positions"][1:]) > 0.5
-    assert transport.last_command == payload["svh_preview"]
 
 
 def test_integration_pipeline_pinch_pose_reaches_valid_pinch_preview(synthetic_hand_pose, gesture_cfg, control_cfg, svh_cfg):
@@ -100,7 +92,7 @@ def test_extension_chain_keeps_valid_payload_when_control_extension_fails(
     logger = logging.getLogger("test_extension_chain_control_failure")
 
     with caplog.at_level(logging.WARNING):
-        diagnostics = app_main._apply_extension_chain(payload, control_cfg, runtime, svh_transport=None, logger=logger)
+        diagnostics = app_main._apply_extension_chain(payload, control_cfg, runtime, logger=logger)
 
     payload["frame_index"] = 1
     payload["fps"] = 30.0
@@ -140,7 +132,7 @@ def test_extension_chain_keeps_valid_payload_when_svh_preview_fails(
     logger = logging.getLogger("test_extension_chain_svh_failure")
 
     with caplog.at_level(logging.WARNING):
-        diagnostics = app_main._apply_extension_chain(payload, {**control_cfg, **svh_cfg}, runtime, svh_transport=None, logger=logger)
+        diagnostics = app_main._apply_extension_chain(payload, {**control_cfg, **svh_cfg}, runtime, logger=logger)
 
     payload["frame_index"] = 2
     payload["fps"] = 30.0

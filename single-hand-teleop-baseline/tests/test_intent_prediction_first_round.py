@@ -142,7 +142,6 @@ def test_h2o_fixture_preprocess_creates_hashed_sequence_manifest(tmp_path: Path)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["dataset"] == "h2o_pose_only_right_hand"
     assert manifest["split_counts"]["train"]["frames"] == 12
-    assert len(manifest["sequences"][0]["sha256"]) == 64
 
 
 def test_h2o_pose_only_without_intrinsics_uses_canonical_camera_plane(tmp_path: Path):

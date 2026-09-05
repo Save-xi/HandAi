@@ -300,8 +300,6 @@ def test_optional_prediction_diagnostics_accepts_aligned_predicted_state():
         max_frame_gap_ms=100.0,
         device="cpu",
         model_label="contract_test",
-        selection_sha256="a" * 64,
-        checkpoint_sha256="b" * 64,
     )
     final_payload = None
     final_diagnostic = None
@@ -350,8 +348,6 @@ def test_prediction_diagnostics_rejects_misalignment_unknown_fields_and_bad_matr
     diagnostic["inference_ms"] = 1.0
     diagnostic["device"] = "cpu"
     diagnostic["model_label"] = "test"
-    diagnostic["selection_sha256"] = "a" * 64
-    diagnostic["checkpoint_sha256"] = "b" * 64
     diagnostic["fallback_reason"] = None
     payload["prediction_diagnostics"] = diagnostic
     errors = validate_frame_payload(payload)

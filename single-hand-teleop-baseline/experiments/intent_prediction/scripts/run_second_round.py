@@ -7,8 +7,10 @@ from pathlib import Path
 
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
-if str(EXPERIMENT_ROOT) not in sys.path:
-    sys.path.insert(0, str(EXPERIMENT_ROOT))
+PROJECT_ROOT = EXPERIMENT_ROOT.parents[1]
+for import_root in (PROJECT_ROOT / "src", EXPERIMENT_ROOT):
+    if str(import_root) not in sys.path:
+        sys.path.insert(0, str(import_root))
 
 from intent_prediction.second_round import run_second_round  # noqa: E402
 

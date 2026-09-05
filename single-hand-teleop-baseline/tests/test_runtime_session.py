@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 from types import SimpleNamespace
 
@@ -14,7 +13,7 @@ from utils.runtime_session import (
 from test_output_exporter import _sample_payload
 
 
-def test_runtime_session_manifest_is_atomically_frozen_with_log_identity(tmp_path):
+def test_runtime_session_records_config_frame_range_and_log_counts(tmp_path):
     config_path = tmp_path / "runtime.yaml"
     config_path.write_text("camera_index: 0\n", encoding="utf-8")
     cfg = {
@@ -64,7 +63,6 @@ def test_runtime_session_manifest_is_atomically_frozen_with_log_identity(tmp_pat
     )
 
     manifest = json.loads(artifacts.manifest_path.read_text(encoding="utf-8"))
-    baseline_bytes = artifacts.baseline_jsonl_path.read_bytes()
     assert manifest["schema_version"] == RUNTIME_SESSION_SCHEMA_VERSION
     assert manifest["status"] == "completed"
     assert manifest["frames"] == {
@@ -75,8 +73,6 @@ def test_runtime_session_manifest_is_atomically_frozen_with_log_identity(tmp_pat
         "last_timestamp_unix_s": 1001.0,
     }
     assert manifest["outputs"]["baseline_jsonl"]["rows"] == 2
-    assert manifest["outputs"]["baseline_jsonl"]["sha256"] == hashlib.sha256(
-        baseline_bytes
-    ).hexdigest()
+    assert manifest["config"]["resolved"]["camera_index"] == 0
     assert manifest["outputs"]["prediction_jsonl"] is None
     assert list(tmp_path.glob("*.tmp")) == []

@@ -11,37 +11,18 @@ PyTorch 只在显式启用影子模式时延迟导入，保证原 baseline 环�
 """
 
 from collections import deque
-import hashlib
-import json
 import math
 from pathlib import Path
-import sys
 import time
 from typing import Any, Callable, Deque, Dict, Sequence
 
 import numpy as np
 
 from svh.svh_layout import SVH_9CH_LAYOUT, SVH_9CH_NAMES
-from svh.mapping_contract import (
-    MAPPING_CONTRACT_VERSION,
-    assert_mapping_implementation_compatible,
-    mapping_contract_sha256,
-)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_SELECTION_PATH = (
-    "experiments/intent_prediction/reports/second_round/"
-    "20260829T024400_143036Z_selection.json"
-)
-DEFAULT_CHECKPOINT_PATH = (
-    "experiments/intent_prediction/outputs/second_round_v2_open_release/"
-    "20260829T024400_143036Z/checkpoints/residual_motion4.pt"
-)
-DEFAULT_REPORT_PATH = (
-    "experiments/intent_prediction/reports/second_round/"
-    "20260829T024400_143036Z_report.json"
-)
+DEFAULT_MODEL_PATH = "models/residual_motion4.json"
 
 PredictFunction = Callable[[np.ndarray], np.ndarray]
 
@@ -81,8 +62,6 @@ class PredictionShadow:
         max_frame_gap_ms: float,
         device: str | None,
         model_label: str | None,
-        selection_sha256: str | None,
-        checkpoint_sha256: str | None,
         target_fps: float = 30.0,
         initialization_error: str | None = None,
     ) -> None:
@@ -113,8 +92,6 @@ class PredictionShadow:
         self.target_period_ms = 1000.0 / self.target_fps
         self.device = device
         self.model_label = model_label
-        self.selection_sha256 = selection_sha256
-        self.checkpoint_sha256 = checkpoint_sha256
         self.initialization_error = initialization_error
         self._runtime_error: str | None = None
         # 原始摄像头帧率并不稳定。保留比模型窗口更长的有界原始时间窗，
@@ -131,8 +108,6 @@ class PredictionShadow:
         history_frames: int = 30,
         horizon_ms: Sequence[int] = (50, 100, 150),
         model_label: str | None = None,
-        selection_sha256: str | None = None,
-        checkpoint_sha256: str | None = None,
     ) -> "PredictionShadow":
         """构造不抛异常的初始化失败对象，供主循环持续输出诊断。"""
 
@@ -147,8 +122,6 @@ class PredictionShadow:
             max_frame_gap_ms=100.0,
             device=None,
             model_label=model_label,
-            selection_sha256=selection_sha256,
-            checkpoint_sha256=checkpoint_sha256,
             initialization_error=error,
         )
 
@@ -211,8 +184,6 @@ class PredictionShadow:
             "raw_range_violation_count": int(raw_range_violation_count),
             "device": self.device,
             "model_label": self.model_label,
-            "selection_sha256": self.selection_sha256,
-            "checkpoint_sha256": self.checkpoint_sha256,
             "fallback_reason": fallback_reason,
         }
 
@@ -482,175 +453,40 @@ def _configure_torch_determinism(torch: Any, device: Any) -> None:
 
 
 def build_prediction_shadow(cfg: Dict[str, Any], *, logger) -> PredictionShadow | None:
-    """按冻结 selection/checkpoint 构造影子预测器；默认关闭时返回 None。"""
-
+    """显式启用时从模型配置加载；失败仅影响预测诊断。"""
     if not bool(cfg.get("prediction_shadow_enabled", False)):
         return None
-
-    configured_horizons = cfg.get("prediction_shadow_horizon_ms", [50, 100, 150])
     try:
-        horizon_ms = [int(value) for value in configured_horizons]
-    except (TypeError, ValueError):
-        horizon_ms = [50, 100, 150]
-    if not horizon_ms or any(value <= 0 for value in horizon_ms):
-        horizon_ms = [50, 100, 150]
+        from prediction.model_loader import load_prediction_model
 
-    model_label: str | None = None
-    selection_sha256: str | None = None
-    checkpoint_sha256: str | None = None
-    offline_gate_passed: bool | None = None
-    try:
-        selection_path = _resolve_project_path(
-            str(cfg.get("prediction_shadow_selection_path", DEFAULT_SELECTION_PATH))
-        )
-        selection_bytes = selection_path.read_bytes()
-        selection_sha256 = hashlib.sha256(selection_bytes).hexdigest()
-        selection = json.loads(selection_bytes.decode("utf-8"))
-        if selection.get("schema_version") != "intent-second-round-selection-v1":
-            raise ValueError("selection schema_version 不受支持")
-        if selection.get("selection_fit_split") != "validation":
-            raise ValueError("selection 必须只在 validation 上拟合")
-        if selection.get("test_loaded") is not False:
-            raise ValueError("selection 文件必须在加载 test 前冻结")
-        data_contract = selection.get("data_contract")
-        if not isinstance(data_contract, dict):
-            raise ValueError("selection 缺少 data_contract；旧映射模型必须重新预处理/评估后才能用于当前影子模式")
-        expected_mapping_version = data_contract.get("mapping_contract_version")
-        expected_mapping_sha256 = data_contract.get("mapping_contract_sha256")
-        current_mapping_sha256 = mapping_contract_sha256(cfg)
-        if expected_mapping_version != MAPPING_CONTRACT_VERSION:
-            raise ValueError(
-                "mapping contract 版本不匹配："
-                f"expected={expected_mapping_version}, current={MAPPING_CONTRACT_VERSION}"
-            )
-        if expected_mapping_sha256 != current_mapping_sha256:
-            raise ValueError(
-                "mapping contract SHA-256 不匹配；当前控制/SVH 映射已变化，"
-                "必须重新生成标签并重新评估模型："
-                f"expected={expected_mapping_sha256}, current={current_mapping_sha256}"
-            )
-        assert_mapping_implementation_compatible(cfg, data_contract)
-
-        report_path = _resolve_project_path(
-            str(cfg.get("prediction_shadow_report_path", DEFAULT_REPORT_PATH))
-        )
-        report = json.loads(report_path.read_text(encoding="utf-8"))
-        if report.get("selection_sha256") != selection_sha256:
-            raise ValueError("第二轮 report 引用的 selection SHA-256 与当前 selection 不一致")
-        offline_gate_passed = bool(
-            report.get("acceptance", {}).get("offline_gate_passed", False)
-        )
-        if bool(cfg.get("prediction_shadow_require_offline_gate", False)) and not offline_gate_passed:
-            raise ValueError("第二轮离线 acceptance gate 未通过，当前配置禁止加载该影子模型")
-        model_label = str(selection["selected_label"])
-
-        checkpoint_value = cfg.get("prediction_shadow_checkpoint_path") or selection.get("checkpoint") or DEFAULT_CHECKPOINT_PATH
-        checkpoint_path = _resolve_project_path(str(checkpoint_value))
-        checkpoint_bytes = checkpoint_path.read_bytes()
-        checkpoint_sha256 = hashlib.sha256(checkpoint_bytes).hexdigest()
-        expected_checkpoint_sha256 = str(selection["checkpoint_sha256"])
-        if checkpoint_sha256 != expected_checkpoint_sha256:
-            raise ValueError(
-                "checkpoint SHA-256 不匹配："
-                f"expected={expected_checkpoint_sha256}, actual={checkpoint_sha256}"
-            )
-
-        try:
-            import torch
-        except ModuleNotFoundError as exc:
-            raise RuntimeError(
-                "影子模式需要 PyTorch；请使用 handai-intent-prediction 环境"
-            ) from exc
-
-        requested_device = str(cfg.get("prediction_shadow_device", "auto")).strip().lower() or "auto"
-        if requested_device == "auto":
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        else:
-            device = torch.device(requested_device)
-        if device.type == "cuda" and not torch.cuda.is_available():
-            raise RuntimeError("配置请求 CUDA，但当前 PyTorch 无可用 CUDA")
-        _configure_torch_determinism(torch, device)
-
-        experiment_root = PROJECT_ROOT / "experiments" / "intent_prediction"
-        experiment_root_text = str(experiment_root)
-        inserted_path = experiment_root_text not in sys.path
-        if inserted_path:
-            sys.path.insert(0, experiment_root_text)
-        try:
-            from intent_prediction.models import build_model
-        finally:
-            if inserted_path and sys.path and sys.path[0] == experiment_root_text:
-                sys.path.pop(0)
-
-        checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
-        if checkpoint.get("data_contract") != data_contract:
-            raise ValueError("checkpoint data_contract 与冻结 selection 不一致")
-        selected_model = str(selection["selected_model"])
-        if str(checkpoint["model_name"]) != selected_model:
-            raise ValueError("selection 与 checkpoint 的模型名不一致")
-        history_frames = int(checkpoint["history_frames"])
-        horizon_count = int(checkpoint["horizon_count"])
-        if horizon_count != len(horizon_ms):
-            raise ValueError("配置 horizon 数量与 checkpoint 不一致")
-        model = build_model(
-            selected_model,
-            history_frames=history_frames,
-            horizon_count=horizon_count,
-            architecture=dict(checkpoint["architecture"]),
-        )
-        model.load_state_dict(checkpoint["state_dict"])
-        model.to(device)
-        model.eval()
-
-        with torch.no_grad():
-            _ = model(torch.zeros((1, history_frames, len(SVH_9CH_NAMES)), dtype=torch.float32, device=device))
-            if device.type == "cuda":
-                torch.cuda.synchronize()
-
-        def _predict(history: np.ndarray) -> np.ndarray:
-            tensor = torch.from_numpy(np.asarray(history, dtype=np.float32)[None, :, :]).to(device)
-            with torch.no_grad():
-                output = model(tensor)
-                if device.type == "cuda":
-                    torch.cuda.synchronize()
-            return output.detach().cpu().numpy()[0]
-
-        gate = dict(selection["gate_parameters"])
+        model_path = _resolve_project_path(cfg.get("prediction_shadow_model_path", DEFAULT_MODEL_PATH))
+        loaded = load_prediction_model(model_path, cfg)
+        spec = loaded.spec
+        gate = spec["gate"]
         predictor = PredictionShadow(
-            predict_fn=_predict,
-            history_frames=history_frames,
-            horizon_ms=horizon_ms,
+            predict_fn=loaded.predict,
+            history_frames=int(spec["history_frames"]),
+            horizon_ms=spec["horizon_ms"],
             gate_recent_frames=int(gate["recent_frames"]),
             gate_threshold=float(gate["threshold"]),
             gate_temperature=float(gate["temperature"]),
-            gate_alpha_by_horizon=[float(value) for value in gate["alpha_by_horizon"]],
+            gate_alpha_by_horizon=gate["alpha_by_horizon"],
             max_frame_gap_ms=float(cfg.get("prediction_shadow_max_frame_gap_ms", 100.0)),
-            device=str(device),
-            model_label=model_label,
-            selection_sha256=selection_sha256,
-            checkpoint_sha256=checkpoint_sha256,
-            target_fps=float(cfg.get("prediction_shadow_target_fps", 30.0)),
+            device=loaded.device,
+            model_label=spec["label"],
+            target_fps=float(spec["target_fps"]),
         )
+        predictor.model_path = str(model_path)
+        predictor.checkpoint_path = str(loaded.checkpoint_path)
+        predictor.offline_gate_passed = bool(spec.get("offline_gate_passed", False))
+        predictor.dynamic_threshold = float(spec["validation_dynamic_threshold"])
         logger.info(
-            "预测影子模式已加载：label=%s, device=%s, history=%d, horizons=%s, offline_gate_passed=%s；只写诊断，不改 UDP。",
-            model_label,
-            device,
-            history_frames,
-            horizon_ms,
-            offline_gate_passed,
+            "预测已加载：label=%s, device=%s, history=%d, horizons=%s, offline_gate_passed=%s。",
+            predictor.model_label, predictor.device, predictor.history_frames,
+            predictor.horizon_ms, predictor.offline_gate_passed,
         )
-        if offline_gate_passed is False:
-            logger.warning(
-                "当前 v2 模型仅作影子诊断：离线 gate 未通过（不会进入 UDP，也不能宣称延迟补偿有效）。"
-            )
         return predictor
     except Exception as exc:
         error = _summarize_exception(exc)
-        logger.warning("预测影子模式初始化失败（%s）；baseline 与 Unity UDP 将继续运行。", error)
-        return PredictionShadow.unavailable(
-            error,
-            horizon_ms=horizon_ms or (50, 100, 150),
-            model_label=model_label,
-            selection_sha256=selection_sha256,
-            checkpoint_sha256=checkpoint_sha256,
-        )
+        logger.warning("预测初始化失败（%s）；视觉处理继续运行。", error)
+        return PredictionShadow.unavailable(error)

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""不需要摄像头的冻结 checkpoint 影子模式 smoke。"""
+"""不需要摄像头的预测模型推理自检。"""
 
 import argparse
 from copy import deepcopy
@@ -25,6 +25,7 @@ from utils.logger import get_logger  # noqa: E402
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="无摄像头的单右手 9 通道预测影子模式 smoke")
     parser.add_argument("--config", default="configs/svh_9ch_preview.yaml")
+    parser.add_argument("--model", default=None, help="可选模型 JSON 配置")
     parser.add_argument("--device", default="auto", help="auto、cpu 或 cuda")
     parser.add_argument("--frames", type=int, default=36, help="合成连续帧数；默认覆盖 30 帧历史窗口")
     parser.add_argument("--output", type=str, default=None, help="可选 JSON 报告路径")
@@ -37,6 +38,8 @@ def main() -> None:
         raise SystemExit("--frames 必须至少为 30，才能覆盖冻结 checkpoint 的历史窗口")
 
     cfg = load_config(args.config)
+    if args.model:
+        cfg["prediction_shadow_model_path"] = str(Path(args.model).resolve())
     cfg["prediction_shadow_enabled"] = True
     cfg["prediction_shadow_device"] = args.device
     logger = get_logger()

@@ -27,15 +27,6 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _hash_file(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-def _hash_json(value: Any) -> str:
-    encoded = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
-
-
 def _unique_run_dir(output_root: Path) -> Path:
     run_dir = output_root.resolve() / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S_%fZ")
     run_dir.mkdir(parents=True, exist_ok=False)
@@ -143,7 +134,6 @@ class RuntimeTraceGroup:
     """一个真实 JSONL 输入及其分段后的可回放预测 trace。"""
 
     source_path: Path
-    source_sha256: str
     total_rows: int
     valid_rows: int
     evaluable_rows: int
@@ -302,7 +292,6 @@ def build_runtime_jsonl_forecast_traces(
         raise RuntimeError(f"真实 JSONL 没有产生 predicted 帧，拒绝伪装成预测回放：{path}")
     return RuntimeTraceGroup(
         source_path=path,
-        source_sha256=_hash_file(path),
         total_rows=total_rows,
         valid_rows=valid_rows,
         evaluable_rows=evaluable_rows,
@@ -973,11 +962,9 @@ def run_delay_injection(
     """按预先冻结的网络矩阵评估 H2O test，不重新选模型或拟合 gate。"""
 
     config_path = config_path.resolve()
-    source_config_sha256 = _hash_file(config_path)
     config = json.loads(config_path.read_text(encoding="utf-8"))
     _validate_config(config)
     data_root = data_root.resolve()
-    manifest_path = data_root / "manifest.json"
     manifest = load_manifest(data_root)
     selection_path = _resolve_from_config(config_path, config["selection_path"])
     second_round_report_path = _resolve_from_config(config_path, config["second_round_report_path"])
@@ -987,17 +974,11 @@ def run_delay_injection(
     selected_label = str(selection.get("selected_label"))
     if selected_label == "hold_last":
         raise ValueError("selection 选择了 hold_last，没有模型可做扰动诊断")
-    if _hash_file(selection_path) != second_round_report.get("selection_sha256"):
-        raise ValueError("selection SHA 与第二轮报告不一致")
-    if _hash_file(checkpoint_path) != selection.get("checkpoint_sha256"):
-        raise ValueError("checkpoint SHA 与 selection 不一致")
     data_contract = dict(selection.get("data_contract") or {})
     if data_contract.get("mapping_contract_version") != manifest.get("mapping_contract_version"):
         raise ValueError("selection 与 H2O manifest 的 mapping contract 版本不一致")
-    if data_contract.get("mapping_contract_sha256") != manifest.get("mapping_contract_sha256"):
-        raise ValueError("selection 与 H2O manifest 的 mapping contract SHA 不一致")
     for contract_key in (
-        "mapping_implementation_sha256",
+        "mapping_contract",
         "h2o_label_gesture_context_policy",
         "runtime_gesture_context_policy",
         "projection_policy",
@@ -1084,7 +1065,6 @@ def run_delay_injection(
             "sources": [
                 {
                     "path": str(group.source_path),
-                    "sha256": group.source_sha256,
                     "total_rows": group.total_rows,
                     "valid_rows": group.valid_rows,
                     "evaluable_rows": group.evaluable_rows,
@@ -1106,8 +1086,7 @@ def run_delay_injection(
         "created_at_utc": _utc_now(),
         "run_purpose": str(config.get("run_purpose", "unspecified")),
         "source_config_path": str(config_path),
-        "source_config_sha256": source_config_sha256,
-        "effective_config_sha256": _hash_json(config),
+        "effective_config": config,
         "protocol": {
             "frozen_before_run": True,
             "test_based_reselection_performed": False,
@@ -1123,7 +1102,6 @@ def run_delay_injection(
         },
         "dataset": {
             "root": str(data_root),
-            "manifest_sha256": _hash_file(manifest_path),
             "name": manifest.get("dataset"),
             "split": str(config.get("split", "test")),
             "window_count": int(len(split.x)),
@@ -1134,9 +1112,7 @@ def run_delay_injection(
         "model": {
             "selected_label": selected_label,
             "selection_path": str(selection_path),
-            "selection_sha256": _hash_file(selection_path),
             "checkpoint_path": str(checkpoint_path),
-            "checkpoint_sha256": _hash_file(checkpoint_path),
             "horizon_ms": list(horizon_ms),
             "inference": inference,
             "gate_parameters": gate,

@@ -197,7 +197,7 @@ def test_default_config_exposes_exporter_tuning(monkeypatch):
     assert cfg["unity_udp_host"] == "127.0.0.1"
     assert cfg["unity_udp_port"] == 18080
     assert cfg["prediction_shadow_enabled"] is False
-    assert cfg["prediction_shadow_horizon_ms"] == [50, 100, 150]
+    assert Path(cfg["prediction_shadow_model_path"]).name == "residual_motion4.json"
 
 
 def test_exporter_constructor_keeps_unity_udp_disabled_by_default(tmp_path):

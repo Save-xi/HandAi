@@ -45,8 +45,6 @@ def test_worker_submit_does_not_wait_for_slow_inference_and_outputs_separate_fra
         max_frame_gap_ms=100.0,
         device="cpu",
         model_label="slow-test",
-        selection_sha256="a" * 64,
-        checkpoint_sha256="b" * 64,
     )
     worker = PredictionShadowWorker(shadow)
     try:
@@ -108,8 +106,6 @@ def test_worker_preserves_invalid_frame_as_history_reset_when_queue_overwrites_i
         max_frame_gap_ms=100.0,
         device="cpu",
         model_label="invalid-barrier-test",
-        selection_sha256="a" * 64,
-        checkpoint_sha256="b" * 64,
     )
     worker = PredictionShadowWorker(shadow, input_queue_size=1)
     try:

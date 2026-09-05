@@ -20,7 +20,7 @@ def test_main_help_smoke_without_camera_or_hardware():
     )
 
     assert result.returncode == 0
-    assert "单右手遥操作 baseline 演示" in result.stdout
+    assert "单右手 AI" in result.stdout
     assert "--print-json" in result.stdout
     assert "--save-jsonl" in result.stdout
     assert "--no-gui" in result.stdout
@@ -28,3 +28,4 @@ def test_main_help_smoke_without_camera_or_hardware():
     assert "--preview-svh" in result.stdout
     assert "--input-mirrored" in result.stdout
     assert "--video-file" in result.stdout
+    assert "--prediction-model" in result.stdout

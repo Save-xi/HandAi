@@ -1,0 +1,28 @@
+# AI 日常入口；通用参数在 default.yaml。
+extends: default.yaml
+output_json_path: outputs/latest_ai_frame.json
+enable_control_extension: true
+control_open_release_enabled: true
+svh_enable_preview: true
+svh_preview_layout: svh_9ch
+svh_preview_channel_count: 9
+svh_9ch_open_ticks:
+- -5000
+- -5000
+- -2000
+- 2000
+- -2000
+- 2000
+- -2000
+- -2000
+- -2000
+svh_9ch_closed_ticks:
+- -175000
+- -150000
+- -47000
+- 42000
+- -47000
+- 42000
+- -47000
+- -47000
+- -47000
