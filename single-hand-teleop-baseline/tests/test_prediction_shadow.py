@@ -9,8 +9,6 @@ from prediction.shadow_predictor import PredictionShadow, build_prediction_shado
 from svh.svh_layout import SVH_9CH_NAMES
 
 
-HASH_A = "a" * 64
-HASH_B = "b" * 64
 
 
 def _payload(frame_index: int, *, valid: bool = True, timestamp: float | None = None) -> dict:
@@ -41,8 +39,6 @@ def _shadow(predict_fn, *, history_frames: int = 4, max_gap_ms: float = 100.0) -
         max_frame_gap_ms=max_gap_ms,
         device="cpu",
         model_label="test_residual",
-        selection_sha256=HASH_A,
-        checkpoint_sha256=HASH_B,
     )
 
 
@@ -115,7 +111,7 @@ def test_missing_selection_becomes_initialization_diagnostic_instead_of_exceptio
     shadow = build_prediction_shadow(
         {
             "prediction_shadow_enabled": True,
-            "prediction_shadow_selection_path": str(tmp_path / "missing-selection.json"),
+            "prediction_shadow_model_path": str(tmp_path / "missing-model.json"),
         },
         logger=logging.getLogger("test-shadow"),
     )

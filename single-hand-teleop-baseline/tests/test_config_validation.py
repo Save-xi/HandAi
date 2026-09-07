@@ -9,11 +9,19 @@ from utils.config import load_config, validate_config
 
 def test_shipped_configs_pass_startup_validation():
     for path in (
+        "configs/ai.yaml",
         "configs/default.yaml",
         "configs/svh_9ch_preview.yaml",
         "configs/unity_udp_preview.yaml",
     ):
         assert load_config(path)
+
+
+def test_config_inheritance_rejects_cycles(tmp_path):
+    (tmp_path / "a.yaml").write_text("extends: b.yaml\n", encoding="utf-8")
+    (tmp_path / "b.yaml").write_text("extends: a.yaml\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="循环"):
+        load_config(str(tmp_path / "a.yaml"))
 
 
 def test_unity_udp_rejects_non_loopback_destination():

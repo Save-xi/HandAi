@@ -210,9 +210,7 @@
           "additionalProperties": false,
           "description": "Metadata describing the preview layout, units, and protocol assumptions for downstream integration code.",
           "required": [
-            "set_control_state_addr",
-            "set_all_channels_addr",
-            "transport",
+                    "transport",
             "channel_layout",
             "channel_order",
             "position_units",
@@ -268,8 +266,6 @@
         "raw_range_violation_count",
         "device",
         "model_label",
-        "selection_sha256",
-        "checkpoint_sha256",
         "fallback_reason"
       ],
       "properties": {
@@ -352,12 +348,10 @@
         "device": { "type": ["string", "null"] },
         "model_label": { "type": ["string", "null"] },
         "selection_sha256": {
-          "type": ["string", "null"],
-          "pattern": "^[0-9a-f]{64}$"
+          "type": ["string", "null"]
         },
         "checkpoint_sha256": {
-          "type": ["string", "null"],
-          "pattern": "^[0-9a-f]{64}$"
+          "type": ["string", "null"]
         },
         "fallback_reason": { "type": ["string", "null"] }
       }

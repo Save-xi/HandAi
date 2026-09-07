@@ -6,6 +6,7 @@ from __future__ import annotations
 运行时得到不同输出位置。
 """
 
+import math
 from pathlib import Path
 from typing import Any, Dict
 
@@ -45,7 +46,7 @@ def _require_positive_number(cfg: Dict[str, Any], key: str, errors: list[str]) -
     if key not in cfg:
         return
     value = cfg[key]
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or float(value) <= 0.0:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or float(value) <= 0.0:
         errors.append(f"{key} 必须是正数")
 
 
@@ -69,11 +70,9 @@ def validate_config(cfg: Dict[str, Any]) -> None:
         "display_width",
         "display_height",
         "max_num_hands",
-        "recent_frames_buffer_size",
         "console_print_every_n_frames",
         "export_last_every_n_frames",
         "jsonl_flush_interval",
-        "svh_mock_history_size",
     ):
         _require_positive_int(cfg, key, errors)
     for key in (
@@ -102,9 +101,6 @@ def validate_config(cfg: Dict[str, Any]) -> None:
         port = cfg["unity_udp_port"]
         if not isinstance(port, int) or isinstance(port, bool) or not 1 <= port <= 65535:
             errors.append("unity_udp_port 必须是 1..65535 的整数")
-
-    if str(cfg.get("svh_transport", "mock")).strip().lower() != "mock":
-        errors.append("当前已验证的 svh_transport 只能是 mock；真机传输不属于 Phase 1/1.5")
 
     layout = str(cfg.get("svh_preview_layout", "compact5"))
     expected_count = {"compact5": 5, "svh_9ch": 9}.get(layout)
@@ -159,25 +155,35 @@ def validate_config(cfg: Dict[str, Any]) -> None:
         raise ValueError("配置校验失败：" + "; ".join(errors))
 
 
-def load_config(path: str) -> Dict[str, Any]:
-    """读取 yaml 配置，并规范化常用输出路径。"""
-
-    config_path = _resolve_config_path(path)
-    with open(config_path, "r", encoding="utf-8") as f:
-        cfg = yaml.safe_load(f)
-
+def _load_yaml(config_path: Path, seen: set[Path]) -> Dict[str, Any]:
+    config_path = config_path.resolve()
+    if config_path in seen:
+        raise ValueError(f"配置继承形成循环：{config_path}")
+    seen.add(config_path)
+    with config_path.open("r", encoding="utf-8") as handle:
+        cfg = yaml.safe_load(handle)
     if not isinstance(cfg, dict):
         raise ValueError(f"配置文件根节点必须是 YAML 对象：{config_path}")
+    parent = cfg.pop("extends", None)
+    if parent is not None:
+        if not isinstance(parent, str) or not parent.strip():
+            raise ValueError("extends 必须是基础配置文件路径")
+        cfg = {**_load_yaml(config_path.parent / parent, seen), **cfg}
+    return cfg
+
+
+def load_config(path: str) -> Dict[str, Any]:
+    """读取配置；extends 相对当前 YAML，其余文件路径相对子项目根目录。"""
+
+    cfg = _load_yaml(_resolve_config_path(path), set())
 
     for key in (
         "video_file_path",
         "output_json_path",
         "jsonl_output_dir",
+        "prediction_shadow_model_path",
         "prediction_shadow_output_json_path",
         "prediction_shadow_jsonl_output_dir",
-        "prediction_shadow_selection_path",
-        "prediction_shadow_checkpoint_path",
-        "prediction_shadow_report_path",
     ):
         value = cfg.get(key)
         if isinstance(value, str) and value:

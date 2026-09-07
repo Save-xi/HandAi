@@ -48,7 +48,5 @@
   "raw_range_violation_count": 0,
   "device": "cuda",
   "model_label": "residual_unweighted",
-  "selection_sha256": "9cc711e18d911907c8e678bb984f97f2318dd66484079844494b1c832014a231",
-  "checkpoint_sha256": "4b22201ae0eba6c2e8f6920fefbd03fd932dcfc690c8df7d2496271685339ad3",
   "fallback_reason": null
 }

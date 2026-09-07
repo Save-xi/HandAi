@@ -110,25 +110,6 @@ outputs/freihand_2d_keypoints.json
 
 运行当前项目里的 MediaPipe 单右手 CV 管线，生成 FreiHAND predictions：
 
-### 推荐：一条命令生成不可覆盖的验收包
-
-正式阶段结果优先使用：
-
-```bash
-python scripts/run_phase1_offline_acceptance.py \
-  --config configs/freihand_eval.yaml \
-  --split evaluation \
-  --require-full-split
-```
-
-它会运行 compileall、pytest、全量预测、评估、表格和 SVG，并把 Git 状态、环境版本、配置、命令、结果和 SHA-256 保存到独立 run 目录：
-
-```text
-outputs/phase1_acceptance/<run_id>/
-```
-
-该目录不会覆盖历史结果。旧的逐步命令仍适合开发调试，但默认 `reports/` 路径会被下一次直接运行覆盖，不应混作正式实验记录。
-
 ### 逐步调试命令
 
 ```bash

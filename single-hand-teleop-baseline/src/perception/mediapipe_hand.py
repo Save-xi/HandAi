@@ -6,32 +6,12 @@ from __future__ import annotations
 右手筛选、特征提取、手势识别都放在后续模块里，避免检测器承担过多职责。
 """
 
-from dataclasses import dataclass
 from typing import List, Tuple
 
 import cv2
 import mediapipe as mp
 
-
-@dataclass
-class HandDetection:
-    """单只手的检测结果。
-
-    landmarks_2d:
-        MediaPipe 输出的归一化图像坐标，范围通常接近 [0, 1]。
-    landmarks_xyz:
-        MediaPipe 输出的 3D-like 坐标。这里主要用于增强 curl 估计，
-        不能理解成真实世界毫米坐标。
-    handedness:
-        已根据 input_mirrored 修正后的左右手标签。
-    confidence:
-        MediaPipe 对左右手分类的置信度。
-    """
-
-    landmarks_2d: List[Tuple[float, float]]
-    landmarks_xyz: List[Tuple[float, float, float]]
-    handedness: str
-    confidence: float
+from perception.base import HandDetection
 
 
 def normalize_handedness(label: str, input_mirrored: bool) -> str:

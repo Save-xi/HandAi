@@ -3,7 +3,6 @@ from __future__ import annotations
 """第一轮 Linear/Kalman/GRU/TCN/Transformer 统一实验入口。"""
 
 import csv
-import hashlib
 import json
 import platform
 import time
@@ -23,11 +22,6 @@ from .training import train_neural_model
 CLASSICAL_MODELS = {"hold_last", "linear", "kalman"}
 NEURAL_MODELS = {"gru", "tcn", "transformer"}
 NEURAL_MODEL_SEED_OFFSETS = {"gru": 103, "tcn": 104, "transformer": 105}
-
-
-def _hash_json(value: Any) -> str:
-    encoded = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
 
 
 def _unique_run_dir(output_root: Path) -> Path:
@@ -222,7 +216,7 @@ def run_first_round(
         "research_claims_allowed": research_claims_allowed,
         "warning": warning,
         "config_path": str(config_path.resolve()),
-        "config_sha256": _hash_json(config),
+        "effective_config": config,
         "history_frames": history_frames,
         "horizon_ms": list(horizons),
         "effective_horizon_frames": splits["test"].horizon_steps.tolist(),

@@ -3,7 +3,6 @@ from __future__ import annotations
 """第二轮：只在 validation 选残差模型与门控，冻结后只评估一次 test。"""
 
 import csv
-import hashlib
 import json
 import platform
 import re
@@ -23,7 +22,7 @@ from svh.mapping_contract import (
     H2O_LABEL_GESTURE_CONTEXT_POLICY,
     MAPPING_CONTRACT_VERSION,
     RUNTIME_GESTURE_CONTEXT_POLICY,
-    expected_mapping_implementation_sha256,
+    legacy_v2_mapping_contract,
 )
 
 
@@ -36,15 +35,6 @@ def _unique_run_dir(output_root: Path) -> Path:
     run_dir = output_root.resolve() / timestamp
     run_dir.mkdir(parents=True, exist_ok=False)
     return run_dir
-
-
-def _hash_json(value: Any) -> str:
-    encoded = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
-
-
-def _hash_file(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def _improvement_percent(reference: float, value: float) -> float:
@@ -112,7 +102,6 @@ def _validation_summary(record: dict[str, Any]) -> dict[str, Any]:
         "model": record["model"],
         "seed": record["seed"],
         "checkpoint": record["training"]["checkpoint"],
-        "checkpoint_sha256": record["training"]["checkpoint_sha256"],
         "raw_metrics": record["gate_fit"]["raw_model_metrics"],
         "gated_metrics": best["full_metrics"],
         "gate_objective": best["objective"],
@@ -146,7 +135,6 @@ def _choose_candidate(
             "selection_reason": "best_validation_gate_objective_below_hold_last",
             "gate_parameters": best["gate_parameters"],
             "checkpoint": best["checkpoint"],
-            "checkpoint_sha256": best["checkpoint_sha256"],
             "ranked_validation_summaries": ranked,
         }
     return {
@@ -156,7 +144,6 @@ def _choose_candidate(
         "selection_reason": "no_validation_candidate_beats_exact_hold_last",
         "gate_parameters": None,
         "checkpoint": None,
-        "checkpoint_sha256": None,
         "ranked_validation_summaries": ranked,
     }
 
@@ -256,7 +243,7 @@ def _write_markdown(path: Path, report: dict[str, Any]) -> None:
         "",
         f"- 选中方案：`{selection['selected_label']}`（`{selection['selected_model']}`）",
         f"- 离线门槛：**{'通过' if acceptance['offline_gate_passed'] else '未通过'}**",
-        f"- validation 选型先冻结：`selection.json` SHA-256 `{report['selection_sha256']}`",
+        "- 模型与门控参数只在 validation 上选择，随后评测 test。",
         "- test 在选择文件落盘后才加载；本轮未用 test 重选模型或门控。",
         "- subject4 曾用于第一轮评测，因此它不是整个项目历史上的全新盲测集。",
         "",
@@ -317,7 +304,6 @@ def run_second_round(
     if not TORCH_AVAILABLE:
         raise RuntimeError("第二轮需要 PyTorch；请使用 handai-intent-prediction 独立环境")
     config_path = config_path.resolve()
-    source_config_sha256 = _hash_file(config_path)
     config = json.loads(config_path.read_text(encoding="utf-8"))
     run_dir = _unique_run_dir(output_root)
     protocol_events: list[dict[str, Any]] = []
@@ -333,16 +319,13 @@ def run_second_round(
     if data_root is None:
         raise ValueError("真实第二轮必须传入 data_root；代码自检可使用 synthetic_smoke")
     data_root = data_root.resolve()
-    manifest_path = data_root / "manifest.json"
     data_manifest = load_manifest(data_root)
-    mapping_version = str(data_manifest.get("mapping_contract_version") or MAPPING_CONTRACT_VERSION)
     data_contract = {
-        "manifest_sha256": _hash_file(manifest_path),
-        "mapping_config_sha256": data_manifest.get("mapping_config_sha256"),
         "mapping_contract_version": data_manifest.get("mapping_contract_version"),
-        "mapping_contract_sha256": data_manifest.get("mapping_contract_sha256"),
-        "mapping_implementation_sha256": data_manifest.get("mapping_implementation_sha256")
-        or expected_mapping_implementation_sha256(mapping_version),
+        "mapping_contract": data_manifest.get("mapping_contract") or (
+            legacy_v2_mapping_contract()
+            if data_manifest.get("mapping_contract_version") == MAPPING_CONTRACT_VERSION else None
+        ),
         "h2o_label_gesture_context_policy": data_manifest.get("h2o_label_gesture_context_policy")
         or H2O_LABEL_GESTURE_CONTEXT_POLICY,
         "runtime_gesture_context_policy": data_manifest.get("runtime_gesture_context_policy")
@@ -436,24 +419,21 @@ def run_second_round(
         "selection_fit_split": "validation",
         "test_loaded": False,
         "test_metrics_available": False,
-        "effective_config_sha256": _hash_json(config),
         "data_contract": data_contract,
         "validation_hold_metrics": validation_hold_metrics,
         **selection,
     }
     selection_path = run_dir / "selection.json"
     selection_path.write_text(json.dumps(selection_document, ensure_ascii=False, indent=2), encoding="utf-8")
-    selection_sha256 = _hash_file(selection_path)
     protocol_events.append(
         {
             "order": 3,
             "event": "selection_frozen_to_disk_before_test_load",
             "at_utc": _utc_now(),
-            "selection_sha256": selection_sha256,
         }
     )
 
-    # 关键顺序约束：到此处 selection.json 已经落盘并哈希，才允许构造 test 窗口。
+    # 先保存 validation 的选型结果，再构造 test 窗口。
     test = _build_split(
         data_root,
         split="test",
@@ -566,11 +546,9 @@ def run_second_round(
             else None
         ),
         "config_path": str(config_path),
-        "source_config_sha256": source_config_sha256,
-        "effective_config_sha256": _hash_json(config),
+        "effective_config": config,
         "data_root": str(data_root),
         "dataset": data_manifest.get("dataset"),
-        "manifest_sha256": _hash_file(manifest_path),
         "data_contract": data_contract,
         "history_frames": history_frames,
         "horizon_ms": list(horizons),
@@ -592,7 +570,6 @@ def run_second_round(
             "events": protocol_events,
         },
         "selection_path": str(selection_path),
-        "selection_sha256": selection_sha256,
         "selection": selection,
         "validation_hold_metrics": validation_hold_metrics,
         "validation_candidates": validation_records,
@@ -633,4 +610,8 @@ def run_second_round(
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     _write_validation_csv(run_dir / "validation_candidates.csv", validation_records)
     _write_markdown(run_dir / "report.md", report)
+    if not synthetic_smoke and selected_label != "hold_last":
+        from prediction.model_config import export_model_config
+
+        export_model_config(report_path, run_dir / "model.json")
     return report_path

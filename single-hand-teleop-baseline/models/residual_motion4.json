@@ -1,0 +1,75 @@
+{
+  "schema_version": "handai-prediction-model-v1",
+  "label": "residual_motion4",
+  "model_name": "residual_gru",
+  "checkpoint": "experiments/intent_prediction/outputs/second_round_v2_open_release/20260829T024400_143036Z/checkpoints/residual_motion4.pt",
+  "history_frames": 30,
+  "horizon_ms": [
+    50,
+    100,
+    150
+  ],
+  "target_fps": 30.0,
+  "mapping_contract": {
+    "version": "svh9-label-v2-open-release",
+    "single_right_hand": true,
+    "channel_order": [
+      "thumb_flexion",
+      "thumb_opposition",
+      "index_finger_distal",
+      "index_finger_proximal",
+      "middle_finger_distal",
+      "middle_finger_proximal",
+      "ring_finger",
+      "pinky",
+      "finger_spread"
+    ],
+    "parameters": {
+      "control_grasp_closed_ref": 0.55,
+      "control_grasp_open_ref": 0.02,
+      "control_hand_open_ratio_closed_ref": 0.25,
+      "control_hand_open_ratio_open_ref": 0.95,
+      "control_open_release_enabled": true,
+      "control_open_release_full_ratio": 0.95,
+      "control_open_release_start_ratio": 0.85,
+      "control_pinch_closed_ref": 0.08,
+      "control_pinch_index_closed_ref": 0.35,
+      "control_pinch_index_open_ref": 0.05,
+      "control_pinch_open_ref": 0.45,
+      "fist_compact_ratio_threshold": 0.65,
+      "fist_mean_curl_min": 0.45,
+      "fist_ratio_threshold": 0.85,
+      "open_mean_curl_max": 0.45,
+      "open_ratio_threshold": 0.85,
+      "pinch_distance_norm_threshold": 0.45,
+      "pinch_open_ratio_min": 0.75,
+      "pinch_support_curl_max": 0.65,
+      "svh_enable_gesture_fallback": false,
+      "svh_grasp_spread_scale": 0.05,
+      "svh_open_spread_scale": 0.25,
+      "svh_pinch_spread_scale": 0.1,
+      "svh_pinch_support_scale": 0.2,
+      "svh_position_closed_value": 1.0,
+      "svh_position_open_value": 0.0,
+      "svh_preview_channel_count": 9,
+      "svh_preview_layout": "svh_9ch",
+      "svh_thumb_grasp_scale": 0.85,
+      "svh_thumb_opposition_scale": 0.75
+    }
+  },
+  "gate": {
+    "recent_frames": 8,
+    "threshold_percentile": 60.0,
+    "threshold": 0.005214414615479727,
+    "temperature_fraction": 0.25,
+    "temperature": 0.0037947634767208803,
+    "alpha_by_horizon": [
+      0.75,
+      1.0,
+      1.0
+    ]
+  },
+  "validation_dynamic_threshold": 0.019306905638603947,
+  "offline_gate_passed": false,
+  "description": "H2O v2 的 9 通道代理序列预测，仅作旁路研究；原 checkpoint 原样保留。"
+}

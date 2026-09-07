@@ -3,7 +3,8 @@ import logging
 from pathlib import Path
 
 from features.hand_features import extract_hand_features
-from main import _apply_cli_overrides, _apply_extension_chain, _build_exporter, _build_runtime_mode
+from main import _apply_cli_overrides, _build_exporter, _build_runtime_mode
+from pipeline import _apply_extension_chain
 
 
 def _args(**overrides):
@@ -121,7 +122,6 @@ def test_extension_chain_disabled_degrades_to_stable_placeholders(control_cfg, s
         payload,
         cfg,
         runtime,
-        svh_transport=None,
         logger=logging.getLogger("test-runtime"),
     )
 
@@ -148,7 +148,6 @@ def test_preview_svh_mode_auto_enables_control_extension(control_cfg, svh_cfg, s
         payload,
         cfg,
         runtime,
-        svh_transport=None,
         logger=logging.getLogger("test-runtime"),
     )
 

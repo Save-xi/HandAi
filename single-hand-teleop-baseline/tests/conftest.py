@@ -42,8 +42,6 @@ def svh_cfg():
         "svh_preview_layout": "compact5",
         "svh_preview_channel_count": 5,
         "svh_preview_mode": "preview",
-        "svh_transport": "mock",
-        "svh_protocol_sync_bytes": [76, 170],
         "svh_grasp_open_ref": 0.02,
         "svh_grasp_closed_ref": 0.55,
         "svh_pinch_open_ref": 0.45,

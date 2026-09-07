@@ -1,5 +1,5 @@
 from perception.hand_filter import select_right_hand
-from perception.mediapipe_hand import HandDetection
+from perception.base import HandDetection
 
 
 def _detection(handedness, confidence):

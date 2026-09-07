@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-"""实时摄像头运行的证据会话。
+"""运行会话与日志配对信息。
 
-本模块只管理日志文件名、旁路 manifest 与文件哈希。run_id 不写入 canonical
-逐帧 payload，因此不会改变 Unity UDP contract，也不会进入控制链路。
+只保存生效配置、帧范围与输出路径；run_id 用于配对同一次运行的两份日志。
 """
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -17,7 +15,7 @@ from typing import Any, Mapping
 import uuid
 
 
-RUNTIME_SESSION_SCHEMA_VERSION = "handai-runtime-session-v1"
+RUNTIME_SESSION_SCHEMA_VERSION = "handai-runtime-session-v2"
 
 
 def utc_now_iso() -> str:
@@ -84,14 +82,6 @@ def create_runtime_session_artifacts(
     )
 
 
-def file_sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def _file_record(path: Path | None, *, rows: int | None) -> dict[str, Any] | None:
     if path is None:
         return None
@@ -101,7 +91,6 @@ def _file_record(path: Path | None, *, rows: int | None) -> dict[str, Any] | Non
         "path": str(resolved),
         "exists": exists,
         "bytes": resolved.stat().st_size if exists else None,
-        "sha256": file_sha256(resolved) if exists else None,
         "rows": int(rows) if rows is not None else None,
     }
 
@@ -127,7 +116,6 @@ def _atomic_write_json(path: Path, value: Mapping[str, Any]) -> None:
 
 
 class RuntimeSessionRecorder:
-    """增量记录一次实时运行，结束时冻结日志路径、哈希和 worker 统计。"""
 
     def __init__(
         self,
@@ -148,13 +136,12 @@ class RuntimeSessionRecorder:
             "schema_version": RUNTIME_SESSION_SCHEMA_VERSION,
             "run_id": artifacts.run_id,
             "status": "running",
-            "claim_status": "single_right_hand_unity_preview_runtime_evidence",
+            "purpose": "ai_runtime_diagnostics",
             "created_at_utc": utc_now_iso(),
             "completed_at_utc": None,
             "error": None,
             "config": {
                 "path": str(resolved_config),
-                "sha256": file_sha256(resolved_config),
                 "resolved": dict(cfg),
             },
             "runtime": {
@@ -187,16 +174,8 @@ class RuntimeSessionRecorder:
                 "device": None,
                 "history_frames": None,
                 "horizon_ms": [],
-                "selection_sha256": None,
-                "checkpoint_sha256": None,
                 "initialization_error": None,
                 "worker": None,
-            },
-            "safety": {
-                "single_right_hand_only": True,
-                "prediction_shadow_only": True,
-                "prediction_modifies_unity_udp": False,
-                "real_svh_in_scope": False,
             },
         }
         self.write_snapshot()
@@ -217,8 +196,6 @@ class RuntimeSessionRecorder:
             "device": shadow.device,
             "history_frames": int(shadow.history_frames),
             "horizon_ms": [int(value) for value in shadow.horizon_ms],
-            "selection_sha256": shadow.selection_sha256,
-            "checkpoint_sha256": shadow.checkpoint_sha256,
             "initialization_error": shadow.initialization_error,
             "worker": None,
         }

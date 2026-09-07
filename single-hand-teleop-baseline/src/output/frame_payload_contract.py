@@ -76,8 +76,6 @@ SVH_PREVIEW_REQUIRED_FIELDS = (
 """svh_preview 必填字段；无效帧通过 valid=false 和空目标数组表达。"""
 
 PROTOCOL_HINT_REQUIRED_FIELDS = (
-    "set_control_state_addr",
-    "set_all_channels_addr",
     "transport",
     "channel_layout",
     "channel_order",
@@ -130,8 +128,6 @@ PREDICTION_DIAGNOSTICS_REQUIRED_FIELDS = (
     "raw_range_violation_count",
     "device",
     "model_label",
-    "selection_sha256",
-    "checkpoint_sha256",
     "fallback_reason",
 )
 """可选 prediction_diagnostics v1 一旦出现，就必须保持完整稳定形状。"""
@@ -399,8 +395,6 @@ def _normalize_prediction_diagnostics(diagnostics: Any) -> Dict[str, Any] | None
         "raw_range_violation_count": int(source.get("raw_range_violation_count", 0)),
         "device": None if source.get("device") is None else str(source.get("device")),
         "model_label": None if source.get("model_label") is None else str(source.get("model_label")),
-        "selection_sha256": None if source.get("selection_sha256") is None else str(source.get("selection_sha256")),
-        "checkpoint_sha256": None if source.get("checkpoint_sha256") is None else str(source.get("checkpoint_sha256")),
         "fallback_reason": None if source.get("fallback_reason") is None else str(source.get("fallback_reason")),
     })
     return normalized
@@ -550,7 +544,8 @@ def _validate_prediction_diagnostics(
         return
 
     for field in diagnostics:
-        if field not in PREDICTION_DIAGNOSTICS_REQUIRED_FIELDS:
+        # 历史日志可携带旧身份字段；只读取，不作为推理或评测的前置条件。
+        if field not in PREDICTION_DIAGNOSTICS_REQUIRED_FIELDS and field not in {"selection_sha256", "checkpoint_sha256"}:
             errors.append(f"prediction_diagnostics 不允许未知字段：{field}")
     for field in PREDICTION_DIAGNOSTICS_REQUIRED_FIELDS:
         if field not in diagnostics:
@@ -699,16 +694,12 @@ def _validate_prediction_diagnostics(
     violation_count = diagnostics.get("raw_range_violation_count")
     if not isinstance(violation_count, int) or isinstance(violation_count, bool) or violation_count < 0:
         errors.append("prediction_diagnostics.raw_range_violation_count 必须是非负整数")
-    for field in ("device", "model_label", "selection_sha256", "checkpoint_sha256"):
+    for field in ("device", "model_label"):
         value = diagnostics.get(field)
         if value is not None and not isinstance(value, str):
             errors.append(f"prediction_diagnostics.{field} 必须是字符串或 null")
-    for field in ("selection_sha256", "checkpoint_sha256"):
-        value = diagnostics.get(field)
-        if value is not None and (len(value) != 64 or any(char not in "0123456789abcdef" for char in value)):
-            errors.append(f"prediction_diagnostics.{field} 必须是小写 SHA-256")
     if status == "predicted":
-        for field in ("device", "model_label", "selection_sha256", "checkpoint_sha256"):
+        for field in ("device", "model_label"):
             if not diagnostics.get(field):
                 errors.append(f"predicted 状态必须包含 prediction_diagnostics.{field}")
 
@@ -900,7 +891,7 @@ def validate_frame_payload(
             errors.append("svh_preview.protocol_hint 必须是对象")
         else:
             for field in protocol_hint:
-                if field not in PROTOCOL_HINT_REQUIRED_FIELDS:
+                if field not in PROTOCOL_HINT_REQUIRED_FIELDS and field not in {"set_control_state_addr", "set_all_channels_addr"}:
                     errors.append(f"svh_preview.protocol_hint 不允许未知字段：{field}")
             for field in PROTOCOL_HINT_REQUIRED_FIELDS:
                 if field not in protocol_hint:

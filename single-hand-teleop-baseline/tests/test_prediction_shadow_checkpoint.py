@@ -58,6 +58,5 @@ def test_frozen_checkpoint_runs_one_complete_shadow_window():
     assert diagnostic["status"] == "predicted"
     assert diagnostic["ready"] is True
     assert diagnostic["model_label"] == "residual_motion4"
-    assert diagnostic["checkpoint_sha256"] == "0146d8ecdc117d9ac9d49a22f087199ca0fe1f60173fb10a2908cabf3043fee6"
     assert diagnostic["raw_range_violation_count"] == 0
     assert len(diagnostic["gated_prediction"]) == 3

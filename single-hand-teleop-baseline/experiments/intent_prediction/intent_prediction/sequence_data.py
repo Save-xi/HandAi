@@ -2,7 +2,6 @@ from __future__ import annotations
 
 """9 通道控制序列的存储、窗口化与确定性 smoke 数据。"""
 
-import hashlib
 import json
 import math
 from dataclasses import dataclass
@@ -146,11 +145,6 @@ def build_window_split(
     )
 
 
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256(path.read_bytes()).hexdigest()
-    return digest
-
-
 def create_synthetic_smoke_dataset(output_root: Path, *, seed: int = 20260823) -> Path:
     """创建只用于验证代码链路的确定性 9 通道序列，禁止作为研究结论。"""
 
@@ -204,7 +198,6 @@ def create_synthetic_smoke_dataset(output_root: Path, *, seed: int = 20260823) -
                     "subject": sequence_id,
                     "split": split,
                     "frames": length,
-                    "sha256": _sha256(path),
                 }
             )
 

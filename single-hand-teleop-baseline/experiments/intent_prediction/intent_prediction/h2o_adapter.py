@@ -2,7 +2,6 @@ from __future__ import annotations
 
 """把 H2O pose-only 右手序列转换为当前项目的 9 通道预览序列。"""
 
-import hashlib
 import json
 import math
 from dataclasses import dataclass
@@ -19,8 +18,7 @@ from svh.mapping_contract import (
     H2O_LABEL_GESTURE_CONTEXT_POLICY,
     MAPPING_CONTRACT_VERSION,
     RUNTIME_GESTURE_CONTEXT_POLICY,
-    assert_mapping_implementation_compatible,
-    mapping_contract_sha256,
+    mapping_contract_payload,
 )
 from utils.config import load_config
 
@@ -56,14 +54,6 @@ class H2OTake:
     @property
     def identifier(self) -> str:
         return f"{self.subject}_{self.action}_{self.take}_cam4"
-
-
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def read_h2o_right_hand_pose(path: Path) -> tuple[bool, np.ndarray]:
@@ -278,7 +268,6 @@ def _flush_segment(
         "frames": len(frame_ids),
         "first_frame": int(frame_ids[0]),
         "last_frame": int(frame_ids[-1]),
-        "sha256": _sha256(output_path),
     }
 
 
@@ -324,7 +313,6 @@ def preprocess_h2o_pose_dataset(
     mapping_cfg = load_config(str(mapping_config_path))
     if mapping_cfg.get("svh_preview_layout") != "svh_9ch" or int(mapping_cfg.get("svh_preview_channel_count", 0)) != 9:
         raise ValueError("mapping config 必须启用 svh_9ch 且通道数为 9")
-    mapping_implementation_sha256 = assert_mapping_implementation_compatible(mapping_cfg)
 
     takes = discover_h2o_takes(h2o_root, split_policy=split_policy)
     if limit_takes is not None:
@@ -460,10 +448,8 @@ def preprocess_h2o_pose_dataset(
         "fps": float(fps),
         "split_policy": split_policy,
         "mapping_config": str(mapping_config_path),
-        "mapping_config_sha256": _sha256(mapping_config_path),
         "mapping_contract_version": MAPPING_CONTRACT_VERSION,
-        "mapping_contract_sha256": mapping_contract_sha256(mapping_cfg),
-        "mapping_implementation_sha256": mapping_implementation_sha256,
+        "mapping_contract": mapping_contract_payload(mapping_cfg),
         "h2o_label_gesture_context_policy": H2O_LABEL_GESTURE_CONTEXT_POLICY,
         "runtime_gesture_context_policy": RUNTIME_GESTURE_CONTEXT_POLICY,
         "projection_policy": manifest_projection_policy,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from perception.mediapipe_hand import HandDetection
+from perception.base import HandDetection
 
 
 def select_right_hand(detections: List[HandDetection]) -> Optional[HandDetection]:

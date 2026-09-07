@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import sys
 from pathlib import Path
@@ -47,7 +46,6 @@ def test_second_round_smoke_freezes_validation_selection_before_test(tmp_path: P
     assert selection["selection_fit_split"] == "validation"
     assert selection["test_loaded"] is False
     assert selection["test_metrics_available"] is False
-    assert hashlib.sha256(selection_path.read_bytes()).hexdigest() == report["selection_sha256"]
     assert event_names.index("selection_frozen_to_disk_before_test_load") < event_names.index(
         "test_loaded_after_selection_freeze"
     )
