@@ -1,5 +1,6 @@
 # 文档入口
 
+- [AI 交接说明](agent_handoff/README.md)：当前不足之处与整改方案，接手时先读这份。
 - [AI 路线图](ai_roadmap.md)：按项目书组织后续研究。
 - [AI 对接入口](ai_interfaces.md)：输入坐标、检测器替换、输出及预测。
 - [训练与评测](../experiments/intent_prediction/README.md)：可直接使用的命令。
