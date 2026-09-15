@@ -1,5 +1,7 @@
 # AI 开发约定
 
+开工前先读 [docs/agent_handoff/README.md](docs/agent_handoff/README.md)：那里有项目书技术指标原文、当前缺口与整改优先级。它是现状快照与建议，本文件的九条约定优先级更高。
+
 1. 按 `docs/ai_roadmap.md` 推进项目书的 AI 部分：姿态、手势、时序预测、轻量化和评测。
 2. 当前可运行基线是单右手；双手算法作为明确的后续任务开展。
 3. 设备、Unity、5G、串口、SVH/AUBO 驱动由协作方负责；只保留输入输出适配入口。
