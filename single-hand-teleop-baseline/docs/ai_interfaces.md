@@ -12,13 +12,15 @@
 | 字段 | 约定 |
 |---|---|
 | `landmarks_2d` | 21×2 图像归一化坐标，顺序为 wrist、thumb、index、middle、ring、little |
-| `landmarks_xyz` | 21×3 同尺度相对坐标；当前 MediaPipe 的 z 不是米/毫米真值 |
+| `landmarks_xyz` | 当前为 MediaPipe 原始 21×3 x/y/z；XY 分别按宽高归一化，z 是相对深度，尚未统一几何轴尺度 |
 | `handedness` | 已校正镜像含义的真实 Right/Left 标签 |
 | `confidence` | [0,1] 的置信度；不同模型置信度含义在适配器内说明 |
-| `timestamp` | 秒；实时同机可用 Unix 时间，离线视频使用连续媒体时间 |
+| `timestamp` | 秒；当前默认由 pipeline 在检测结束后生成 Unix 时间；显式传入时由调用方定义时间轴，离线评测会传媒体时间偏移值 |
 | `frame_index` | 本次流中的递增帧号 |
 
-设备成员负责 RGB-D 采集、内参和坐标转换；单位为米的 3D 点须先转换成上述约定，不能直接冒充 MediaPipe 的相对坐标。
+设备成员负责 RGB-D 采集、内参和坐标转换；单位为米的 3D 点不能直接冒充 MediaPipe 的相对坐标。
+
+2026-09-21 审核确认的接口缺口列入 [M3-A](ai_roadmap.md#3-m3-a先稳定几何坏帧与映射边界)：当前 `HandDetection` 尚不携带图像宽高，几何计算存在轴尺度问题；短输入可能进入固定索引，退化点也可能通过可控性检查。下一版将分开保存显示点和几何点，并统一流式无效帧行为。拟议的 `camera_mediapipe_geometry_xyz_v1` 尚未实现，当前 API 不应被描述为已经完成这些整改。
 
 ## 输出
 
@@ -62,7 +64,7 @@
 
 [representation_data.py](../experiments/intent_prediction/intent_prediction/representation_data.py) 的 `RepresentationBatch.training_view("A"/"B"/"C")` 提供实验输入、监督掩码及残差参考，供已有 `predict_neural_checkpoint` 批量重载。A/B 输出共同七个时刻的 9 通道；C 输出五个规则姿态，再由 `map_predictions` 用当前腕点、尺度和手势状态副本转换成共同七个查询。该函数不读取未来真实姿态、标签掩码或真实手势，返回通道与映射有效位。
 
-该入口属于 H2O 离线实验，没有替换 M1 的独立原始坐标 API，也不是摄像头实时输出协议。共同查询、映射失败回退和结果见 [M2 文档](m2_representation_comparison.md)。摄像头坐标适配、计算就绪时间和带目标时间的实验流输出在 M3 完成。
+该入口属于 H2O 离线实验，没有替换 M1 的独立原始坐标 API，也不是摄像头实时输出协议。共同查询、映射失败回退和结果见 [M2 文档](m2_representation_comparison.md)。M3-A 先明确几何和映射语义；M3-B 再提供带源时间、目标时间、就绪时间、时间轴、版本、有效位和回退原因的独立候选输出，均为待实现范围。
 
 ## 兼容变化
 

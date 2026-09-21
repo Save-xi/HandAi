@@ -10,13 +10,15 @@
 
 日常开发看这三个入口：
 
-- [AI 路线图（M0/M1 与 M2 H2O 对照已完成）](docs/ai_roadmap.md)：实测结论、后续阶段与审核范围。
+- [AI 路线图：先修摄像头基础，再验证预测](docs/ai_roadmap.md)：M0–M2 成果、M3-A/B/C 交付与验收范围。
 - [对接入口](docs/ai_interfaces.md)：替换检测器、接设备关键点、消费 AI 结果。
 - [训练与评测](experiments/intent_prediction/README.md)：数据、训练、模型导出和视频评测。
 
 阶段规划和成果复核可查 [AI 交接说明](docs/agent_handoff/README.md)，其中已合并项目书审核与本机二审意见，区分历史实测、当前缺口及后续计划。
 
-已完成 [M0：数据定义与核对](docs/m0_data_definition.md)、[M1：原生 21 点预测](docs/m1_keypoint_prediction.md)及 [M2：三种子 A/B/C 对照](docs/m2_representation_comparison.md)。M2 覆盖 H2O 全部 217 段、每段最多抽样 64 个窗口；C 优于 A/B，但未稳定胜过验证集预选的简单基线，三条神经路线均未通过本轮研发继续条件。下一步审核摄像头域的简单基线与计算成本评测。现有摄像头与设备输出继续使用原路径。
+已完成 [M0：数据定义与核对](docs/m0_data_definition.md)、[M1：原生 21 点预测](docs/m1_keypoint_prediction.md)及 [M2：三种子 A/B/C 对照](docs/m2_representation_comparison.md)。M2 覆盖 H2O 全部 217 段、每段最多抽样 64 个窗口；C 优于 A/B，但未稳定胜过验证集预选的简单基线，三条神经路线均未通过本轮研发继续条件。
+
+2026-09-21 审核后的下一步是 **M3-A：统一摄像头几何尺度、无效输入处理、释放映射过渡，并补 CPU 预测 CI**；通过后进入 M3-B 简单预测与计时，再由 M3-C 新数据和人工标签决定模型投入。上述整改尚未实现，当前运行方式仍如下。
 
 ## 运行
 

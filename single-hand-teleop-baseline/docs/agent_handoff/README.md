@@ -1,6 +1,6 @@
 # AI 交接：已核实状态与整改依据
 
-更新：2026-09-21。已合并 Claude 对项目书的审核与本机二审意见。[M0 数据定义](../m0_data_definition.md)、[M1 关键点预测](../m1_keypoint_prediction.md)及 [M2 H2O 三种子表示对照](../m2_representation_comparison.md)已完成；三条神经路线均未稳定胜过本轮预选简单基线。本文记录事实与缺口，下一步 M3 首轮范围及 M4/M5 计划统一放在 [AI 路线图](../ai_roadmap.md)。
+更新：2026-09-21。已合并 Claude 对项目书的审核、本机二审及负责人新提供的 `HandAi_AI_Review_20260921.md` 路线建议。[M0 数据定义](../m0_data_definition.md)、[M1 关键点预测](../m1_keypoint_prediction.md)及 [M2 H2O 三种子表示对照](../m2_representation_comparison.md)已完成，当前 H2O 神经模型扩展暂停。下一步改为 M3-A 摄像头基础整改 → M3-B 简单预测与计时 → M3-C 真实效果证据，具体范围统一见 [AI 路线图](../ai_roadmap.md)。这些整改尚未实现。
 
 日常运行以 [项目指令](../../AGENTS.md) 和 [README](../../README.md) 为准。阶段规划、交接或证据复核时参考本文，不把这份快照作为每次普通修改前的检查关卡。已有数据、权重和历史报告继续保留。
 
@@ -42,7 +42,9 @@
 | MMPose 对照、InterHand2.6M 适配、自训练检测网络 | 尚未实现 | 后续路线 |
 | ONNX/量化、边缘端运行 | 尚未实现 | 后续路线 |
 
-2026-09-05 重构记录为 171 项 pytest 通过，并有指定视频片段的重构前后数值一致性检查；Claude 环境的 164 passed / 7 skipped 来自缺少 PyTorch。M1 完成 190 项测试；M2 增至 198 项，并完成三种子真实实验和九个 checkpoint 重载一致性检查。测试通过不等于算法效果成立。参见 [重构记录](../ai_refactor_20260905.md)、[M1](../m1_keypoint_prediction.md)与 [M2 报告](../m2_representation_comparison.md)。
+2026-09-05 重构记录为 171 项 pytest 通过，并有指定视频片段的重构前后数值一致性检查；Claude 环境的 164 passed / 7 skipped 来自缺少 PyTorch。M1 完成 190 项测试；M2 在本机环境增至 198 项，并完成三种子真实实验和九个 checkpoint 重载一致性检查。新审核报告在 Linux/PyTorch CPU 环境复核为 197 passed / 1 skipped，缺本机 ignored 权重的用例未执行；它没有重跑原始 H2O 训练或 FreiHAND 检测。现有 Windows/Ubuntu baseline CI 不安装 torch，绿色状态不能替代神经路径的持续覆盖。测试通过不等于算法效果成立。参见 [重构记录](../ai_refactor_20260905.md)、[M1](../m1_keypoint_prediction.md)与 [M2 报告](../m2_representation_comparison.md)。
+
+新增审核的五项问题均纳入 M3-A：几何宽高比、退化点门控、短输入异常、open 释放跳变与 CPU 预测 CI。当前主循环默认 timestamp 在检测结束后生成，M3-B 还须改用明确的源时刻/媒体时间并记录完整就绪时间。审核中的合成边界复现说明问题可发生，不代表真实摄像头发生频率；本次路线修订只核对了相关源码，并未把这些问题标为已修复。
 
 ## 3. 已有实验及适用范围
 
