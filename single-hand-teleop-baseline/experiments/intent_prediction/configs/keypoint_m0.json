@@ -1,0 +1,108 @@
+{
+  "schema_version": "keypoint-experiment-spec-v1",
+  "status": "M0_data_definition_only",
+  "training_runner_support": "M1_not_implemented",
+  "task_id": "h2o_camera3d_right21",
+  "data": {
+    "path_base": "subproject_root",
+    "raw_root": "../datasets/H2O/raw",
+    "processed_root": "../datasets/H2O/processed/cross_subject_v2_open_release",
+    "input_key": "landmarks_3d",
+    "target_key": "landmarks_3d",
+    "legacy_min_segment_frames": 40,
+    "legacy_2d": "camera_xy_wrist_origin_palm_scale_not_image_projection",
+    "legacy_9ch": "historical_proxy_only_not_new_M2_reference"
+  },
+  "coordinates": {
+    "frame": "cam4_camera",
+    "axes": ["x_camera_right", "y_camera_down", "z_camera_forward"],
+    "raw_unit": "m",
+    "hand": "right",
+    "joint_order": [
+      "wrist", "thumb_cmc", "thumb_mcp", "thumb_ip", "thumb_tip",
+      "index_mcp", "index_pip", "index_dip", "index_tip",
+      "middle_mcp", "middle_pip", "middle_dip", "middle_tip",
+      "ring_mcp", "ring_pip", "ring_dip", "ring_tip",
+      "little_mcp", "little_pip", "little_dip", "little_tip"
+    ],
+    "permutation": "identity_openpose21",
+    "camera_mediapipe_image_xyz_compatible": false,
+    "sources": {
+      "units": "https://github.com/taeinkwon/h2odataset/issues/13#issuecomment-1241233736",
+      "order": "https://github.com/taeinkwon/h2odataset/issues/22#issuecomment-1735268412",
+      "camera_projection": "https://github.com/taeinkwon/h2oplayer/blob/main/h2oplayer.py",
+      "fps_and_annotation_limits": "https://arxiv.org/html/2104.11181v2"
+    }
+  },
+  "splits": {"train": ["subject1", "subject2"], "val": ["subject3"], "test": ["subject4"]},
+  "split_policy": "custom_cross_subject_before_windowing",
+  "split_roles": {"train": "fit", "val": "selection", "test": "historical_reevaluation_not_unseen_test"},
+  "normalization": {
+    "method": "anchor_wrist_and_scale_shared_by_history_and_future",
+    "wrist_index": 0,
+    "palm_length_indices": [0, 9],
+    "fallback_width_indices": [5, 17],
+    "s_min_fit_split": "train",
+    "s_min_fraction_of_positive_palm_median": 0.01,
+    "s_min_value_location": "audit_report.normalization.s_min_m",
+    "formula": "q(tau)=(p(tau)-p_wrist(t_anchor))/s(t_anchor)",
+    "inverse": "p(tau)=q(tau)*s(t_anchor)+p_wrist(t_anchor)",
+    "future_wrist_or_scale_used": false,
+    "rotation_alignment": false,
+    "clip_to_0_1": false
+  },
+  "time": {
+    "fps": 30.0,
+    "timestamp_key": "timestamps_s",
+    "timestamp_origin": "frame_id_divided_by_nominal_fps_not_sensor_capture_time",
+    "history_frames": 30,
+    "anchor_stride": 1,
+    "forecast_steps": [1, 2, 3, 4, 5],
+    "evaluation_horizons_ms": [50, 100, 150],
+    "input_resampling": "past_brackets_only_with_both_observations_available_by_anchor",
+    "target_resampling": "linear_pose_interpolation_in_timestamps_s",
+    "max_label_gap_s": 0.06666666666666667,
+    "cross_explicit_invalid_segment": false,
+    "missing_bracket": "mask_target_and_required_gesture_path",
+    "save_target_bracket_times": true
+  },
+  "masks": {
+    "annotation": "raw_right_hand_flag_1_and_finite_xyz",
+    "per_joint_visibility_available": false,
+    "per_joint_confidence_available": false,
+    "input": "observed_annotation_validity_independent_of_target",
+    "target": "valid_annotation_brackets_and_gap_rule_per_horizon",
+    "invalid_anchor": "nonfinite_wrist_or_no_finite_scale_at_least_s_min",
+    "report": ["raw_invalid", "short_segments", "other_exclusions", "warmup", "target_tail", "scale_invalid", "target_coverage_per_horizon"]
+  },
+  "metrics": {
+    "primary": "anchor_palm_normalized_3d_mpjpe",
+    "secondary": ["camera_3d_mpjpe_mm", "wrist_displacement_error_mm", "wrist_relative_finger_error_mm", "per_anchor_error_p95"],
+    "primary_aggregation": "equal_sequence_then_equal_50_100ms",
+    "also_report": ["each_horizon", "frame_weighted", "per_sequence", "per_subject", "coverage", "failure_cases"],
+    "model_selection_split": "val",
+    "uncertainty_unit": "subject_or_session_not_frame"
+  },
+  "future_M2": {
+    "routes": ["A_9_to_9", "B_21_to_9", "C_21_to_21_then_map"],
+    "reference": "interpolate_pose_then_same_causal_gesture_state_and_mapping",
+    "fractional_query": "advance_debounce_only_at_grid_times_not_after_query_time",
+    "B_residual_base": "current_pose_mapped_to_9_channels",
+    "comparison_gate": "raw_predictions_first"
+  },
+  "future_camera_task": {
+    "task_id": "camera_mediapipe_image_xyz",
+    "data_role": "existing_V1_V7_development_only",
+    "independent_evaluation_data": "not_yet_available",
+    "h2o_checkpoint_direct_load": false
+  },
+  "acceptance_gaps": {
+    "official_pose_90_percent_definition": "pending_owner_definition_threshold_denominator_data_and_device",
+    "working_pose_metric": "PCK_20px_all_GT_with_5_10_30px_MPJPE_completeness",
+    "detection_latency": "P50_P95_max_and_fraction_above_50ms_full_detection_and_hand_selection",
+    "device_target": "HoloLens2",
+    "device_available": null,
+    "os_sdk_inference_backend": null,
+    "system_100ms": "collaborator_joint_acceptance_not_local_AI_claim"
+  }
+}

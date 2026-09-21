@@ -10,9 +10,13 @@
 
 日常开发看这三个入口：
 
-- [AI 路线图](docs/ai_roadmap.md)：项目书要求、当前实现、下一步 AI 工作。
+- [AI 路线图（M0/M1 与 M2 H2O 对照已完成）](docs/ai_roadmap.md)：实测结论、后续阶段与审核范围。
 - [对接入口](docs/ai_interfaces.md)：替换检测器、接设备关键点、消费 AI 结果。
 - [训练与评测](experiments/intent_prediction/README.md)：数据、训练、模型导出和视频评测。
+
+阶段规划和成果复核可查 [AI 交接说明](docs/agent_handoff/README.md)，其中已合并项目书审核与本机二审意见，区分历史实测、当前缺口及后续计划。
+
+已完成 [M0：数据定义与核对](docs/m0_data_definition.md)、[M1：原生 21 点预测](docs/m1_keypoint_prediction.md)及 [M2：三种子 A/B/C 对照](docs/m2_representation_comparison.md)。M2 覆盖 H2O 全部 217 段、每段最多抽样 64 个窗口；C 优于 A/B，但未稳定胜过验证集预选的简单基线，三条神经路线均未通过本轮研发继续条件。下一步审核摄像头域的简单基线与计算成本评测。现有摄像头与设备输出继续使用原路径。
 
 ## 运行
 
@@ -79,3 +83,15 @@ python -X utf8 -m ruff check src tests scripts experiments
 ```
 
 重构的实际验证见 [重构记录](docs/ai_refactor_20260905.md)。
+
+若 pytest 只在 `%TEMP%\pytest-of-31948` 等历史临时目录或 `.pytest_cache` 出现 `WinError 5` / `PermissionError`，先保持上述 `handai-intent-prediction` 环境，在 PowerShell 中改用一次性专用目录并停用测试缓存：
+
+```powershell
+Set-Location -LiteralPath 'D:\VR\HandAi\single-hand-teleop-baseline'
+conda activate handai-intent-prediction
+$handaiTestTemp = Join-Path (Get-Location) ('work/pytest-' + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path (Split-Path -Parent $handaiTestTemp) -Force | Out-Null
+python -X utf8 -m pytest -q -p no:cacheprovider --basetemp $handaiTestTemp
+```
+
+`--basetemp` 会清理指定目标，故只能指向这种新建的测试专用路径。若仍失败，依据新的报错区分依赖、输入和断言问题；不要把临时目录权限错误记作算法失败，也不要为此更改系统权限。

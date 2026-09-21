@@ -1,0 +1,106 @@
+{
+  "schema_version": "historical-pose-evidence-v1",
+  "collected_on": "2026-09-17",
+  "measurement_date": "2026-08-24",
+  "rescoring_date": "2026-09-15",
+  "current_action": "read_and_consolidate_existing_metrics_not_rerun_detector",
+  "sources": {
+    "original_metrics": "experiments\\freihand_eval\\outputs\\phase1_acceptance\\20260824T022030_928281Z_a5a53da_clean\\metrics.json",
+    "predictions": "experiments\\freihand_eval\\outputs\\phase1_acceptance\\20260824T022030_928281Z_a5a53da_clean\\predictions.json",
+    "effective_config": "experiments\\freihand_eval\\outputs\\phase1_acceptance\\20260824T022030_928281Z_a5a53da_clean\\effective_config.yaml",
+    "rescored_metrics": "outputs\\claude_review_20260915\\freihand_recomputed_metrics.json"
+  },
+  "numeric_metrics_equal": true,
+  "task": "FreiHAND_evaluation_2D_static_any_hand_PC",
+  "pipeline_settings": {
+    "prefer_any_hand": true,
+    "input_mirrored": false,
+    "static_image_mode": true,
+    "image_extension": ".jpg",
+    "min_detection_confidence": 0.5,
+    "min_tracking_confidence": 0.5,
+    "max_num_hands": 2
+  },
+  "historical_environment": {
+    "python_executable": "C:\\Users\\31948\\miniconda3\\envs\\single-right-hand-baseline\\python.exe",
+    "python_version": "3.10.20",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "packages": {
+      "mediapipe": "0.10.14",
+      "opencv-contrib-python": "4.13.0.92",
+      "numpy": "2.2.6",
+      "Pillow": "12.1.1",
+      "PyYAML": "6.0.3",
+      "pytest": "9.0.2"
+    }
+  },
+  "metrics": {
+    "sample_counts": {
+      "ground_truth_samples": 3960,
+      "prediction_samples": 3960,
+      "matched_prediction_samples": 3960,
+      "missing_prediction_samples": 0,
+      "extra_prediction_samples": 0,
+      "invalid_2d_prediction_samples": 368,
+      "evaluated_2d_samples": 3592,
+      "evaluated_2d_keypoints": 75432
+    },
+    "keypoint_complete_rate": 0.907070707070707,
+    "mpjpe_2d_px": 8.713110964669365,
+    "pck_2d_at_thresholds": {
+      "5": 0.4190661788100541,
+      "10": 0.7455986849082618,
+      "20": 0.927126418496129,
+      "30": 0.9652667303001379
+    },
+    "pck_2d_at_thresholds_all_gt": {
+      "5": 0.38012265512265514,
+      "10": 0.6763107263107263,
+      "20": 0.8409692159692159,
+      "30": 0.8755651755651755
+    },
+    "per_joint_error": {
+      "2d_px": {
+        "wrist": 9.472462877897952,
+        "thumb_cmc": 10.735489210741147,
+        "thumb_mcp": 9.212057143545378,
+        "thumb_ip": 9.127385351785843,
+        "thumb_tip": 11.641914274945323,
+        "index_mcp": 9.163237716209032,
+        "index_pip": 7.280928020910098,
+        "index_dip": 7.106305858685134,
+        "index_tip": 8.725329927408383,
+        "middle_mcp": 10.2508914629491,
+        "middle_pip": 6.7390522603013645,
+        "middle_dip": 6.491029813703239,
+        "middle_tip": 8.308464021408893,
+        "ring_mcp": 9.556676320940726,
+        "ring_pip": 6.725557464305402,
+        "ring_dip": 6.932699291995773,
+        "ring_tip": 9.141459428007476,
+        "little_mcp": 10.415001650058839,
+        "little_pip": 7.979638700373218,
+        "little_dip": 8.166022817955039,
+        "little_tip": 9.803726643929302
+      }
+    },
+    "latency_ms": {
+      "mean": 19.998795808078057,
+      "median": 19.891250000000582,
+      "p95": 23.338135000244616,
+      "p99": 28.094143999787775,
+      "max": 39.865199999894685,
+      "count": 3960,
+      "threshold_ms": 50.0,
+      "over_threshold_count": 0,
+      "over_threshold_rate": 0.0
+    }
+  },
+  "limitations": [
+    "不是本轮重新测得的检测耗时",
+    "不是当前连续单右手或HoloLens2结果",
+    "有效预测PCK与全GT分母不同",
+    "旧阶段下限为全GT PCK20 >= 0.80，不代表项目书90%姿态指标达标",
+    "MPJPE仅在有效预测点上计算，须与完整率及全GT PCK共同报告"
+  ]
+}

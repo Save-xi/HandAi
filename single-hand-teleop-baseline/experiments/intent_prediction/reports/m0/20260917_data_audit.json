@@ -1,0 +1,3927 @@
+{
+  "status": "passed",
+  "task_id": "h2o_camera3d_right21",
+  "raw_root": "D:\\VR\\HandAi\\datasets\\H2O\\raw",
+  "processed_root": "D:\\VR\\HandAi\\datasets\\H2O\\processed\\cross_subject_v2_open_release",
+  "issues": {},
+  "processed": {
+    "sequences": 217,
+    "splits": {
+      "train": {
+        "sequences": 105,
+        "frames": 54243,
+        "history_ready_anchors": 51198,
+        "full_future_path_anchors": 50673,
+        "targets_50ms": 50988,
+        "targets_100ms": 50883,
+        "targets_150ms": 50673
+      },
+      "val": {
+        "sequences": 60,
+        "frames": 28631,
+        "history_ready_anchors": 26891,
+        "full_future_path_anchors": 26591,
+        "targets_50ms": 26771,
+        "targets_100ms": 26711,
+        "targets_150ms": 26591
+      },
+      "test": {
+        "sequences": 52,
+        "frames": 30448,
+        "history_ready_anchors": 28940,
+        "full_future_path_anchors": 28680,
+        "targets_50ms": 28836,
+        "targets_100ms": 28784,
+        "targets_150ms": 28680
+      }
+    }
+  },
+  "raw": {
+    "totals": {
+      "takes": 184,
+      "takes_with_intrinsics": 0,
+      "takes_with_rgb": 0,
+      "pose_files": 114329,
+      "annotated_right_frames": 113396,
+      "compared_frames": 113322,
+      "unannotated_right_frames": 933,
+      "short_segment_frames": 74,
+      "short_segments": 3
+    },
+    "splits": {
+      "train": {
+        "pose_files": 54694,
+        "annotated_right_frames": 54304,
+        "compared_frames": 54243,
+        "unannotated_right_frames": 390,
+        "short_segment_frames": 61,
+        "short_segments": 2
+      },
+      "val": {
+        "pose_files": 28911,
+        "annotated_right_frames": 28644,
+        "compared_frames": 28631,
+        "unannotated_right_frames": 267,
+        "short_segment_frames": 13,
+        "short_segments": 1
+      },
+      "test": {
+        "pose_files": 30724,
+        "annotated_right_frames": 30448,
+        "compared_frames": 30448,
+        "unannotated_right_frames": 276
+      }
+    },
+    "short_runs": [
+      {
+        "take": "subject1/o1/5/cam4",
+        "frames": 29,
+        "first_frame": 321,
+        "last_frame": 349
+      },
+      {
+        "take": "subject2/h1/3/cam4",
+        "frames": 32,
+        "first_frame": 860,
+        "last_frame": 891
+      },
+      {
+        "take": "subject3/k2/3/cam4",
+        "frames": 13,
+        "first_frame": 482,
+        "last_frame": 494
+      }
+    ],
+    "unexplained_exclusions": []
+  },
+  "numeric_comparison": {
+    "raw_to_npz_max_abs_delta_m_after_float32": 0.0,
+    "timestamp_vs_frame_id_div_fps_max_abs_delta_s": 0.0,
+    "legacy_xy_formula_max_abs_delta": 0.0
+  },
+  "normalization": {
+    "s_min_m": 0.0009531036054196106,
+    "fit_split": "train",
+    "splits": {
+      "train": {
+        "palm_length_m": {
+          "min": 0.09531026224671396,
+          "p01": 0.09531029181979007,
+          "median": 0.09531036054196106,
+          "p99": 0.10155345616621396,
+          "max": 0.10155350866791908,
+          "count": 54243
+        },
+        "palm_width_m": {
+          "min": 0.06643045509270325,
+          "p01": 0.06643050754720153,
+          "median": 0.06643059844855323,
+          "p99": 0.07523305828283526,
+          "max": 0.07523310614639458,
+          "count": 54243
+        },
+        "width_fallback_frames": 0,
+        "invalid_scale_frames": 0,
+        "nonpositive_z_frames": 0
+      },
+      "val": {
+        "palm_length_m": {
+          "min": 0.09551780457827613,
+          "p01": 0.09551783781899062,
+          "median": 0.09551786784579445,
+          "p99": 0.09551791361411589,
+          "max": 0.09551796004094289,
+          "count": 28631
+        },
+        "palm_width_m": {
+          "min": 0.0703735475548672,
+          "p01": 0.07037358125183031,
+          "median": 0.07037363216021723,
+          "p99": 0.07037367678519107,
+          "max": 0.07037371899092781,
+          "count": 28631
+        },
+        "width_fallback_frames": 0,
+        "invalid_scale_frames": 0,
+        "nonpositive_z_frames": 0
+      },
+      "test": {
+        "palm_length_m": {
+          "min": 0.09401015548629793,
+          "p01": 0.09401018091377886,
+          "median": 0.0940102070127394,
+          "p99": 0.09401023685022004,
+          "max": 0.09401027242929293,
+          "count": 30448
+        },
+        "palm_width_m": {
+          "min": 0.06976267223330095,
+          "p01": 0.06976271052534795,
+          "median": 0.0697627559798677,
+          "p99": 0.0697627946872201,
+          "max": 0.06976283035295698,
+          "count": 30448
+        },
+        "width_fallback_frames": 0,
+        "invalid_scale_frames": 0,
+        "nonpositive_z_frames": 0
+      }
+    }
+  },
+  "coverage_note": "连续标注潜在锚点，尚未建立训练窗口；history=30，stride=1，完整未来路径=5步；逐帧不是独立样本。",
+  "sequences": [
+    {
+      "sequence_id": "subject1_h1_0_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/h1/0/cam4",
+      "frames": 450,
+      "first_frame": 0,
+      "last_frame": 449,
+      "history_ready_anchors": 421,
+      "targets_available": {
+        "50": 419,
+        "100": 418,
+        "150": 416
+      },
+      "full_future_path_anchors": 416
+    },
+    {
+      "sequence_id": "subject1_h1_1_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/h1/1/cam4",
+      "frames": 643,
+      "first_frame": 0,
+      "last_frame": 642,
+      "history_ready_anchors": 614,
+      "targets_available": {
+        "50": 612,
+        "100": 611,
+        "150": 609
+      },
+      "full_future_path_anchors": 609
+    },
+    {
+      "sequence_id": "subject1_h1_2_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/h1/2/cam4",
+      "frames": 507,
+      "first_frame": 0,
+      "last_frame": 506,
+      "history_ready_anchors": 478,
+      "targets_available": {
+        "50": 476,
+        "100": 475,
+        "150": 473
+      },
+      "full_future_path_anchors": 473
+    },
+    {
+      "sequence_id": "subject1_h1_3_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/h1/3/cam4",
+      "frames": 929,
+      "first_frame": 0,
+      "last_frame": 928,
+      "history_ready_anchors": 900,
+      "targets_available": {
+        "50": 898,
+        "100": 897,
+        "150": 895
+      },
+      "full_future_path_anchors": 895
+    },
+    {
+      "sequence_id": "subject1_h1_4_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/h1/4/cam4",
+      "frames": 343,
+      "first_frame": 0,
+      "last_frame": 342,
+      "history_ready_anchors": 314,
+      "targets_available": {
+        "50": 312,
+        "100": 311,
+        "150": 309
+      },
+      "full_future_path_anchors": 309
+    },
+    {
+      "sequence_id": "subject1_h1_4_cam4_segment001",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/h1/4/cam4",
+      "frames": 214,
+      "first_frame": 373,
+      "last_frame": 586,
+      "history_ready_anchors": 185,
+      "targets_available": {
+        "50": 183,
+        "100": 182,
+        "150": 180
+      },
+      "full_future_path_anchors": 180
+    },
+    {
+      "sequence_id": "subject1_h1_5_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/h1/5/cam4",
+      "frames": 491,
+      "first_frame": 0,
+      "last_frame": 490,
+      "history_ready_anchors": 462,
+      "targets_available": {
+        "50": 460,
+        "100": 459,
+        "150": 457
+      },
+      "full_future_path_anchors": 457
+    },
+    {
+      "sequence_id": "subject1_h1_6_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/h1/6/cam4",
+      "frames": 486,
+      "first_frame": 0,
+      "last_frame": 485,
+      "history_ready_anchors": 457,
+      "targets_available": {
+        "50": 455,
+        "100": 454,
+        "150": 452
+      },
+      "full_future_path_anchors": 452
+    },
+    {
+      "sequence_id": "subject1_h1_7_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/h1/7/cam4",
+      "frames": 798,
+      "first_frame": 0,
+      "last_frame": 797,
+      "history_ready_anchors": 769,
+      "targets_available": {
+        "50": 767,
+        "100": 766,
+        "150": 764
+      },
+      "full_future_path_anchors": 764
+    },
+    {
+      "sequence_id": "subject1_h2_0_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/h2/0/cam4",
+      "frames": 400,
+      "first_frame": 0,
+      "last_frame": 399,
+      "history_ready_anchors": 371,
+      "targets_available": {
+        "50": 369,
+        "100": 368,
+        "150": 366
+      },
+      "full_future_path_anchors": 366
+    },
+    {
+      "sequence_id": "subject1_h2_1_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/h2/1/cam4",
+      "frames": 685,
+      "first_frame": 0,
+      "last_frame": 684,
+      "history_ready_anchors": 656,
+      "targets_available": {
+        "50": 654,
+        "100": 653,
+        "150": 651
+      },
+      "full_future_path_anchors": 651
+    },
+    {
+      "sequence_id": "subject1_h2_2_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/h2/2/cam4",
+      "frames": 533,
+      "first_frame": 0,
+      "last_frame": 532,
+      "history_ready_anchors": 504,
+      "targets_available": {
+        "50": 502,
+        "100": 501,
+        "150": 499
+      },
+      "full_future_path_anchors": 499
+    },
+    {
+      "sequence_id": "subject1_h2_3_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/h2/3/cam4",
+      "frames": 894,
+      "first_frame": 0,
+      "last_frame": 893,
+      "history_ready_anchors": 865,
+      "targets_available": {
+        "50": 863,
+        "100": 862,
+        "150": 860
+      },
+      "full_future_path_anchors": 860
+    },
+    {
+      "sequence_id": "subject1_h2_4_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/h2/4/cam4",
+      "frames": 545,
+      "first_frame": 0,
+      "last_frame": 544,
+      "history_ready_anchors": 516,
+      "targets_available": {
+        "50": 514,
+        "100": 513,
+        "150": 511
+      },
+      "full_future_path_anchors": 511
+    },
+    {
+      "sequence_id": "subject1_h2_5_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/h2/5/cam4",
+      "frames": 479,
+      "first_frame": 0,
+      "last_frame": 478,
+      "history_ready_anchors": 450,
+      "targets_available": {
+        "50": 448,
+        "100": 447,
+        "150": 445
+      },
+      "full_future_path_anchors": 445
+    },
+    {
+      "sequence_id": "subject1_h2_6_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/h2/6/cam4",
+      "frames": 537,
+      "first_frame": 0,
+      "last_frame": 536,
+      "history_ready_anchors": 508,
+      "targets_available": {
+        "50": 506,
+        "100": 505,
+        "150": 503
+      },
+      "full_future_path_anchors": 503
+    },
+    {
+      "sequence_id": "subject1_h2_7_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/h2/7/cam4",
+      "frames": 718,
+      "first_frame": 0,
+      "last_frame": 717,
+      "history_ready_anchors": 689,
+      "targets_available": {
+        "50": 687,
+        "100": 686,
+        "150": 684
+      },
+      "full_future_path_anchors": 684
+    },
+    {
+      "sequence_id": "subject1_k1_0_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/k1/0/cam4",
+      "frames": 351,
+      "first_frame": 0,
+      "last_frame": 350,
+      "history_ready_anchors": 322,
+      "targets_available": {
+        "50": 320,
+        "100": 319,
+        "150": 317
+      },
+      "full_future_path_anchors": 317
+    },
+    {
+      "sequence_id": "subject1_k1_1_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/k1/1/cam4",
+      "frames": 754,
+      "first_frame": 0,
+      "last_frame": 753,
+      "history_ready_anchors": 725,
+      "targets_available": {
+        "50": 723,
+        "100": 722,
+        "150": 720
+      },
+      "full_future_path_anchors": 720
+    },
+    {
+      "sequence_id": "subject1_k1_2_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/k1/2/cam4",
+      "frames": 751,
+      "first_frame": 0,
+      "last_frame": 750,
+      "history_ready_anchors": 722,
+      "targets_available": {
+        "50": 720,
+        "100": 719,
+        "150": 717
+      },
+      "full_future_path_anchors": 717
+    },
+    {
+      "sequence_id": "subject1_k1_3_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/k1/3/cam4",
+      "frames": 776,
+      "first_frame": 0,
+      "last_frame": 775,
+      "history_ready_anchors": 747,
+      "targets_available": {
+        "50": 745,
+        "100": 744,
+        "150": 742
+      },
+      "full_future_path_anchors": 742
+    },
+    {
+      "sequence_id": "subject1_k1_4_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/k1/4/cam4",
+      "frames": 340,
+      "first_frame": 0,
+      "last_frame": 339,
+      "history_ready_anchors": 311,
+      "targets_available": {
+        "50": 309,
+        "100": 308,
+        "150": 306
+      },
+      "full_future_path_anchors": 306
+    },
+    {
+      "sequence_id": "subject1_k1_4_cam4_segment001",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/k1/4/cam4",
+      "frames": 186,
+      "first_frame": 370,
+      "last_frame": 555,
+      "history_ready_anchors": 157,
+      "targets_available": {
+        "50": 155,
+        "100": 154,
+        "150": 152
+      },
+      "full_future_path_anchors": 152
+    },
+    {
+      "sequence_id": "subject1_k1_5_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/k1/5/cam4",
+      "frames": 495,
+      "first_frame": 0,
+      "last_frame": 494,
+      "history_ready_anchors": 466,
+      "targets_available": {
+        "50": 464,
+        "100": 463,
+        "150": 461
+      },
+      "full_future_path_anchors": 461
+    },
+    {
+      "sequence_id": "subject1_k1_6_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/k1/6/cam4",
+      "frames": 472,
+      "first_frame": 0,
+      "last_frame": 471,
+      "history_ready_anchors": 443,
+      "targets_available": {
+        "50": 441,
+        "100": 440,
+        "150": 438
+      },
+      "full_future_path_anchors": 438
+    },
+    {
+      "sequence_id": "subject1_k1_7_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/k1/7/cam4",
+      "frames": 663,
+      "first_frame": 0,
+      "last_frame": 662,
+      "history_ready_anchors": 634,
+      "targets_available": {
+        "50": 632,
+        "100": 631,
+        "150": 629
+      },
+      "full_future_path_anchors": 629
+    },
+    {
+      "sequence_id": "subject1_k2_0_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/k2/0/cam4",
+      "frames": 434,
+      "first_frame": 0,
+      "last_frame": 433,
+      "history_ready_anchors": 405,
+      "targets_available": {
+        "50": 403,
+        "100": 402,
+        "150": 400
+      },
+      "full_future_path_anchors": 400
+    },
+    {
+      "sequence_id": "subject1_k2_1_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/k2/1/cam4",
+      "frames": 681,
+      "first_frame": 0,
+      "last_frame": 680,
+      "history_ready_anchors": 652,
+      "targets_available": {
+        "50": 650,
+        "100": 649,
+        "150": 647
+      },
+      "full_future_path_anchors": 647
+    },
+    {
+      "sequence_id": "subject1_k2_2_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/k2/2/cam4",
+      "frames": 410,
+      "first_frame": 0,
+      "last_frame": 409,
+      "history_ready_anchors": 381,
+      "targets_available": {
+        "50": 379,
+        "100": 378,
+        "150": 376
+      },
+      "full_future_path_anchors": 376
+    },
+    {
+      "sequence_id": "subject1_k2_3_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/k2/3/cam4",
+      "frames": 350,
+      "first_frame": 0,
+      "last_frame": 349,
+      "history_ready_anchors": 321,
+      "targets_available": {
+        "50": 319,
+        "100": 318,
+        "150": 316
+      },
+      "full_future_path_anchors": 316
+    },
+    {
+      "sequence_id": "subject1_k2_3_cam4_segment001",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/k2/3/cam4",
+      "frames": 147,
+      "first_frame": 361,
+      "last_frame": 507,
+      "history_ready_anchors": 118,
+      "targets_available": {
+        "50": 116,
+        "100": 115,
+        "150": 113
+      },
+      "full_future_path_anchors": 113
+    },
+    {
+      "sequence_id": "subject1_k2_4_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/k2/4/cam4",
+      "frames": 453,
+      "first_frame": 0,
+      "last_frame": 452,
+      "history_ready_anchors": 424,
+      "targets_available": {
+        "50": 422,
+        "100": 421,
+        "150": 419
+      },
+      "full_future_path_anchors": 419
+    },
+    {
+      "sequence_id": "subject1_k2_5_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/k2/5/cam4",
+      "frames": 594,
+      "first_frame": 0,
+      "last_frame": 593,
+      "history_ready_anchors": 565,
+      "targets_available": {
+        "50": 563,
+        "100": 562,
+        "150": 560
+      },
+      "full_future_path_anchors": 560
+    },
+    {
+      "sequence_id": "subject1_k2_6_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/k2/6/cam4",
+      "frames": 678,
+      "first_frame": 0,
+      "last_frame": 677,
+      "history_ready_anchors": 649,
+      "targets_available": {
+        "50": 647,
+        "100": 646,
+        "150": 644
+      },
+      "full_future_path_anchors": 644
+    },
+    {
+      "sequence_id": "subject1_o1_0_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/o1/0/cam4",
+      "frames": 432,
+      "first_frame": 0,
+      "last_frame": 431,
+      "history_ready_anchors": 403,
+      "targets_available": {
+        "50": 401,
+        "100": 400,
+        "150": 398
+      },
+      "full_future_path_anchors": 398
+    },
+    {
+      "sequence_id": "subject1_o1_1_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/o1/1/cam4",
+      "frames": 745,
+      "first_frame": 0,
+      "last_frame": 744,
+      "history_ready_anchors": 716,
+      "targets_available": {
+        "50": 714,
+        "100": 713,
+        "150": 711
+      },
+      "full_future_path_anchors": 711
+    },
+    {
+      "sequence_id": "subject1_o1_2_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/o1/2/cam4",
+      "frames": 509,
+      "first_frame": 0,
+      "last_frame": 508,
+      "history_ready_anchors": 480,
+      "targets_available": {
+        "50": 478,
+        "100": 477,
+        "150": 475
+      },
+      "full_future_path_anchors": 475
+    },
+    {
+      "sequence_id": "subject1_o1_3_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/o1/3/cam4",
+      "frames": 522,
+      "first_frame": 0,
+      "last_frame": 521,
+      "history_ready_anchors": 493,
+      "targets_available": {
+        "50": 491,
+        "100": 490,
+        "150": 488
+      },
+      "full_future_path_anchors": 488
+    },
+    {
+      "sequence_id": "subject1_o1_3_cam4_segment001",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/o1/3/cam4",
+      "frames": 71,
+      "first_frame": 527,
+      "last_frame": 597,
+      "history_ready_anchors": 42,
+      "targets_available": {
+        "50": 40,
+        "100": 39,
+        "150": 37
+      },
+      "full_future_path_anchors": 37
+    },
+    {
+      "sequence_id": "subject1_o1_3_cam4_segment002",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/o1/3/cam4",
+      "frames": 61,
+      "first_frame": 603,
+      "last_frame": 663,
+      "history_ready_anchors": 32,
+      "targets_available": {
+        "50": 30,
+        "100": 29,
+        "150": 27
+      },
+      "full_future_path_anchors": 27
+    },
+    {
+      "sequence_id": "subject1_o1_4_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/o1/4/cam4",
+      "frames": 329,
+      "first_frame": 0,
+      "last_frame": 328,
+      "history_ready_anchors": 300,
+      "targets_available": {
+        "50": 298,
+        "100": 297,
+        "150": 295
+      },
+      "full_future_path_anchors": 295
+    },
+    {
+      "sequence_id": "subject1_o1_4_cam4_segment001",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/o1/4/cam4",
+      "frames": 180,
+      "first_frame": 363,
+      "last_frame": 542,
+      "history_ready_anchors": 151,
+      "targets_available": {
+        "50": 149,
+        "100": 148,
+        "150": 146
+      },
+      "full_future_path_anchors": 146
+    },
+    {
+      "sequence_id": "subject1_o1_5_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/o1/5/cam4",
+      "frames": 313,
+      "first_frame": 0,
+      "last_frame": 312,
+      "history_ready_anchors": 284,
+      "targets_available": {
+        "50": 282,
+        "100": 281,
+        "150": 279
+      },
+      "full_future_path_anchors": 279
+    },
+    {
+      "sequence_id": "subject1_o1_5_cam4_segment001",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/o1/5/cam4",
+      "frames": 194,
+      "first_frame": 351,
+      "last_frame": 544,
+      "history_ready_anchors": 165,
+      "targets_available": {
+        "50": 163,
+        "100": 162,
+        "150": 160
+      },
+      "full_future_path_anchors": 160
+    },
+    {
+      "sequence_id": "subject1_o1_6_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/o1/6/cam4",
+      "frames": 449,
+      "first_frame": 0,
+      "last_frame": 448,
+      "history_ready_anchors": 420,
+      "targets_available": {
+        "50": 418,
+        "100": 417,
+        "150": 415
+      },
+      "full_future_path_anchors": 415
+    },
+    {
+      "sequence_id": "subject1_o1_7_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/o1/7/cam4",
+      "frames": 768,
+      "first_frame": 0,
+      "last_frame": 767,
+      "history_ready_anchors": 739,
+      "targets_available": {
+        "50": 737,
+        "100": 736,
+        "150": 734
+      },
+      "full_future_path_anchors": 734
+    },
+    {
+      "sequence_id": "subject1_o2_0_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/o2/0/cam4",
+      "frames": 447,
+      "first_frame": 0,
+      "last_frame": 446,
+      "history_ready_anchors": 418,
+      "targets_available": {
+        "50": 416,
+        "100": 415,
+        "150": 413
+      },
+      "full_future_path_anchors": 413
+    },
+    {
+      "sequence_id": "subject1_o2_1_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/o2/1/cam4",
+      "frames": 669,
+      "first_frame": 0,
+      "last_frame": 668,
+      "history_ready_anchors": 640,
+      "targets_available": {
+        "50": 638,
+        "100": 637,
+        "150": 635
+      },
+      "full_future_path_anchors": 635
+    },
+    {
+      "sequence_id": "subject1_o2_2_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/o2/2/cam4",
+      "frames": 1006,
+      "first_frame": 0,
+      "last_frame": 1005,
+      "history_ready_anchors": 977,
+      "targets_available": {
+        "50": 975,
+        "100": 974,
+        "150": 972
+      },
+      "full_future_path_anchors": 972
+    },
+    {
+      "sequence_id": "subject1_o2_3_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/o2/3/cam4",
+      "frames": 755,
+      "first_frame": 0,
+      "last_frame": 754,
+      "history_ready_anchors": 726,
+      "targets_available": {
+        "50": 724,
+        "100": 723,
+        "150": 721
+      },
+      "full_future_path_anchors": 721
+    },
+    {
+      "sequence_id": "subject1_o2_4_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/o2/4/cam4",
+      "frames": 320,
+      "first_frame": 0,
+      "last_frame": 319,
+      "history_ready_anchors": 291,
+      "targets_available": {
+        "50": 289,
+        "100": 288,
+        "150": 286
+      },
+      "full_future_path_anchors": 286
+    },
+    {
+      "sequence_id": "subject1_o2_4_cam4_segment001",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/o2/4/cam4",
+      "frames": 230,
+      "first_frame": 357,
+      "last_frame": 586,
+      "history_ready_anchors": 201,
+      "targets_available": {
+        "50": 199,
+        "100": 198,
+        "150": 196
+      },
+      "full_future_path_anchors": 196
+    },
+    {
+      "sequence_id": "subject1_o2_5_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/o2/5/cam4",
+      "frames": 486,
+      "first_frame": 0,
+      "last_frame": 485,
+      "history_ready_anchors": 457,
+      "targets_available": {
+        "50": 455,
+        "100": 454,
+        "150": 452
+      },
+      "full_future_path_anchors": 452
+    },
+    {
+      "sequence_id": "subject1_o2_6_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/o2/6/cam4",
+      "frames": 626,
+      "first_frame": 0,
+      "last_frame": 625,
+      "history_ready_anchors": 597,
+      "targets_available": {
+        "50": 595,
+        "100": 594,
+        "150": 592
+      },
+      "full_future_path_anchors": 592
+    },
+    {
+      "sequence_id": "subject1_o2_7_cam4_segment000",
+      "split": "train",
+      "subject": "subject1",
+      "take": "subject1/o2/7/cam4",
+      "frames": 365,
+      "first_frame": 0,
+      "last_frame": 364,
+      "history_ready_anchors": 336,
+      "targets_available": {
+        "50": 334,
+        "100": 333,
+        "150": 331
+      },
+      "full_future_path_anchors": 331
+    },
+    {
+      "sequence_id": "subject2_h1_0_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/h1/0/cam4",
+      "frames": 527,
+      "first_frame": 0,
+      "last_frame": 526,
+      "history_ready_anchors": 498,
+      "targets_available": {
+        "50": 496,
+        "100": 495,
+        "150": 493
+      },
+      "full_future_path_anchors": 493
+    },
+    {
+      "sequence_id": "subject2_h1_1_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/h1/1/cam4",
+      "frames": 687,
+      "first_frame": 0,
+      "last_frame": 686,
+      "history_ready_anchors": 658,
+      "targets_available": {
+        "50": 656,
+        "100": 655,
+        "150": 653
+      },
+      "full_future_path_anchors": 653
+    },
+    {
+      "sequence_id": "subject2_h1_2_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/h1/2/cam4",
+      "frames": 650,
+      "first_frame": 0,
+      "last_frame": 649,
+      "history_ready_anchors": 621,
+      "targets_available": {
+        "50": 619,
+        "100": 618,
+        "150": 616
+      },
+      "full_future_path_anchors": 616
+    },
+    {
+      "sequence_id": "subject2_h1_3_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/h1/3/cam4",
+      "frames": 836,
+      "first_frame": 0,
+      "last_frame": 835,
+      "history_ready_anchors": 807,
+      "targets_available": {
+        "50": 805,
+        "100": 804,
+        "150": 802
+      },
+      "full_future_path_anchors": 802
+    },
+    {
+      "sequence_id": "subject2_h1_3_cam4_segment001",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/h1/3/cam4",
+      "frames": 106,
+      "first_frame": 911,
+      "last_frame": 1016,
+      "history_ready_anchors": 77,
+      "targets_available": {
+        "50": 75,
+        "100": 74,
+        "150": 72
+      },
+      "full_future_path_anchors": 72
+    },
+    {
+      "sequence_id": "subject2_h1_4_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/h1/4/cam4",
+      "frames": 567,
+      "first_frame": 0,
+      "last_frame": 566,
+      "history_ready_anchors": 538,
+      "targets_available": {
+        "50": 536,
+        "100": 535,
+        "150": 533
+      },
+      "full_future_path_anchors": 533
+    },
+    {
+      "sequence_id": "subject2_h1_5_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/h1/5/cam4",
+      "frames": 680,
+      "first_frame": 0,
+      "last_frame": 679,
+      "history_ready_anchors": 651,
+      "targets_available": {
+        "50": 649,
+        "100": 648,
+        "150": 646
+      },
+      "full_future_path_anchors": 646
+    },
+    {
+      "sequence_id": "subject2_h1_6_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/h1/6/cam4",
+      "frames": 576,
+      "first_frame": 0,
+      "last_frame": 575,
+      "history_ready_anchors": 547,
+      "targets_available": {
+        "50": 545,
+        "100": 544,
+        "150": 542
+      },
+      "full_future_path_anchors": 542
+    },
+    {
+      "sequence_id": "subject2_h1_7_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/h1/7/cam4",
+      "frames": 823,
+      "first_frame": 0,
+      "last_frame": 822,
+      "history_ready_anchors": 794,
+      "targets_available": {
+        "50": 792,
+        "100": 791,
+        "150": 789
+      },
+      "full_future_path_anchors": 789
+    },
+    {
+      "sequence_id": "subject2_h2_0_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/h2/0/cam4",
+      "frames": 514,
+      "first_frame": 0,
+      "last_frame": 513,
+      "history_ready_anchors": 485,
+      "targets_available": {
+        "50": 483,
+        "100": 482,
+        "150": 480
+      },
+      "full_future_path_anchors": 480
+    },
+    {
+      "sequence_id": "subject2_h2_1_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/h2/1/cam4",
+      "frames": 530,
+      "first_frame": 0,
+      "last_frame": 529,
+      "history_ready_anchors": 501,
+      "targets_available": {
+        "50": 499,
+        "100": 498,
+        "150": 496
+      },
+      "full_future_path_anchors": 496
+    },
+    {
+      "sequence_id": "subject2_h2_2_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/h2/2/cam4",
+      "frames": 611,
+      "first_frame": 0,
+      "last_frame": 610,
+      "history_ready_anchors": 582,
+      "targets_available": {
+        "50": 580,
+        "100": 579,
+        "150": 577
+      },
+      "full_future_path_anchors": 577
+    },
+    {
+      "sequence_id": "subject2_h2_3_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/h2/3/cam4",
+      "frames": 811,
+      "first_frame": 0,
+      "last_frame": 810,
+      "history_ready_anchors": 782,
+      "targets_available": {
+        "50": 780,
+        "100": 779,
+        "150": 777
+      },
+      "full_future_path_anchors": 777
+    },
+    {
+      "sequence_id": "subject2_h2_4_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/h2/4/cam4",
+      "frames": 855,
+      "first_frame": 0,
+      "last_frame": 854,
+      "history_ready_anchors": 826,
+      "targets_available": {
+        "50": 824,
+        "100": 823,
+        "150": 821
+      },
+      "full_future_path_anchors": 821
+    },
+    {
+      "sequence_id": "subject2_h2_5_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/h2/5/cam4",
+      "frames": 447,
+      "first_frame": 0,
+      "last_frame": 446,
+      "history_ready_anchors": 418,
+      "targets_available": {
+        "50": 416,
+        "100": 415,
+        "150": 413
+      },
+      "full_future_path_anchors": 413
+    },
+    {
+      "sequence_id": "subject2_h2_6_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/h2/6/cam4",
+      "frames": 763,
+      "first_frame": 0,
+      "last_frame": 762,
+      "history_ready_anchors": 734,
+      "targets_available": {
+        "50": 732,
+        "100": 731,
+        "150": 729
+      },
+      "full_future_path_anchors": 729
+    },
+    {
+      "sequence_id": "subject2_k1_0_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/k1/0/cam4",
+      "frames": 490,
+      "first_frame": 0,
+      "last_frame": 489,
+      "history_ready_anchors": 461,
+      "targets_available": {
+        "50": 459,
+        "100": 458,
+        "150": 456
+      },
+      "full_future_path_anchors": 456
+    },
+    {
+      "sequence_id": "subject2_k1_1_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/k1/1/cam4",
+      "frames": 657,
+      "first_frame": 0,
+      "last_frame": 656,
+      "history_ready_anchors": 628,
+      "targets_available": {
+        "50": 626,
+        "100": 625,
+        "150": 623
+      },
+      "full_future_path_anchors": 623
+    },
+    {
+      "sequence_id": "subject2_k1_2_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/k1/2/cam4",
+      "frames": 370,
+      "first_frame": 0,
+      "last_frame": 369,
+      "history_ready_anchors": 341,
+      "targets_available": {
+        "50": 339,
+        "100": 338,
+        "150": 336
+      },
+      "full_future_path_anchors": 336
+    },
+    {
+      "sequence_id": "subject2_k1_3_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/k1/3/cam4",
+      "frames": 310,
+      "first_frame": 0,
+      "last_frame": 309,
+      "history_ready_anchors": 281,
+      "targets_available": {
+        "50": 279,
+        "100": 278,
+        "150": 276
+      },
+      "full_future_path_anchors": 276
+    },
+    {
+      "sequence_id": "subject2_k1_3_cam4_segment001",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/k1/3/cam4",
+      "frames": 135,
+      "first_frame": 339,
+      "last_frame": 473,
+      "history_ready_anchors": 106,
+      "targets_available": {
+        "50": 104,
+        "100": 103,
+        "150": 101
+      },
+      "full_future_path_anchors": 101
+    },
+    {
+      "sequence_id": "subject2_k1_4_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/k1/4/cam4",
+      "frames": 381,
+      "first_frame": 0,
+      "last_frame": 380,
+      "history_ready_anchors": 352,
+      "targets_available": {
+        "50": 350,
+        "100": 349,
+        "150": 347
+      },
+      "full_future_path_anchors": 347
+    },
+    {
+      "sequence_id": "subject2_k1_5_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/k1/5/cam4",
+      "frames": 384,
+      "first_frame": 0,
+      "last_frame": 383,
+      "history_ready_anchors": 355,
+      "targets_available": {
+        "50": 353,
+        "100": 352,
+        "150": 350
+      },
+      "full_future_path_anchors": 350
+    },
+    {
+      "sequence_id": "subject2_k1_6_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/k1/6/cam4",
+      "frames": 834,
+      "first_frame": 0,
+      "last_frame": 833,
+      "history_ready_anchors": 805,
+      "targets_available": {
+        "50": 803,
+        "100": 802,
+        "150": 800
+      },
+      "full_future_path_anchors": 800
+    },
+    {
+      "sequence_id": "subject2_k2_0_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/k2/0/cam4",
+      "frames": 635,
+      "first_frame": 0,
+      "last_frame": 634,
+      "history_ready_anchors": 606,
+      "targets_available": {
+        "50": 604,
+        "100": 603,
+        "150": 601
+      },
+      "full_future_path_anchors": 601
+    },
+    {
+      "sequence_id": "subject2_k2_1_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/k2/1/cam4",
+      "frames": 737,
+      "first_frame": 0,
+      "last_frame": 736,
+      "history_ready_anchors": 708,
+      "targets_available": {
+        "50": 706,
+        "100": 705,
+        "150": 703
+      },
+      "full_future_path_anchors": 703
+    },
+    {
+      "sequence_id": "subject2_k2_2_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/k2/2/cam4",
+      "frames": 622,
+      "first_frame": 0,
+      "last_frame": 621,
+      "history_ready_anchors": 593,
+      "targets_available": {
+        "50": 591,
+        "100": 590,
+        "150": 588
+      },
+      "full_future_path_anchors": 588
+    },
+    {
+      "sequence_id": "subject2_k2_3_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/k2/3/cam4",
+      "frames": 741,
+      "first_frame": 0,
+      "last_frame": 740,
+      "history_ready_anchors": 712,
+      "targets_available": {
+        "50": 710,
+        "100": 709,
+        "150": 707
+      },
+      "full_future_path_anchors": 707
+    },
+    {
+      "sequence_id": "subject2_k2_4_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/k2/4/cam4",
+      "frames": 261,
+      "first_frame": 0,
+      "last_frame": 260,
+      "history_ready_anchors": 232,
+      "targets_available": {
+        "50": 230,
+        "100": 229,
+        "150": 227
+      },
+      "full_future_path_anchors": 227
+    },
+    {
+      "sequence_id": "subject2_k2_4_cam4_segment001",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/k2/4/cam4",
+      "frames": 119,
+      "first_frame": 289,
+      "last_frame": 407,
+      "history_ready_anchors": 90,
+      "targets_available": {
+        "50": 88,
+        "100": 87,
+        "150": 85
+      },
+      "full_future_path_anchors": 85
+    },
+    {
+      "sequence_id": "subject2_k2_5_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/k2/5/cam4",
+      "frames": 449,
+      "first_frame": 0,
+      "last_frame": 448,
+      "history_ready_anchors": 420,
+      "targets_available": {
+        "50": 418,
+        "100": 417,
+        "150": 415
+      },
+      "full_future_path_anchors": 415
+    },
+    {
+      "sequence_id": "subject2_k2_6_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/k2/6/cam4",
+      "frames": 851,
+      "first_frame": 0,
+      "last_frame": 850,
+      "history_ready_anchors": 822,
+      "targets_available": {
+        "50": 820,
+        "100": 819,
+        "150": 817
+      },
+      "full_future_path_anchors": 817
+    },
+    {
+      "sequence_id": "subject2_o1_0_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/o1/0/cam4",
+      "frames": 527,
+      "first_frame": 0,
+      "last_frame": 526,
+      "history_ready_anchors": 498,
+      "targets_available": {
+        "50": 496,
+        "100": 495,
+        "150": 493
+      },
+      "full_future_path_anchors": 493
+    },
+    {
+      "sequence_id": "subject2_o1_1_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/o1/1/cam4",
+      "frames": 985,
+      "first_frame": 0,
+      "last_frame": 984,
+      "history_ready_anchors": 956,
+      "targets_available": {
+        "50": 954,
+        "100": 953,
+        "150": 951
+      },
+      "full_future_path_anchors": 951
+    },
+    {
+      "sequence_id": "subject2_o1_2_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/o1/2/cam4",
+      "frames": 1238,
+      "first_frame": 0,
+      "last_frame": 1237,
+      "history_ready_anchors": 1209,
+      "targets_available": {
+        "50": 1207,
+        "100": 1206,
+        "150": 1204
+      },
+      "full_future_path_anchors": 1204
+    },
+    {
+      "sequence_id": "subject2_o1_3_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/o1/3/cam4",
+      "frames": 360,
+      "first_frame": 0,
+      "last_frame": 359,
+      "history_ready_anchors": 331,
+      "targets_available": {
+        "50": 329,
+        "100": 328,
+        "150": 326
+      },
+      "full_future_path_anchors": 326
+    },
+    {
+      "sequence_id": "subject2_o1_3_cam4_segment001",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/o1/3/cam4",
+      "frames": 209,
+      "first_frame": 455,
+      "last_frame": 663,
+      "history_ready_anchors": 180,
+      "targets_available": {
+        "50": 178,
+        "100": 177,
+        "150": 175
+      },
+      "full_future_path_anchors": 175
+    },
+    {
+      "sequence_id": "subject2_o1_4_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/o1/4/cam4",
+      "frames": 841,
+      "first_frame": 0,
+      "last_frame": 840,
+      "history_ready_anchors": 812,
+      "targets_available": {
+        "50": 810,
+        "100": 809,
+        "150": 807
+      },
+      "full_future_path_anchors": 807
+    },
+    {
+      "sequence_id": "subject2_o1_5_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/o1/5/cam4",
+      "frames": 521,
+      "first_frame": 0,
+      "last_frame": 520,
+      "history_ready_anchors": 492,
+      "targets_available": {
+        "50": 490,
+        "100": 489,
+        "150": 487
+      },
+      "full_future_path_anchors": 487
+    },
+    {
+      "sequence_id": "subject2_o1_6_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/o1/6/cam4",
+      "frames": 636,
+      "first_frame": 0,
+      "last_frame": 635,
+      "history_ready_anchors": 607,
+      "targets_available": {
+        "50": 605,
+        "100": 604,
+        "150": 602
+      },
+      "full_future_path_anchors": 602
+    },
+    {
+      "sequence_id": "subject2_o2_0_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/o2/0/cam4",
+      "frames": 424,
+      "first_frame": 0,
+      "last_frame": 423,
+      "history_ready_anchors": 395,
+      "targets_available": {
+        "50": 393,
+        "100": 392,
+        "150": 390
+      },
+      "full_future_path_anchors": 390
+    },
+    {
+      "sequence_id": "subject2_o2_1_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/o2/1/cam4",
+      "frames": 622,
+      "first_frame": 0,
+      "last_frame": 621,
+      "history_ready_anchors": 593,
+      "targets_available": {
+        "50": 591,
+        "100": 590,
+        "150": 588
+      },
+      "full_future_path_anchors": 588
+    },
+    {
+      "sequence_id": "subject2_o2_2_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/o2/2/cam4",
+      "frames": 391,
+      "first_frame": 0,
+      "last_frame": 390,
+      "history_ready_anchors": 362,
+      "targets_available": {
+        "50": 360,
+        "100": 359,
+        "150": 357
+      },
+      "full_future_path_anchors": 357
+    },
+    {
+      "sequence_id": "subject2_o2_3_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/o2/3/cam4",
+      "frames": 250,
+      "first_frame": 0,
+      "last_frame": 249,
+      "history_ready_anchors": 221,
+      "targets_available": {
+        "50": 219,
+        "100": 218,
+        "150": 216
+      },
+      "full_future_path_anchors": 216
+    },
+    {
+      "sequence_id": "subject2_o2_3_cam4_segment001",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/o2/3/cam4",
+      "frames": 148,
+      "first_frame": 278,
+      "last_frame": 425,
+      "history_ready_anchors": 119,
+      "targets_available": {
+        "50": 117,
+        "100": 116,
+        "150": 114
+      },
+      "full_future_path_anchors": 114
+    },
+    {
+      "sequence_id": "subject2_o2_4_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/o2/4/cam4",
+      "frames": 394,
+      "first_frame": 0,
+      "last_frame": 393,
+      "history_ready_anchors": 365,
+      "targets_available": {
+        "50": 363,
+        "100": 362,
+        "150": 360
+      },
+      "full_future_path_anchors": 360
+    },
+    {
+      "sequence_id": "subject2_o2_4_cam4_segment001",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/o2/4/cam4",
+      "frames": 63,
+      "first_frame": 396,
+      "last_frame": 458,
+      "history_ready_anchors": 34,
+      "targets_available": {
+        "50": 32,
+        "100": 31,
+        "150": 29
+      },
+      "full_future_path_anchors": 29
+    },
+    {
+      "sequence_id": "subject2_o2_4_cam4_segment002",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/o2/4/cam4",
+      "frames": 68,
+      "first_frame": 463,
+      "last_frame": 530,
+      "history_ready_anchors": 39,
+      "targets_available": {
+        "50": 37,
+        "100": 36,
+        "150": 34
+      },
+      "full_future_path_anchors": 34
+    },
+    {
+      "sequence_id": "subject2_o2_5_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/o2/5/cam4",
+      "frames": 528,
+      "first_frame": 0,
+      "last_frame": 527,
+      "history_ready_anchors": 499,
+      "targets_available": {
+        "50": 497,
+        "100": 496,
+        "150": 494
+      },
+      "full_future_path_anchors": 494
+    },
+    {
+      "sequence_id": "subject2_o2_6_cam4_segment000",
+      "split": "train",
+      "subject": "subject2",
+      "take": "subject2/o2/6/cam4",
+      "frames": 415,
+      "first_frame": 0,
+      "last_frame": 414,
+      "history_ready_anchors": 386,
+      "targets_available": {
+        "50": 384,
+        "100": 383,
+        "150": 381
+      },
+      "full_future_path_anchors": 381
+    },
+    {
+      "sequence_id": "subject3_h1_0_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/h1/0/cam4",
+      "frames": 408,
+      "first_frame": 0,
+      "last_frame": 407,
+      "history_ready_anchors": 379,
+      "targets_available": {
+        "50": 377,
+        "100": 376,
+        "150": 374
+      },
+      "full_future_path_anchors": 374
+    },
+    {
+      "sequence_id": "subject3_h1_1_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/h1/1/cam4",
+      "frames": 581,
+      "first_frame": 0,
+      "last_frame": 580,
+      "history_ready_anchors": 552,
+      "targets_available": {
+        "50": 550,
+        "100": 549,
+        "150": 547
+      },
+      "full_future_path_anchors": 547
+    },
+    {
+      "sequence_id": "subject3_h1_2_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/h1/2/cam4",
+      "frames": 412,
+      "first_frame": 0,
+      "last_frame": 411,
+      "history_ready_anchors": 383,
+      "targets_available": {
+        "50": 381,
+        "100": 380,
+        "150": 378
+      },
+      "full_future_path_anchors": 378
+    },
+    {
+      "sequence_id": "subject3_h1_3_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/h1/3/cam4",
+      "frames": 698,
+      "first_frame": 0,
+      "last_frame": 697,
+      "history_ready_anchors": 669,
+      "targets_available": {
+        "50": 667,
+        "100": 666,
+        "150": 664
+      },
+      "full_future_path_anchors": 664
+    },
+    {
+      "sequence_id": "subject3_h1_4_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/h1/4/cam4",
+      "frames": 258,
+      "first_frame": 0,
+      "last_frame": 257,
+      "history_ready_anchors": 229,
+      "targets_available": {
+        "50": 227,
+        "100": 226,
+        "150": 224
+      },
+      "full_future_path_anchors": 224
+    },
+    {
+      "sequence_id": "subject3_h1_4_cam4_segment001",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/h1/4/cam4",
+      "frames": 135,
+      "first_frame": 304,
+      "last_frame": 438,
+      "history_ready_anchors": 106,
+      "targets_available": {
+        "50": 104,
+        "100": 103,
+        "150": 101
+      },
+      "full_future_path_anchors": 101
+    },
+    {
+      "sequence_id": "subject3_h1_5_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/h1/5/cam4",
+      "frames": 583,
+      "first_frame": 0,
+      "last_frame": 582,
+      "history_ready_anchors": 554,
+      "targets_available": {
+        "50": 552,
+        "100": 551,
+        "150": 549
+      },
+      "full_future_path_anchors": 549
+    },
+    {
+      "sequence_id": "subject3_h1_6_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/h1/6/cam4",
+      "frames": 537,
+      "first_frame": 0,
+      "last_frame": 536,
+      "history_ready_anchors": 508,
+      "targets_available": {
+        "50": 506,
+        "100": 505,
+        "150": 503
+      },
+      "full_future_path_anchors": 503
+    },
+    {
+      "sequence_id": "subject3_h1_7_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/h1/7/cam4",
+      "frames": 662,
+      "first_frame": 0,
+      "last_frame": 661,
+      "history_ready_anchors": 633,
+      "targets_available": {
+        "50": 631,
+        "100": 630,
+        "150": 628
+      },
+      "full_future_path_anchors": 628
+    },
+    {
+      "sequence_id": "subject3_h2_0_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/h2/0/cam4",
+      "frames": 622,
+      "first_frame": 0,
+      "last_frame": 621,
+      "history_ready_anchors": 593,
+      "targets_available": {
+        "50": 591,
+        "100": 590,
+        "150": 588
+      },
+      "full_future_path_anchors": 588
+    },
+    {
+      "sequence_id": "subject3_h2_1_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/h2/1/cam4",
+      "frames": 720,
+      "first_frame": 0,
+      "last_frame": 719,
+      "history_ready_anchors": 691,
+      "targets_available": {
+        "50": 689,
+        "100": 688,
+        "150": 686
+      },
+      "full_future_path_anchors": 686
+    },
+    {
+      "sequence_id": "subject3_h2_2_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/h2/2/cam4",
+      "frames": 509,
+      "first_frame": 0,
+      "last_frame": 508,
+      "history_ready_anchors": 480,
+      "targets_available": {
+        "50": 478,
+        "100": 477,
+        "150": 475
+      },
+      "full_future_path_anchors": 475
+    },
+    {
+      "sequence_id": "subject3_h2_3_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/h2/3/cam4",
+      "frames": 793,
+      "first_frame": 0,
+      "last_frame": 792,
+      "history_ready_anchors": 764,
+      "targets_available": {
+        "50": 762,
+        "100": 761,
+        "150": 759
+      },
+      "full_future_path_anchors": 759
+    },
+    {
+      "sequence_id": "subject3_h2_4_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/h2/4/cam4",
+      "frames": 306,
+      "first_frame": 0,
+      "last_frame": 305,
+      "history_ready_anchors": 277,
+      "targets_available": {
+        "50": 275,
+        "100": 274,
+        "150": 272
+      },
+      "full_future_path_anchors": 272
+    },
+    {
+      "sequence_id": "subject3_h2_4_cam4_segment001",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/h2/4/cam4",
+      "frames": 137,
+      "first_frame": 340,
+      "last_frame": 476,
+      "history_ready_anchors": 108,
+      "targets_available": {
+        "50": 106,
+        "100": 105,
+        "150": 103
+      },
+      "full_future_path_anchors": 103
+    },
+    {
+      "sequence_id": "subject3_h2_5_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/h2/5/cam4",
+      "frames": 564,
+      "first_frame": 0,
+      "last_frame": 563,
+      "history_ready_anchors": 535,
+      "targets_available": {
+        "50": 533,
+        "100": 532,
+        "150": 530
+      },
+      "full_future_path_anchors": 530
+    },
+    {
+      "sequence_id": "subject3_h2_6_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/h2/6/cam4",
+      "frames": 584,
+      "first_frame": 0,
+      "last_frame": 583,
+      "history_ready_anchors": 555,
+      "targets_available": {
+        "50": 553,
+        "100": 552,
+        "150": 550
+      },
+      "full_future_path_anchors": 550
+    },
+    {
+      "sequence_id": "subject3_h2_7_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/h2/7/cam4",
+      "frames": 691,
+      "first_frame": 0,
+      "last_frame": 690,
+      "history_ready_anchors": 662,
+      "targets_available": {
+        "50": 660,
+        "100": 659,
+        "150": 657
+      },
+      "full_future_path_anchors": 657
+    },
+    {
+      "sequence_id": "subject3_k1_0_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/k1/0/cam4",
+      "frames": 388,
+      "first_frame": 0,
+      "last_frame": 387,
+      "history_ready_anchors": 359,
+      "targets_available": {
+        "50": 357,
+        "100": 356,
+        "150": 354
+      },
+      "full_future_path_anchors": 354
+    },
+    {
+      "sequence_id": "subject3_k1_1_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/k1/1/cam4",
+      "frames": 583,
+      "first_frame": 0,
+      "last_frame": 582,
+      "history_ready_anchors": 554,
+      "targets_available": {
+        "50": 552,
+        "100": 551,
+        "150": 549
+      },
+      "full_future_path_anchors": 549
+    },
+    {
+      "sequence_id": "subject3_k1_2_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/k1/2/cam4",
+      "frames": 762,
+      "first_frame": 0,
+      "last_frame": 761,
+      "history_ready_anchors": 733,
+      "targets_available": {
+        "50": 731,
+        "100": 730,
+        "150": 728
+      },
+      "full_future_path_anchors": 728
+    },
+    {
+      "sequence_id": "subject3_k1_3_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/k1/3/cam4",
+      "frames": 700,
+      "first_frame": 0,
+      "last_frame": 699,
+      "history_ready_anchors": 671,
+      "targets_available": {
+        "50": 669,
+        "100": 668,
+        "150": 666
+      },
+      "full_future_path_anchors": 666
+    },
+    {
+      "sequence_id": "subject3_k1_3_cam4_segment001",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/k1/3/cam4",
+      "frames": 271,
+      "first_frame": 711,
+      "last_frame": 981,
+      "history_ready_anchors": 242,
+      "targets_available": {
+        "50": 240,
+        "100": 239,
+        "150": 237
+      },
+      "full_future_path_anchors": 237
+    },
+    {
+      "sequence_id": "subject3_k1_4_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/k1/4/cam4",
+      "frames": 325,
+      "first_frame": 0,
+      "last_frame": 324,
+      "history_ready_anchors": 296,
+      "targets_available": {
+        "50": 294,
+        "100": 293,
+        "150": 291
+      },
+      "full_future_path_anchors": 291
+    },
+    {
+      "sequence_id": "subject3_k1_4_cam4_segment001",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/k1/4/cam4",
+      "frames": 207,
+      "first_frame": 342,
+      "last_frame": 548,
+      "history_ready_anchors": 178,
+      "targets_available": {
+        "50": 176,
+        "100": 175,
+        "150": 173
+      },
+      "full_future_path_anchors": 173
+    },
+    {
+      "sequence_id": "subject3_k1_5_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/k1/5/cam4",
+      "frames": 518,
+      "first_frame": 0,
+      "last_frame": 517,
+      "history_ready_anchors": 489,
+      "targets_available": {
+        "50": 487,
+        "100": 486,
+        "150": 484
+      },
+      "full_future_path_anchors": 484
+    },
+    {
+      "sequence_id": "subject3_k1_5_cam4_segment001",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/k1/5/cam4",
+      "frames": 50,
+      "first_frame": 537,
+      "last_frame": 586,
+      "history_ready_anchors": 21,
+      "targets_available": {
+        "50": 19,
+        "100": 18,
+        "150": 16
+      },
+      "full_future_path_anchors": 16
+    },
+    {
+      "sequence_id": "subject3_k1_5_cam4_segment002",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/k1/5/cam4",
+      "frames": 50,
+      "first_frame": 599,
+      "last_frame": 648,
+      "history_ready_anchors": 21,
+      "targets_available": {
+        "50": 19,
+        "100": 18,
+        "150": 16
+      },
+      "full_future_path_anchors": 16
+    },
+    {
+      "sequence_id": "subject3_k1_5_cam4_segment003",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/k1/5/cam4",
+      "frames": 136,
+      "first_frame": 657,
+      "last_frame": 792,
+      "history_ready_anchors": 107,
+      "targets_available": {
+        "50": 105,
+        "100": 104,
+        "150": 102
+      },
+      "full_future_path_anchors": 102
+    },
+    {
+      "sequence_id": "subject3_k1_6_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/k1/6/cam4",
+      "frames": 394,
+      "first_frame": 0,
+      "last_frame": 393,
+      "history_ready_anchors": 365,
+      "targets_available": {
+        "50": 363,
+        "100": 362,
+        "150": 360
+      },
+      "full_future_path_anchors": 360
+    },
+    {
+      "sequence_id": "subject3_k1_7_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/k1/7/cam4",
+      "frames": 504,
+      "first_frame": 0,
+      "last_frame": 503,
+      "history_ready_anchors": 475,
+      "targets_available": {
+        "50": 473,
+        "100": 472,
+        "150": 470
+      },
+      "full_future_path_anchors": 470
+    },
+    {
+      "sequence_id": "subject3_k2_0_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/k2/0/cam4",
+      "frames": 494,
+      "first_frame": 0,
+      "last_frame": 493,
+      "history_ready_anchors": 465,
+      "targets_available": {
+        "50": 463,
+        "100": 462,
+        "150": 460
+      },
+      "full_future_path_anchors": 460
+    },
+    {
+      "sequence_id": "subject3_k2_1_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/k2/1/cam4",
+      "frames": 625,
+      "first_frame": 0,
+      "last_frame": 624,
+      "history_ready_anchors": 596,
+      "targets_available": {
+        "50": 594,
+        "100": 593,
+        "150": 591
+      },
+      "full_future_path_anchors": 591
+    },
+    {
+      "sequence_id": "subject3_k2_2_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/k2/2/cam4",
+      "frames": 477,
+      "first_frame": 0,
+      "last_frame": 476,
+      "history_ready_anchors": 448,
+      "targets_available": {
+        "50": 446,
+        "100": 445,
+        "150": 443
+      },
+      "full_future_path_anchors": 443
+    },
+    {
+      "sequence_id": "subject3_k2_3_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/k2/3/cam4",
+      "frames": 472,
+      "first_frame": 0,
+      "last_frame": 471,
+      "history_ready_anchors": 443,
+      "targets_available": {
+        "50": 441,
+        "100": 440,
+        "150": 438
+      },
+      "full_future_path_anchors": 438
+    },
+    {
+      "sequence_id": "subject3_k2_3_cam4_segment001",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/k2/3/cam4",
+      "frames": 54,
+      "first_frame": 502,
+      "last_frame": 555,
+      "history_ready_anchors": 25,
+      "targets_available": {
+        "50": 23,
+        "100": 22,
+        "150": 20
+      },
+      "full_future_path_anchors": 20
+    },
+    {
+      "sequence_id": "subject3_k2_3_cam4_segment002",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/k2/3/cam4",
+      "frames": 199,
+      "first_frame": 566,
+      "last_frame": 764,
+      "history_ready_anchors": 170,
+      "targets_available": {
+        "50": 168,
+        "100": 167,
+        "150": 165
+      },
+      "full_future_path_anchors": 165
+    },
+    {
+      "sequence_id": "subject3_k2_4_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/k2/4/cam4",
+      "frames": 341,
+      "first_frame": 0,
+      "last_frame": 340,
+      "history_ready_anchors": 312,
+      "targets_available": {
+        "50": 310,
+        "100": 309,
+        "150": 307
+      },
+      "full_future_path_anchors": 307
+    },
+    {
+      "sequence_id": "subject3_k2_4_cam4_segment001",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/k2/4/cam4",
+      "frames": 192,
+      "first_frame": 376,
+      "last_frame": 567,
+      "history_ready_anchors": 163,
+      "targets_available": {
+        "50": 161,
+        "100": 160,
+        "150": 158
+      },
+      "full_future_path_anchors": 158
+    },
+    {
+      "sequence_id": "subject3_k2_5_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/k2/5/cam4",
+      "frames": 697,
+      "first_frame": 0,
+      "last_frame": 696,
+      "history_ready_anchors": 668,
+      "targets_available": {
+        "50": 666,
+        "100": 665,
+        "150": 663
+      },
+      "full_future_path_anchors": 663
+    },
+    {
+      "sequence_id": "subject3_k2_6_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/k2/6/cam4",
+      "frames": 557,
+      "first_frame": 0,
+      "last_frame": 556,
+      "history_ready_anchors": 528,
+      "targets_available": {
+        "50": 526,
+        "100": 525,
+        "150": 523
+      },
+      "full_future_path_anchors": 523
+    },
+    {
+      "sequence_id": "subject3_k2_7_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/k2/7/cam4",
+      "frames": 746,
+      "first_frame": 0,
+      "last_frame": 745,
+      "history_ready_anchors": 717,
+      "targets_available": {
+        "50": 715,
+        "100": 714,
+        "150": 712
+      },
+      "full_future_path_anchors": 712
+    },
+    {
+      "sequence_id": "subject3_o1_0_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/o1/0/cam4",
+      "frames": 514,
+      "first_frame": 0,
+      "last_frame": 513,
+      "history_ready_anchors": 485,
+      "targets_available": {
+        "50": 483,
+        "100": 482,
+        "150": 480
+      },
+      "full_future_path_anchors": 480
+    },
+    {
+      "sequence_id": "subject3_o1_1_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/o1/1/cam4",
+      "frames": 609,
+      "first_frame": 0,
+      "last_frame": 608,
+      "history_ready_anchors": 580,
+      "targets_available": {
+        "50": 578,
+        "100": 577,
+        "150": 575
+      },
+      "full_future_path_anchors": 575
+    },
+    {
+      "sequence_id": "subject3_o1_2_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/o1/2/cam4",
+      "frames": 515,
+      "first_frame": 0,
+      "last_frame": 514,
+      "history_ready_anchors": 486,
+      "targets_available": {
+        "50": 484,
+        "100": 483,
+        "150": 481
+      },
+      "full_future_path_anchors": 481
+    },
+    {
+      "sequence_id": "subject3_o1_3_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/o1/3/cam4",
+      "frames": 833,
+      "first_frame": 0,
+      "last_frame": 832,
+      "history_ready_anchors": 804,
+      "targets_available": {
+        "50": 802,
+        "100": 801,
+        "150": 799
+      },
+      "full_future_path_anchors": 799
+    },
+    {
+      "sequence_id": "subject3_o1_4_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/o1/4/cam4",
+      "frames": 279,
+      "first_frame": 0,
+      "last_frame": 278,
+      "history_ready_anchors": 250,
+      "targets_available": {
+        "50": 248,
+        "100": 247,
+        "150": 245
+      },
+      "full_future_path_anchors": 245
+    },
+    {
+      "sequence_id": "subject3_o1_4_cam4_segment001",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/o1/4/cam4",
+      "frames": 155,
+      "first_frame": 311,
+      "last_frame": 465,
+      "history_ready_anchors": 126,
+      "targets_available": {
+        "50": 124,
+        "100": 123,
+        "150": 121
+      },
+      "full_future_path_anchors": 121
+    },
+    {
+      "sequence_id": "subject3_o1_5_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/o1/5/cam4",
+      "frames": 739,
+      "first_frame": 0,
+      "last_frame": 738,
+      "history_ready_anchors": 710,
+      "targets_available": {
+        "50": 708,
+        "100": 707,
+        "150": 705
+      },
+      "full_future_path_anchors": 705
+    },
+    {
+      "sequence_id": "subject3_o1_6_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/o1/6/cam4",
+      "frames": 450,
+      "first_frame": 0,
+      "last_frame": 449,
+      "history_ready_anchors": 421,
+      "targets_available": {
+        "50": 419,
+        "100": 418,
+        "150": 416
+      },
+      "full_future_path_anchors": 416
+    },
+    {
+      "sequence_id": "subject3_o1_7_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/o1/7/cam4",
+      "frames": 777,
+      "first_frame": 0,
+      "last_frame": 776,
+      "history_ready_anchors": 748,
+      "targets_available": {
+        "50": 746,
+        "100": 745,
+        "150": 743
+      },
+      "full_future_path_anchors": 743
+    },
+    {
+      "sequence_id": "subject3_o2_0_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/o2/0/cam4",
+      "frames": 448,
+      "first_frame": 0,
+      "last_frame": 447,
+      "history_ready_anchors": 419,
+      "targets_available": {
+        "50": 417,
+        "100": 416,
+        "150": 414
+      },
+      "full_future_path_anchors": 414
+    },
+    {
+      "sequence_id": "subject3_o2_1_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/o2/1/cam4",
+      "frames": 595,
+      "first_frame": 0,
+      "last_frame": 594,
+      "history_ready_anchors": 566,
+      "targets_available": {
+        "50": 564,
+        "100": 563,
+        "150": 561
+      },
+      "full_future_path_anchors": 561
+    },
+    {
+      "sequence_id": "subject3_o2_2_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/o2/2/cam4",
+      "frames": 354,
+      "first_frame": 0,
+      "last_frame": 353,
+      "history_ready_anchors": 325,
+      "targets_available": {
+        "50": 323,
+        "100": 322,
+        "150": 320
+      },
+      "full_future_path_anchors": 320
+    },
+    {
+      "sequence_id": "subject3_o2_3_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/o2/3/cam4",
+      "frames": 939,
+      "first_frame": 0,
+      "last_frame": 938,
+      "history_ready_anchors": 910,
+      "targets_available": {
+        "50": 908,
+        "100": 907,
+        "150": 905
+      },
+      "full_future_path_anchors": 905
+    },
+    {
+      "sequence_id": "subject3_o2_4_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/o2/4/cam4",
+      "frames": 477,
+      "first_frame": 0,
+      "last_frame": 476,
+      "history_ready_anchors": 448,
+      "targets_available": {
+        "50": 446,
+        "100": 445,
+        "150": 443
+      },
+      "full_future_path_anchors": 443
+    },
+    {
+      "sequence_id": "subject3_o2_4_cam4_segment001",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/o2/4/cam4",
+      "frames": 225,
+      "first_frame": 503,
+      "last_frame": 727,
+      "history_ready_anchors": 196,
+      "targets_available": {
+        "50": 194,
+        "100": 193,
+        "150": 191
+      },
+      "full_future_path_anchors": 191
+    },
+    {
+      "sequence_id": "subject3_o2_5_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/o2/5/cam4",
+      "frames": 748,
+      "first_frame": 0,
+      "last_frame": 747,
+      "history_ready_anchors": 719,
+      "targets_available": {
+        "50": 717,
+        "100": 716,
+        "150": 714
+      },
+      "full_future_path_anchors": 714
+    },
+    {
+      "sequence_id": "subject3_o2_6_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/o2/6/cam4",
+      "frames": 488,
+      "first_frame": 0,
+      "last_frame": 487,
+      "history_ready_anchors": 459,
+      "targets_available": {
+        "50": 457,
+        "100": 456,
+        "150": 454
+      },
+      "full_future_path_anchors": 454
+    },
+    {
+      "sequence_id": "subject3_o2_7_cam4_segment000",
+      "split": "val",
+      "subject": "subject3",
+      "take": "subject3/o2/7/cam4",
+      "frames": 544,
+      "first_frame": 0,
+      "last_frame": 543,
+      "history_ready_anchors": 515,
+      "targets_available": {
+        "50": 513,
+        "100": 512,
+        "150": 510
+      },
+      "full_future_path_anchors": 510
+    },
+    {
+      "sequence_id": "subject4_h1_0_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/h1/0/cam4",
+      "frames": 501,
+      "first_frame": 0,
+      "last_frame": 500,
+      "history_ready_anchors": 472,
+      "targets_available": {
+        "50": 470,
+        "100": 469,
+        "150": 467
+      },
+      "full_future_path_anchors": 467
+    },
+    {
+      "sequence_id": "subject4_h1_1_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/h1/1/cam4",
+      "frames": 1004,
+      "first_frame": 0,
+      "last_frame": 1003,
+      "history_ready_anchors": 975,
+      "targets_available": {
+        "50": 973,
+        "100": 972,
+        "150": 970
+      },
+      "full_future_path_anchors": 970
+    },
+    {
+      "sequence_id": "subject4_h1_2_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/h1/2/cam4",
+      "frames": 564,
+      "first_frame": 0,
+      "last_frame": 563,
+      "history_ready_anchors": 535,
+      "targets_available": {
+        "50": 533,
+        "100": 532,
+        "150": 530
+      },
+      "full_future_path_anchors": 530
+    },
+    {
+      "sequence_id": "subject4_h1_3_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/h1/3/cam4",
+      "frames": 787,
+      "first_frame": 0,
+      "last_frame": 786,
+      "history_ready_anchors": 758,
+      "targets_available": {
+        "50": 756,
+        "100": 755,
+        "150": 753
+      },
+      "full_future_path_anchors": 753
+    },
+    {
+      "sequence_id": "subject4_h1_4_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/h1/4/cam4",
+      "frames": 268,
+      "first_frame": 0,
+      "last_frame": 267,
+      "history_ready_anchors": 239,
+      "targets_available": {
+        "50": 237,
+        "100": 236,
+        "150": 234
+      },
+      "full_future_path_anchors": 234
+    },
+    {
+      "sequence_id": "subject4_h1_4_cam4_segment001",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/h1/4/cam4",
+      "frames": 405,
+      "first_frame": 308,
+      "last_frame": 712,
+      "history_ready_anchors": 376,
+      "targets_available": {
+        "50": 374,
+        "100": 373,
+        "150": 371
+      },
+      "full_future_path_anchors": 371
+    },
+    {
+      "sequence_id": "subject4_h1_5_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/h1/5/cam4",
+      "frames": 471,
+      "first_frame": 0,
+      "last_frame": 470,
+      "history_ready_anchors": 442,
+      "targets_available": {
+        "50": 440,
+        "100": 439,
+        "150": 437
+      },
+      "full_future_path_anchors": 437
+    },
+    {
+      "sequence_id": "subject4_h1_6_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/h1/6/cam4",
+      "frames": 692,
+      "first_frame": 0,
+      "last_frame": 691,
+      "history_ready_anchors": 663,
+      "targets_available": {
+        "50": 661,
+        "100": 660,
+        "150": 658
+      },
+      "full_future_path_anchors": 658
+    },
+    {
+      "sequence_id": "subject4_h1_7_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/h1/7/cam4",
+      "frames": 584,
+      "first_frame": 0,
+      "last_frame": 583,
+      "history_ready_anchors": 555,
+      "targets_available": {
+        "50": 553,
+        "100": 552,
+        "150": 550
+      },
+      "full_future_path_anchors": 550
+    },
+    {
+      "sequence_id": "subject4_h2_0_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/h2/0/cam4",
+      "frames": 498,
+      "first_frame": 0,
+      "last_frame": 497,
+      "history_ready_anchors": 469,
+      "targets_available": {
+        "50": 467,
+        "100": 466,
+        "150": 464
+      },
+      "full_future_path_anchors": 464
+    },
+    {
+      "sequence_id": "subject4_h2_1_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/h2/1/cam4",
+      "frames": 840,
+      "first_frame": 0,
+      "last_frame": 839,
+      "history_ready_anchors": 811,
+      "targets_available": {
+        "50": 809,
+        "100": 808,
+        "150": 806
+      },
+      "full_future_path_anchors": 806
+    },
+    {
+      "sequence_id": "subject4_h2_2_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/h2/2/cam4",
+      "frames": 578,
+      "first_frame": 0,
+      "last_frame": 577,
+      "history_ready_anchors": 549,
+      "targets_available": {
+        "50": 547,
+        "100": 546,
+        "150": 544
+      },
+      "full_future_path_anchors": 544
+    },
+    {
+      "sequence_id": "subject4_h2_3_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/h2/3/cam4",
+      "frames": 828,
+      "first_frame": 0,
+      "last_frame": 827,
+      "history_ready_anchors": 799,
+      "targets_available": {
+        "50": 797,
+        "100": 796,
+        "150": 794
+      },
+      "full_future_path_anchors": 794
+    },
+    {
+      "sequence_id": "subject4_h2_4_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/h2/4/cam4",
+      "frames": 300,
+      "first_frame": 0,
+      "last_frame": 299,
+      "history_ready_anchors": 271,
+      "targets_available": {
+        "50": 269,
+        "100": 268,
+        "150": 266
+      },
+      "full_future_path_anchors": 266
+    },
+    {
+      "sequence_id": "subject4_h2_4_cam4_segment001",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/h2/4/cam4",
+      "frames": 247,
+      "first_frame": 331,
+      "last_frame": 577,
+      "history_ready_anchors": 218,
+      "targets_available": {
+        "50": 216,
+        "100": 215,
+        "150": 213
+      },
+      "full_future_path_anchors": 213
+    },
+    {
+      "sequence_id": "subject4_h2_5_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/h2/5/cam4",
+      "frames": 642,
+      "first_frame": 0,
+      "last_frame": 641,
+      "history_ready_anchors": 613,
+      "targets_available": {
+        "50": 611,
+        "100": 610,
+        "150": 608
+      },
+      "full_future_path_anchors": 608
+    },
+    {
+      "sequence_id": "subject4_h2_6_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/h2/6/cam4",
+      "frames": 561,
+      "first_frame": 0,
+      "last_frame": 560,
+      "history_ready_anchors": 532,
+      "targets_available": {
+        "50": 530,
+        "100": 529,
+        "150": 527
+      },
+      "full_future_path_anchors": 527
+    },
+    {
+      "sequence_id": "subject4_h2_7_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/h2/7/cam4",
+      "frames": 765,
+      "first_frame": 0,
+      "last_frame": 764,
+      "history_ready_anchors": 736,
+      "targets_available": {
+        "50": 734,
+        "100": 733,
+        "150": 731
+      },
+      "full_future_path_anchors": 731
+    },
+    {
+      "sequence_id": "subject4_k1_0_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/k1/0/cam4",
+      "frames": 548,
+      "first_frame": 0,
+      "last_frame": 547,
+      "history_ready_anchors": 519,
+      "targets_available": {
+        "50": 517,
+        "100": 516,
+        "150": 514
+      },
+      "full_future_path_anchors": 514
+    },
+    {
+      "sequence_id": "subject4_k1_1_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/k1/1/cam4",
+      "frames": 836,
+      "first_frame": 0,
+      "last_frame": 835,
+      "history_ready_anchors": 807,
+      "targets_available": {
+        "50": 805,
+        "100": 804,
+        "150": 802
+      },
+      "full_future_path_anchors": 802
+    },
+    {
+      "sequence_id": "subject4_k1_2_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/k1/2/cam4",
+      "frames": 844,
+      "first_frame": 0,
+      "last_frame": 843,
+      "history_ready_anchors": 815,
+      "targets_available": {
+        "50": 813,
+        "100": 812,
+        "150": 810
+      },
+      "full_future_path_anchors": 810
+    },
+    {
+      "sequence_id": "subject4_k1_3_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/k1/3/cam4",
+      "frames": 338,
+      "first_frame": 0,
+      "last_frame": 337,
+      "history_ready_anchors": 309,
+      "targets_available": {
+        "50": 307,
+        "100": 306,
+        "150": 304
+      },
+      "full_future_path_anchors": 304
+    },
+    {
+      "sequence_id": "subject4_k1_3_cam4_segment001",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/k1/3/cam4",
+      "frames": 210,
+      "first_frame": 366,
+      "last_frame": 575,
+      "history_ready_anchors": 181,
+      "targets_available": {
+        "50": 179,
+        "100": 178,
+        "150": 176
+      },
+      "full_future_path_anchors": 176
+    },
+    {
+      "sequence_id": "subject4_k1_4_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/k1/4/cam4",
+      "frames": 693,
+      "first_frame": 0,
+      "last_frame": 692,
+      "history_ready_anchors": 664,
+      "targets_available": {
+        "50": 662,
+        "100": 661,
+        "150": 659
+      },
+      "full_future_path_anchors": 659
+    },
+    {
+      "sequence_id": "subject4_k1_5_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/k1/5/cam4",
+      "frames": 461,
+      "first_frame": 0,
+      "last_frame": 460,
+      "history_ready_anchors": 432,
+      "targets_available": {
+        "50": 430,
+        "100": 429,
+        "150": 427
+      },
+      "full_future_path_anchors": 427
+    },
+    {
+      "sequence_id": "subject4_k1_6_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/k1/6/cam4",
+      "frames": 643,
+      "first_frame": 0,
+      "last_frame": 642,
+      "history_ready_anchors": 614,
+      "targets_available": {
+        "50": 612,
+        "100": 611,
+        "150": 609
+      },
+      "full_future_path_anchors": 609
+    },
+    {
+      "sequence_id": "subject4_k2_0_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/k2/0/cam4",
+      "frames": 444,
+      "first_frame": 0,
+      "last_frame": 443,
+      "history_ready_anchors": 415,
+      "targets_available": {
+        "50": 413,
+        "100": 412,
+        "150": 410
+      },
+      "full_future_path_anchors": 410
+    },
+    {
+      "sequence_id": "subject4_k2_1_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/k2/1/cam4",
+      "frames": 1025,
+      "first_frame": 0,
+      "last_frame": 1024,
+      "history_ready_anchors": 996,
+      "targets_available": {
+        "50": 994,
+        "100": 993,
+        "150": 991
+      },
+      "full_future_path_anchors": 991
+    },
+    {
+      "sequence_id": "subject4_k2_2_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/k2/2/cam4",
+      "frames": 724,
+      "first_frame": 0,
+      "last_frame": 723,
+      "history_ready_anchors": 695,
+      "targets_available": {
+        "50": 693,
+        "100": 692,
+        "150": 690
+      },
+      "full_future_path_anchors": 690
+    },
+    {
+      "sequence_id": "subject4_k2_3_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/k2/3/cam4",
+      "frames": 910,
+      "first_frame": 0,
+      "last_frame": 909,
+      "history_ready_anchors": 881,
+      "targets_available": {
+        "50": 879,
+        "100": 878,
+        "150": 876
+      },
+      "full_future_path_anchors": 876
+    },
+    {
+      "sequence_id": "subject4_k2_4_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/k2/4/cam4",
+      "frames": 425,
+      "first_frame": 0,
+      "last_frame": 424,
+      "history_ready_anchors": 396,
+      "targets_available": {
+        "50": 394,
+        "100": 393,
+        "150": 391
+      },
+      "full_future_path_anchors": 391
+    },
+    {
+      "sequence_id": "subject4_k2_4_cam4_segment001",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/k2/4/cam4",
+      "frames": 221,
+      "first_frame": 491,
+      "last_frame": 711,
+      "history_ready_anchors": 192,
+      "targets_available": {
+        "50": 190,
+        "100": 189,
+        "150": 187
+      },
+      "full_future_path_anchors": 187
+    },
+    {
+      "sequence_id": "subject4_k2_5_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/k2/5/cam4",
+      "frames": 770,
+      "first_frame": 0,
+      "last_frame": 769,
+      "history_ready_anchors": 741,
+      "targets_available": {
+        "50": 739,
+        "100": 738,
+        "150": 736
+      },
+      "full_future_path_anchors": 736
+    },
+    {
+      "sequence_id": "subject4_k2_6_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/k2/6/cam4",
+      "frames": 540,
+      "first_frame": 0,
+      "last_frame": 539,
+      "history_ready_anchors": 511,
+      "targets_available": {
+        "50": 509,
+        "100": 508,
+        "150": 506
+      },
+      "full_future_path_anchors": 506
+    },
+    {
+      "sequence_id": "subject4_k2_7_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/k2/7/cam4",
+      "frames": 503,
+      "first_frame": 0,
+      "last_frame": 502,
+      "history_ready_anchors": 474,
+      "targets_available": {
+        "50": 472,
+        "100": 471,
+        "150": 469
+      },
+      "full_future_path_anchors": 469
+    },
+    {
+      "sequence_id": "subject4_o1_0_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/o1/0/cam4",
+      "frames": 461,
+      "first_frame": 0,
+      "last_frame": 460,
+      "history_ready_anchors": 432,
+      "targets_available": {
+        "50": 430,
+        "100": 429,
+        "150": 427
+      },
+      "full_future_path_anchors": 427
+    },
+    {
+      "sequence_id": "subject4_o1_1_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/o1/1/cam4",
+      "frames": 809,
+      "first_frame": 0,
+      "last_frame": 808,
+      "history_ready_anchors": 780,
+      "targets_available": {
+        "50": 778,
+        "100": 777,
+        "150": 775
+      },
+      "full_future_path_anchors": 775
+    },
+    {
+      "sequence_id": "subject4_o1_2_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/o1/2/cam4",
+      "frames": 620,
+      "first_frame": 0,
+      "last_frame": 619,
+      "history_ready_anchors": 591,
+      "targets_available": {
+        "50": 589,
+        "100": 588,
+        "150": 586
+      },
+      "full_future_path_anchors": 586
+    },
+    {
+      "sequence_id": "subject4_o1_3_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/o1/3/cam4",
+      "frames": 659,
+      "first_frame": 0,
+      "last_frame": 658,
+      "history_ready_anchors": 630,
+      "targets_available": {
+        "50": 628,
+        "100": 627,
+        "150": 625
+      },
+      "full_future_path_anchors": 625
+    },
+    {
+      "sequence_id": "subject4_o1_4_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/o1/4/cam4",
+      "frames": 295,
+      "first_frame": 0,
+      "last_frame": 294,
+      "history_ready_anchors": 266,
+      "targets_available": {
+        "50": 264,
+        "100": 263,
+        "150": 261
+      },
+      "full_future_path_anchors": 261
+    },
+    {
+      "sequence_id": "subject4_o1_4_cam4_segment001",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/o1/4/cam4",
+      "frames": 352,
+      "first_frame": 351,
+      "last_frame": 702,
+      "history_ready_anchors": 323,
+      "targets_available": {
+        "50": 321,
+        "100": 320,
+        "150": 318
+      },
+      "full_future_path_anchors": 318
+    },
+    {
+      "sequence_id": "subject4_o1_5_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/o1/5/cam4",
+      "frames": 594,
+      "first_frame": 0,
+      "last_frame": 593,
+      "history_ready_anchors": 565,
+      "targets_available": {
+        "50": 563,
+        "100": 562,
+        "150": 560
+      },
+      "full_future_path_anchors": 560
+    },
+    {
+      "sequence_id": "subject4_o1_6_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/o1/6/cam4",
+      "frames": 627,
+      "first_frame": 0,
+      "last_frame": 626,
+      "history_ready_anchors": 598,
+      "targets_available": {
+        "50": 596,
+        "100": 595,
+        "150": 593
+      },
+      "full_future_path_anchors": 593
+    },
+    {
+      "sequence_id": "subject4_o1_7_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/o1/7/cam4",
+      "frames": 731,
+      "first_frame": 0,
+      "last_frame": 730,
+      "history_ready_anchors": 702,
+      "targets_available": {
+        "50": 700,
+        "100": 699,
+        "150": 697
+      },
+      "full_future_path_anchors": 697
+    },
+    {
+      "sequence_id": "subject4_o2_0_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/o2/0/cam4",
+      "frames": 497,
+      "first_frame": 0,
+      "last_frame": 496,
+      "history_ready_anchors": 468,
+      "targets_available": {
+        "50": 466,
+        "100": 465,
+        "150": 463
+      },
+      "full_future_path_anchors": 463
+    },
+    {
+      "sequence_id": "subject4_o2_1_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/o2/1/cam4",
+      "frames": 873,
+      "first_frame": 0,
+      "last_frame": 872,
+      "history_ready_anchors": 844,
+      "targets_available": {
+        "50": 842,
+        "100": 841,
+        "150": 839
+      },
+      "full_future_path_anchors": 839
+    },
+    {
+      "sequence_id": "subject4_o2_2_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/o2/2/cam4",
+      "frames": 698,
+      "first_frame": 0,
+      "last_frame": 697,
+      "history_ready_anchors": 669,
+      "targets_available": {
+        "50": 667,
+        "100": 666,
+        "150": 664
+      },
+      "full_future_path_anchors": 664
+    },
+    {
+      "sequence_id": "subject4_o2_3_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/o2/3/cam4",
+      "frames": 356,
+      "first_frame": 0,
+      "last_frame": 355,
+      "history_ready_anchors": 327,
+      "targets_available": {
+        "50": 325,
+        "100": 324,
+        "150": 322
+      },
+      "full_future_path_anchors": 322
+    },
+    {
+      "sequence_id": "subject4_o2_3_cam4_segment001",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/o2/3/cam4",
+      "frames": 456,
+      "first_frame": 411,
+      "last_frame": 866,
+      "history_ready_anchors": 427,
+      "targets_available": {
+        "50": 425,
+        "100": 424,
+        "150": 422
+      },
+      "full_future_path_anchors": 422
+    },
+    {
+      "sequence_id": "subject4_o2_4_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/o2/4/cam4",
+      "frames": 537,
+      "first_frame": 0,
+      "last_frame": 536,
+      "history_ready_anchors": 508,
+      "targets_available": {
+        "50": 506,
+        "100": 505,
+        "150": 503
+      },
+      "full_future_path_anchors": 503
+    },
+    {
+      "sequence_id": "subject4_o2_5_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/o2/5/cam4",
+      "frames": 546,
+      "first_frame": 0,
+      "last_frame": 545,
+      "history_ready_anchors": 517,
+      "targets_available": {
+        "50": 515,
+        "100": 514,
+        "150": 512
+      },
+      "full_future_path_anchors": 512
+    },
+    {
+      "sequence_id": "subject4_o2_6_cam4_segment000",
+      "split": "test",
+      "subject": "subject4",
+      "take": "subject4/o2/6/cam4",
+      "frames": 667,
+      "first_frame": 0,
+      "last_frame": 666,
+      "history_ready_anchors": 638,
+      "targets_available": {
+        "50": 636,
+        "100": 635,
+        "150": 633
+      },
+      "full_future_path_anchors": 633
+    }
+  ],
+  "generated_at_utc": "2026-09-16T16:02:59.253737+00:00",
+  "specification": {
+    "schema_version": "keypoint-experiment-spec-v1",
+    "status": "M0_data_definition_only",
+    "training_runner_support": "M1_not_implemented",
+    "task_id": "h2o_camera3d_right21",
+    "data": {
+      "path_base": "subproject_root",
+      "raw_root": "../datasets/H2O/raw",
+      "processed_root": "../datasets/H2O/processed/cross_subject_v2_open_release",
+      "input_key": "landmarks_3d",
+      "target_key": "landmarks_3d",
+      "legacy_min_segment_frames": 40,
+      "legacy_2d": "camera_xy_wrist_origin_palm_scale_not_image_projection",
+      "legacy_9ch": "historical_proxy_only_not_new_M2_reference"
+    },
+    "coordinates": {
+      "frame": "cam4_camera",
+      "axes": [
+        "x_camera_right",
+        "y_camera_down",
+        "z_camera_forward"
+      ],
+      "raw_unit": "m",
+      "hand": "right",
+      "joint_order": [
+        "wrist",
+        "thumb_cmc",
+        "thumb_mcp",
+        "thumb_ip",
+        "thumb_tip",
+        "index_mcp",
+        "index_pip",
+        "index_dip",
+        "index_tip",
+        "middle_mcp",
+        "middle_pip",
+        "middle_dip",
+        "middle_tip",
+        "ring_mcp",
+        "ring_pip",
+        "ring_dip",
+        "ring_tip",
+        "little_mcp",
+        "little_pip",
+        "little_dip",
+        "little_tip"
+      ],
+      "permutation": "identity_openpose21",
+      "camera_mediapipe_image_xyz_compatible": false,
+      "sources": {
+        "units": "https://github.com/taeinkwon/h2odataset/issues/13#issuecomment-1241233736",
+        "order": "https://github.com/taeinkwon/h2odataset/issues/22#issuecomment-1735268412",
+        "camera_projection": "https://github.com/taeinkwon/h2oplayer/blob/main/h2oplayer.py",
+        "fps_and_annotation_limits": "https://arxiv.org/html/2104.11181v2"
+      }
+    },
+    "splits": {
+      "train": [
+        "subject1",
+        "subject2"
+      ],
+      "val": [
+        "subject3"
+      ],
+      "test": [
+        "subject4"
+      ]
+    },
+    "split_policy": "custom_cross_subject_before_windowing",
+    "split_roles": {
+      "train": "fit",
+      "val": "selection",
+      "test": "historical_reevaluation_not_unseen_test"
+    },
+    "normalization": {
+      "method": "anchor_wrist_and_scale_shared_by_history_and_future",
+      "wrist_index": 0,
+      "palm_length_indices": [
+        0,
+        9
+      ],
+      "fallback_width_indices": [
+        5,
+        17
+      ],
+      "s_min_fit_split": "train",
+      "s_min_fraction_of_positive_palm_median": 0.01,
+      "s_min_value_location": "audit_report.normalization.s_min_m",
+      "formula": "q(tau)=(p(tau)-p_wrist(t_anchor))/s(t_anchor)",
+      "inverse": "p(tau)=q(tau)*s(t_anchor)+p_wrist(t_anchor)",
+      "future_wrist_or_scale_used": false,
+      "rotation_alignment": false,
+      "clip_to_0_1": false
+    },
+    "time": {
+      "fps": 30.0,
+      "timestamp_key": "timestamps_s",
+      "timestamp_origin": "frame_id_divided_by_nominal_fps_not_sensor_capture_time",
+      "history_frames": 30,
+      "anchor_stride": 1,
+      "forecast_steps": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "evaluation_horizons_ms": [
+        50,
+        100,
+        150
+      ],
+      "input_resampling": "past_brackets_only_with_both_observations_available_by_anchor",
+      "target_resampling": "linear_pose_interpolation_in_timestamps_s",
+      "max_label_gap_s": 0.06666666666666667,
+      "cross_explicit_invalid_segment": false,
+      "missing_bracket": "mask_target_and_required_gesture_path",
+      "save_target_bracket_times": true
+    },
+    "masks": {
+      "annotation": "raw_right_hand_flag_1_and_finite_xyz",
+      "per_joint_visibility_available": false,
+      "per_joint_confidence_available": false,
+      "input": "observed_annotation_validity_independent_of_target",
+      "target": "valid_annotation_brackets_and_gap_rule_per_horizon",
+      "invalid_anchor": "nonfinite_wrist_or_no_finite_scale_at_least_s_min",
+      "report": [
+        "raw_invalid",
+        "short_segments",
+        "other_exclusions",
+        "warmup",
+        "target_tail",
+        "scale_invalid",
+        "target_coverage_per_horizon"
+      ]
+    },
+    "metrics": {
+      "primary": "anchor_palm_normalized_3d_mpjpe",
+      "secondary": [
+        "camera_3d_mpjpe_mm",
+        "wrist_displacement_error_mm",
+        "wrist_relative_finger_error_mm",
+        "per_anchor_error_p95"
+      ],
+      "primary_aggregation": "equal_sequence_then_equal_50_100ms",
+      "also_report": [
+        "each_horizon",
+        "frame_weighted",
+        "per_sequence",
+        "per_subject",
+        "coverage",
+        "failure_cases"
+      ],
+      "model_selection_split": "val",
+      "uncertainty_unit": "subject_or_session_not_frame"
+    },
+    "future_M2": {
+      "routes": [
+        "A_9_to_9",
+        "B_21_to_9",
+        "C_21_to_21_then_map"
+      ],
+      "reference": "interpolate_pose_then_same_causal_gesture_state_and_mapping",
+      "fractional_query": "advance_debounce_only_at_grid_times_not_after_query_time",
+      "B_residual_base": "current_pose_mapped_to_9_channels",
+      "comparison_gate": "raw_predictions_first"
+    },
+    "future_camera_task": {
+      "task_id": "camera_mediapipe_image_xyz",
+      "data_role": "existing_V1_V7_development_only",
+      "independent_evaluation_data": "not_yet_available",
+      "h2o_checkpoint_direct_load": false
+    },
+    "acceptance_gaps": {
+      "official_pose_90_percent_definition": "pending_owner_definition_threshold_denominator_data_and_device",
+      "working_pose_metric": "PCK_20px_all_GT_with_5_10_30px_MPJPE_completeness",
+      "detection_latency": "P50_P95_max_and_fraction_above_50ms_full_detection_and_hand_selection",
+      "device_target": "HoloLens2",
+      "device_available": null,
+      "os_sdk_inference_backend": null,
+      "system_100ms": "collaborator_joint_acceptance_not_local_AI_claim"
+    }
+  },
+  "camera_inventory": {
+    "root": "D:\\HandAiVideos\\camera_domain_dev_v1",
+    "scope": "container_metadata_only_not_full_decode_or_PTS_validation",
+    "participant_session_ids": "not_established_by_this_inventory",
+    "files": [
+      {
+        "file": "mirror_check.mp4",
+        "opened": true,
+        "nominal_fps": 29.146050760201117,
+        "container_frame_count": 97,
+        "nominal_duration_s": 3.328066666666667,
+        "width": 1920,
+        "height": 1080,
+        "role": "pilot_or_mirror_check"
+      },
+      {
+        "file": "v1.mp4",
+        "opened": true,
+        "nominal_fps": 29.92657147029101,
+        "container_frame_count": 690,
+        "nominal_duration_s": 23.056433333333334,
+        "width": 1920,
+        "height": 1080,
+        "role": "historical_development"
+      },
+      {
+        "file": "v1_pilot.mp4",
+        "opened": true,
+        "nominal_fps": 30.00204117558754,
+        "container_frame_count": 926,
+        "nominal_duration_s": 30.86456666666667,
+        "width": 1920,
+        "height": 1080,
+        "role": "pilot_or_mirror_check"
+      },
+      {
+        "file": "v2.mp4",
+        "opened": true,
+        "nominal_fps": 29.913646411475643,
+        "container_frame_count": 627,
+        "nominal_duration_s": 20.960333333333335,
+        "width": 1920,
+        "height": 1080,
+        "role": "historical_development"
+      },
+      {
+        "file": "v3.mp4",
+        "opened": true,
+        "nominal_fps": 29.94222415901711,
+        "container_frame_count": 710,
+        "nominal_duration_s": 23.712333333333333,
+        "width": 1920,
+        "height": 1080,
+        "role": "historical_development"
+      },
+      {
+        "file": "v4.mp4",
+        "opened": true,
+        "nominal_fps": 30.0190694908651,
+        "container_frame_count": 488,
+        "nominal_duration_s": 16.256333333333334,
+        "width": 1920,
+        "height": 1080,
+        "role": "historical_development"
+      },
+      {
+        "file": "v5.mp4",
+        "opened": true,
+        "nominal_fps": 29.995865672473297,
+        "container_frame_count": 682,
+        "nominal_duration_s": 22.736466666666665,
+        "width": 1920,
+        "height": 1080,
+        "role": "historical_development"
+      },
+      {
+        "file": "v6.mp4",
+        "opened": true,
+        "nominal_fps": 29.952249377512143,
+        "container_frame_count": 658,
+        "nominal_duration_s": 21.9683,
+        "width": 1920,
+        "height": 1080,
+        "role": "historical_development"
+      },
+      {
+        "file": "v7.mp4",
+        "opened": true,
+        "nominal_fps": 29.964051171851466,
+        "container_frame_count": 746,
+        "nominal_duration_s": 24.8965,
+        "width": 1920,
+        "height": 1080,
+        "role": "historical_development"
+      }
+    ]
+  }
+}

@@ -1,0 +1,1748 @@
+{
+  "schema_version": "keypoint-m1-report-v1",
+  "status": "completed",
+  "task_id": "h2o_camera3d_right21",
+  "created_at_utc": "2026-09-18T09:19:46.013408+00:00",
+  "data_root": "D:\\VR\\HandAi\\single-hand-teleop-baseline\\outputs\\m1_synthetic\\20260918T091943_772054Z\\synthetic_input",
+  "synthetic": true,
+  "evidence_scope": "非空合成数据链路自检",
+  "effective_config": {
+    "schema_version": "keypoint-run-v1",
+    "task_spec": "keypoint_m0.json",
+    "run_purpose": "M1_single_seed_H2O_pilot_not_algorithm_acceptance",
+    "seed": 20260918,
+    "sampling": {
+      "sequences_per_subject": 4,
+      "windows_per_sequence": 256
+    },
+    "linear_fit_frames_candidates": [
+      2,
+      4,
+      8
+    ],
+    "architecture": {
+      "residual_gru": {
+        "hidden_size": 64,
+        "layers": 1,
+        "dropout": 0.0,
+        "max_delta": null
+      }
+    },
+    "training": {
+      "device": "auto",
+      "epochs": 2,
+      "patience": 2,
+      "batch_size": 128,
+      "learning_rate": 0.001,
+      "weight_decay": 0.0001,
+      "gradient_clip": 1.0,
+      "loss": {
+        "smooth_l1_beta": 0.03,
+        "motion_weight": 0.0
+      },
+      "validation_metric": "sequence_equal_normalized_mpjpe_mean_50_100ms"
+    }
+  },
+  "task": {
+    "schema_version": "keypoint-experiment-spec-v1",
+    "status": "M1_experiment",
+    "training_runner_support": "run_second_round_with_keypoint_run_v1",
+    "task_id": "h2o_camera3d_right21",
+    "data": {
+      "path_base": "subproject_root",
+      "raw_root": "../datasets/H2O/raw",
+      "processed_root": "../datasets/H2O/processed/cross_subject_v2_open_release",
+      "input_key": "landmarks_3d",
+      "target_key": "landmarks_3d",
+      "legacy_min_segment_frames": 40,
+      "legacy_2d": "camera_xy_wrist_origin_palm_scale_not_image_projection",
+      "legacy_9ch": "historical_proxy_only_not_new_M2_reference"
+    },
+    "coordinates": {
+      "frame": "cam4_camera",
+      "axes": [
+        "x_camera_right",
+        "y_camera_down",
+        "z_camera_forward"
+      ],
+      "raw_unit": "m",
+      "hand": "right",
+      "joint_order": [
+        "wrist",
+        "thumb_cmc",
+        "thumb_mcp",
+        "thumb_ip",
+        "thumb_tip",
+        "index_mcp",
+        "index_pip",
+        "index_dip",
+        "index_tip",
+        "middle_mcp",
+        "middle_pip",
+        "middle_dip",
+        "middle_tip",
+        "ring_mcp",
+        "ring_pip",
+        "ring_dip",
+        "ring_tip",
+        "little_mcp",
+        "little_pip",
+        "little_dip",
+        "little_tip"
+      ],
+      "permutation": "identity_openpose21",
+      "camera_mediapipe_image_xyz_compatible": false,
+      "sources": {
+        "units": "https://github.com/taeinkwon/h2odataset/issues/13#issuecomment-1241233736",
+        "order": "https://github.com/taeinkwon/h2odataset/issues/22#issuecomment-1735268412",
+        "camera_projection": "https://github.com/taeinkwon/h2oplayer/blob/main/h2oplayer.py",
+        "fps_and_annotation_limits": "https://arxiv.org/html/2104.11181v2"
+      }
+    },
+    "splits": {
+      "train": [
+        "subject1",
+        "subject2"
+      ],
+      "val": [
+        "subject3"
+      ],
+      "test": [
+        "subject4"
+      ]
+    },
+    "split_policy": "custom_cross_subject_before_windowing",
+    "split_roles": {
+      "train": "fit",
+      "val": "selection",
+      "test": "historical_reevaluation_not_unseen_test"
+    },
+    "normalization": {
+      "method": "anchor_wrist_and_scale_shared_by_history_and_future",
+      "wrist_index": 0,
+      "palm_length_indices": [
+        0,
+        9
+      ],
+      "fallback_width_indices": [
+        5,
+        17
+      ],
+      "s_min_fit_split": "train",
+      "s_min_fraction_of_positive_palm_median": 0.01,
+      "s_min_value_location": "audit_report.normalization.s_min_m",
+      "formula": "q(tau)=(p(tau)-p_wrist(t_anchor))/s(t_anchor)",
+      "inverse": "p(tau)=q(tau)*s(t_anchor)+p_wrist(t_anchor)",
+      "future_wrist_or_scale_used": false,
+      "rotation_alignment": false,
+      "clip_to_0_1": false
+    },
+    "time": {
+      "fps": 30.0,
+      "timestamp_key": "timestamps_s",
+      "timestamp_origin": "frame_id_divided_by_nominal_fps_not_sensor_capture_time",
+      "history_frames": 30,
+      "anchor_stride": 1,
+      "forecast_steps": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "evaluation_horizons_ms": [
+        50,
+        100,
+        150
+      ],
+      "input_resampling": "past_brackets_only_with_both_observations_available_by_anchor",
+      "target_resampling": "linear_pose_interpolation_in_timestamps_s",
+      "max_label_gap_s": 0.06666666666666667,
+      "cross_explicit_invalid_segment": false,
+      "missing_bracket": "mask_target_and_required_gesture_path",
+      "save_target_bracket_times": true
+    },
+    "masks": {
+      "annotation": "raw_right_hand_flag_1_and_finite_xyz",
+      "per_joint_visibility_available": false,
+      "per_joint_confidence_available": false,
+      "input": "observed_annotation_validity_independent_of_target",
+      "target": "valid_annotation_brackets_and_gap_rule_per_horizon",
+      "invalid_anchor": "nonfinite_wrist_or_no_finite_scale_at_least_s_min",
+      "report": [
+        "raw_invalid",
+        "short_segments",
+        "other_exclusions",
+        "warmup",
+        "target_tail",
+        "scale_invalid",
+        "target_coverage_per_horizon"
+      ]
+    },
+    "metrics": {
+      "primary": "anchor_palm_normalized_3d_mpjpe",
+      "secondary": [
+        "camera_3d_mpjpe_mm",
+        "wrist_displacement_error_mm",
+        "wrist_relative_finger_error_mm",
+        "per_anchor_error_p95"
+      ],
+      "primary_aggregation": "equal_sequence_then_equal_50_100ms",
+      "also_report": [
+        "each_horizon",
+        "frame_weighted",
+        "per_sequence",
+        "per_subject",
+        "coverage",
+        "failure_cases"
+      ],
+      "model_selection_split": "val",
+      "uncertainty_unit": "subject_or_session_not_frame"
+    },
+    "future_M2": {
+      "routes": [
+        "A_9_to_9",
+        "B_21_to_9",
+        "C_21_to_21_then_map"
+      ],
+      "reference": "interpolate_pose_then_same_causal_gesture_state_and_mapping",
+      "fractional_query": "advance_debounce_only_at_grid_times_not_after_query_time",
+      "B_residual_base": "current_pose_mapped_to_9_channels",
+      "comparison_gate": "raw_predictions_first"
+    },
+    "future_camera_task": {
+      "task_id": "camera_mediapipe_image_xyz",
+      "data_role": "existing_V1_V7_development_only",
+      "independent_evaluation_data": "not_yet_available",
+      "h2o_checkpoint_direct_load": false
+    },
+    "acceptance_gaps": {
+      "official_pose_90_percent_definition": "pending_owner_definition_threshold_denominator_data_and_device",
+      "working_pose_metric": "PCK_20px_all_GT_with_5_10_30px_MPJPE_completeness",
+      "detection_latency": "P50_P95_max_and_fraction_above_50ms_full_detection_and_hand_selection",
+      "device_target": "HoloLens2",
+      "device_available": null,
+      "os_sdk_inference_backend": null,
+      "system_100ms": "collaborator_joint_acceptance_not_local_AI_claim"
+    }
+  },
+  "normalization": {
+    "fit_split": "train",
+    "fit_scope": "all_training_sequences_before_pilot_subsampling",
+    "positive_frames": 200,
+    "palm_median_m": 0.0400000000372529,
+    "s_min_m": 0.000400000000372529
+  },
+  "windows": {
+    "train": {
+      "sampled": 142,
+      "split": "train",
+      "counts_before_window_subsampling": {
+        "source_frames": 200,
+        "input_missing_frames": 0,
+        "anchors_considered": 200,
+        "warmup_or_segment_boundary": 58,
+        "history_ready": 142,
+        "width_fallback": 0,
+        "no_supervision": 2,
+        "full_future_path": 132,
+        "target_50ms_complete": 138,
+        "target_50ms_points": 2898,
+        "target_100ms_complete": 136,
+        "target_100ms_points": 2856,
+        "target_150ms_complete": 132,
+        "target_150ms_points": 2772,
+        "sampled_windows": 142
+      },
+      "sequences": [
+        {
+          "sequence_id": "synthetic_keypoint_subject1",
+          "subject": "subject1",
+          "source_frames": 100,
+          "input_missing_frames": 0,
+          "anchors_considered": 100,
+          "warmup_or_segment_boundary": 29,
+          "history_ready": 71,
+          "width_fallback": 0,
+          "no_supervision": 1,
+          "full_future_path": 66,
+          "target_50ms_complete": 69,
+          "target_50ms_points": 1449,
+          "target_100ms_complete": 68,
+          "target_100ms_points": 1428,
+          "target_150ms_complete": 66,
+          "target_150ms_points": 1386,
+          "sampled_windows": 71
+        },
+        {
+          "sequence_id": "synthetic_keypoint_subject2",
+          "subject": "subject2",
+          "source_frames": 100,
+          "input_missing_frames": 0,
+          "anchors_considered": 100,
+          "warmup_or_segment_boundary": 29,
+          "history_ready": 71,
+          "width_fallback": 0,
+          "no_supervision": 1,
+          "full_future_path": 66,
+          "target_50ms_complete": 69,
+          "target_50ms_points": 1449,
+          "target_100ms_complete": 68,
+          "target_100ms_points": 1428,
+          "target_150ms_complete": 66,
+          "target_150ms_points": 1386,
+          "sampled_windows": 71
+        }
+      ]
+    },
+    "val": {
+      "sampled": 71,
+      "split": "val",
+      "counts_before_window_subsampling": {
+        "source_frames": 100,
+        "input_missing_frames": 0,
+        "anchors_considered": 100,
+        "warmup_or_segment_boundary": 29,
+        "history_ready": 71,
+        "width_fallback": 0,
+        "no_supervision": 1,
+        "full_future_path": 66,
+        "target_50ms_complete": 69,
+        "target_50ms_points": 1449,
+        "target_100ms_complete": 68,
+        "target_100ms_points": 1428,
+        "target_150ms_complete": 66,
+        "target_150ms_points": 1386,
+        "sampled_windows": 71
+      },
+      "sequences": [
+        {
+          "sequence_id": "synthetic_keypoint_subject3",
+          "subject": "subject3",
+          "source_frames": 100,
+          "input_missing_frames": 0,
+          "anchors_considered": 100,
+          "warmup_or_segment_boundary": 29,
+          "history_ready": 71,
+          "width_fallback": 0,
+          "no_supervision": 1,
+          "full_future_path": 66,
+          "target_50ms_complete": 69,
+          "target_50ms_points": 1449,
+          "target_100ms_complete": 68,
+          "target_100ms_points": 1428,
+          "target_150ms_complete": 66,
+          "target_150ms_points": 1386,
+          "sampled_windows": 71
+        }
+      ]
+    },
+    "test": {
+      "sampled": 71,
+      "split": "test",
+      "counts_before_window_subsampling": {
+        "source_frames": 100,
+        "input_missing_frames": 0,
+        "anchors_considered": 100,
+        "warmup_or_segment_boundary": 29,
+        "history_ready": 71,
+        "width_fallback": 0,
+        "no_supervision": 1,
+        "full_future_path": 66,
+        "target_50ms_complete": 69,
+        "target_50ms_points": 1449,
+        "target_100ms_complete": 68,
+        "target_100ms_points": 1428,
+        "target_150ms_complete": 66,
+        "target_150ms_points": 1386,
+        "sampled_windows": 71
+      },
+      "sequences": [
+        {
+          "sequence_id": "synthetic_keypoint_subject4",
+          "subject": "subject4",
+          "source_frames": 100,
+          "input_missing_frames": 0,
+          "anchors_considered": 100,
+          "warmup_or_segment_boundary": 29,
+          "history_ready": 71,
+          "width_fallback": 0,
+          "no_supervision": 1,
+          "full_future_path": 66,
+          "target_50ms_complete": 69,
+          "target_50ms_points": 1449,
+          "target_100ms_complete": 68,
+          "target_100ms_points": 1428,
+          "target_150ms_complete": 66,
+          "target_150ms_points": 1386,
+          "sampled_windows": 71
+        }
+      ]
+    }
+  },
+  "selection": {
+    "split": "val",
+    "selected_label": "linear",
+    "linear_fit_frames": 2,
+    "linear_validation_scores": {
+      "2": 0.0022383380797811403,
+      "4": 0.0035239270284732507,
+      "8": 0.006142947675142444
+    }
+  },
+  "results": {
+    "hold_last": {
+      "validation": {
+        "selection_metric": "sequence_equal_normalized_mpjpe_mean_50_100ms",
+        "selection_score": 0.048667264380320915,
+        "per_horizon_ms": {
+          "50": {
+            "normalized_mpjpe": {
+              "sequence_equal_mean": 0.03246504094163713,
+              "frame_mean": 0.03246504094163713,
+              "frame_p95": 0.04858711397899016,
+              "frames": 69,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 0.03246504094163713
+              }
+            },
+            "mpjpe_mm": {
+              "sequence_equal_mean": 1.2986016391818147,
+              "frame_mean": 1.2986016391818147,
+              "frame_p95": 1.9434845609696174,
+              "frames": 69,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 1.2986016391818147
+              }
+            },
+            "wrist_error_mm": {
+              "sequence_equal_mean": 1.2986016894456702,
+              "frame_mean": 1.2986016894456702,
+              "frame_p95": 1.9434845875533169,
+              "frames": 69,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 1.2986016894456702
+              }
+            },
+            "relative_finger_error_mm": {
+              "sequence_equal_mean": 2.199772642607817e-05,
+              "frame_mean": 2.199772642607817e-05,
+              "frame_p95": 3.80873892348128e-05,
+              "frames": 69,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 2.199772642607817e-05
+              }
+            },
+            "coverage": {
+              "eligible_input_windows": 71,
+              "valid_target_points": 1449,
+              "possible_target_points": 1491,
+              "point_fraction": 0.971830985915493,
+              "complete_target_frames": 69,
+              "complete_target_fraction": 0.971830985915493
+            },
+            "per_subject_normalized_mpjpe": {
+              "subject3": 0.03246504094163713
+            }
+          },
+          "100": {
+            "normalized_mpjpe": {
+              "sequence_equal_mean": 0.0648694878190047,
+              "frame_mean": 0.0648694878190047,
+              "frame_p95": 0.09714435328633016,
+              "frames": 68,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 0.0648694878190047
+              }
+            },
+            "mpjpe_mm": {
+              "sequence_equal_mean": 2.594779514499045,
+              "frame_mean": 2.594779514499045,
+              "frame_p95": 3.8857741350721153,
+              "frames": 68,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 2.594779514499045
+              }
+            },
+            "wrist_error_mm": {
+              "sequence_equal_mean": 2.5947793833286252,
+              "frame_mean": 2.5947793833286252,
+              "frame_p95": 3.885781173590076,
+              "frames": 68,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 2.5947793833286252
+              }
+            },
+            "relative_finger_error_mm": {
+              "sequence_equal_mean": 1.7230257468601607e-05,
+              "frame_mean": 1.7230257468601607e-05,
+              "frame_p95": 4.551494556452176e-05,
+              "frames": 68,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 1.7230257468601607e-05
+              }
+            },
+            "coverage": {
+              "eligible_input_windows": 71,
+              "valid_target_points": 1428,
+              "possible_target_points": 1491,
+              "point_fraction": 0.9577464788732394,
+              "complete_target_frames": 68,
+              "complete_target_fraction": 0.9577464788732394
+            },
+            "per_subject_normalized_mpjpe": {
+              "subject3": 0.0648694878190047
+            }
+          },
+          "150": {
+            "normalized_mpjpe": {
+              "sequence_equal_mean": 0.09659554053459328,
+              "frame_mean": 0.09659554053459328,
+              "frame_p95": 0.14556622171742795,
+              "frames": 66,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 0.09659554053459328
+              }
+            },
+            "mpjpe_mm": {
+              "sequence_equal_mean": 3.8638216219278854,
+              "frame_mean": 3.8638216219278854,
+              "frame_p95": 5.822648840232454,
+              "frames": 66,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 3.8638216219278854
+              }
+            },
+            "wrist_error_mm": {
+              "sequence_equal_mean": 3.8638218118286765,
+              "frame_mean": 3.8638218118286765,
+              "frame_p95": 5.822649982053596,
+              "frames": 66,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 3.8638218118286765
+              }
+            },
+            "relative_finger_error_mm": {
+              "sequence_equal_mean": 1.650162165392891e-05,
+              "frame_mean": 1.650162165392891e-05,
+              "frame_p95": 2.4595830477946677e-05,
+              "frames": 66,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 1.650162165392891e-05
+              }
+            },
+            "coverage": {
+              "eligible_input_windows": 71,
+              "valid_target_points": 1386,
+              "possible_target_points": 1491,
+              "point_fraction": 0.9295774647887324,
+              "complete_target_frames": 66,
+              "complete_target_fraction": 0.9295774647887324
+            },
+            "per_subject_normalized_mpjpe": {
+              "subject3": 0.09659554053459328
+            }
+          }
+        },
+        "worst_anchors": [
+          {
+            "sequence_id": "synthetic_keypoint_subject3",
+            "anchor_frame_id": 92,
+            "anchor_time_s": 3.066666666666667,
+            "horizon_ms": 150,
+            "normalized_mpjpe": 0.14602722715800007,
+            "mpjpe_mm": 5.841089227758394,
+            "valid_joints": 21
+          },
+          {
+            "sequence_id": "synthetic_keypoint_subject3",
+            "anchor_frame_id": 91,
+            "anchor_time_s": 3.033333333333333,
+            "horizon_ms": 150,
+            "normalized_mpjpe": 0.14591706705294885,
+            "mpjpe_mm": 5.836682687553789,
+            "valid_joints": 21
+          },
+          {
+            "sequence_id": "synthetic_keypoint_subject3",
+            "anchor_frame_id": 93,
+            "anchor_time_s": 3.1,
+            "horizon_ms": 150,
+            "normalized_mpjpe": 0.14590304276476718,
+            "mpjpe_mm": 5.836121580143201,
+            "valid_joints": 21
+          },
+          {
+            "sequence_id": "synthetic_keypoint_subject3",
+            "anchor_frame_id": 90,
+            "anchor_time_s": 3.0,
+            "horizon_ms": 150,
+            "normalized_mpjpe": 0.14557316440031162,
+            "mpjpe_mm": 5.822926581435488,
+            "valid_joints": 21
+          },
+          {
+            "sequence_id": "synthetic_keypoint_subject3",
+            "anchor_frame_id": 94,
+            "anchor_time_s": 3.1333333333333333,
+            "horizon_ms": 150,
+            "normalized_mpjpe": 0.14554539366877686,
+            "mpjpe_mm": 5.821815616623352,
+            "valid_joints": 21
+          }
+        ],
+        "coverage_scope": "sampled_history_valid_windows_including_missing_future_labels",
+        "full_future_path_fraction": 0.9295774647887324
+      },
+      "historical_reevaluation": {
+        "selection_metric": "sequence_equal_normalized_mpjpe_mean_50_100ms",
+        "selection_score": 0.048667264380320915,
+        "per_horizon_ms": {
+          "50": {
+            "normalized_mpjpe": {
+              "sequence_equal_mean": 0.03246504094163713,
+              "frame_mean": 0.03246504094163713,
+              "frame_p95": 0.04858711397899016,
+              "frames": 69,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 0.03246504094163713
+              }
+            },
+            "mpjpe_mm": {
+              "sequence_equal_mean": 1.2986016391818147,
+              "frame_mean": 1.2986016391818147,
+              "frame_p95": 1.9434845609696174,
+              "frames": 69,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 1.2986016391818147
+              }
+            },
+            "wrist_error_mm": {
+              "sequence_equal_mean": 1.2986016894456702,
+              "frame_mean": 1.2986016894456702,
+              "frame_p95": 1.9434845875533169,
+              "frames": 69,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 1.2986016894456702
+              }
+            },
+            "relative_finger_error_mm": {
+              "sequence_equal_mean": 2.199772642607817e-05,
+              "frame_mean": 2.199772642607817e-05,
+              "frame_p95": 3.80873892348128e-05,
+              "frames": 69,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 2.199772642607817e-05
+              }
+            },
+            "coverage": {
+              "eligible_input_windows": 71,
+              "valid_target_points": 1449,
+              "possible_target_points": 1491,
+              "point_fraction": 0.971830985915493,
+              "complete_target_frames": 69,
+              "complete_target_fraction": 0.971830985915493
+            },
+            "per_subject_normalized_mpjpe": {
+              "subject4": 0.03246504094163713
+            }
+          },
+          "100": {
+            "normalized_mpjpe": {
+              "sequence_equal_mean": 0.0648694878190047,
+              "frame_mean": 0.0648694878190047,
+              "frame_p95": 0.09714435328633016,
+              "frames": 68,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 0.0648694878190047
+              }
+            },
+            "mpjpe_mm": {
+              "sequence_equal_mean": 2.594779514499045,
+              "frame_mean": 2.594779514499045,
+              "frame_p95": 3.8857741350721153,
+              "frames": 68,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 2.594779514499045
+              }
+            },
+            "wrist_error_mm": {
+              "sequence_equal_mean": 2.5947793833286252,
+              "frame_mean": 2.5947793833286252,
+              "frame_p95": 3.885781173590076,
+              "frames": 68,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 2.5947793833286252
+              }
+            },
+            "relative_finger_error_mm": {
+              "sequence_equal_mean": 1.7230257468601607e-05,
+              "frame_mean": 1.7230257468601607e-05,
+              "frame_p95": 4.551494556452176e-05,
+              "frames": 68,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 1.7230257468601607e-05
+              }
+            },
+            "coverage": {
+              "eligible_input_windows": 71,
+              "valid_target_points": 1428,
+              "possible_target_points": 1491,
+              "point_fraction": 0.9577464788732394,
+              "complete_target_frames": 68,
+              "complete_target_fraction": 0.9577464788732394
+            },
+            "per_subject_normalized_mpjpe": {
+              "subject4": 0.0648694878190047
+            }
+          },
+          "150": {
+            "normalized_mpjpe": {
+              "sequence_equal_mean": 0.09659554053459328,
+              "frame_mean": 0.09659554053459328,
+              "frame_p95": 0.14556622171742795,
+              "frames": 66,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 0.09659554053459328
+              }
+            },
+            "mpjpe_mm": {
+              "sequence_equal_mean": 3.8638216219278854,
+              "frame_mean": 3.8638216219278854,
+              "frame_p95": 5.822648840232454,
+              "frames": 66,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 3.8638216219278854
+              }
+            },
+            "wrist_error_mm": {
+              "sequence_equal_mean": 3.8638218118286765,
+              "frame_mean": 3.8638218118286765,
+              "frame_p95": 5.822649982053596,
+              "frames": 66,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 3.8638218118286765
+              }
+            },
+            "relative_finger_error_mm": {
+              "sequence_equal_mean": 1.650162165392891e-05,
+              "frame_mean": 1.650162165392891e-05,
+              "frame_p95": 2.4595830477946677e-05,
+              "frames": 66,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 1.650162165392891e-05
+              }
+            },
+            "coverage": {
+              "eligible_input_windows": 71,
+              "valid_target_points": 1386,
+              "possible_target_points": 1491,
+              "point_fraction": 0.9295774647887324,
+              "complete_target_frames": 66,
+              "complete_target_fraction": 0.9295774647887324
+            },
+            "per_subject_normalized_mpjpe": {
+              "subject4": 0.09659554053459328
+            }
+          }
+        },
+        "worst_anchors": [
+          {
+            "sequence_id": "synthetic_keypoint_subject4",
+            "anchor_frame_id": 92,
+            "anchor_time_s": 3.066666666666667,
+            "horizon_ms": 150,
+            "normalized_mpjpe": 0.14602722715800007,
+            "mpjpe_mm": 5.841089227758394,
+            "valid_joints": 21
+          },
+          {
+            "sequence_id": "synthetic_keypoint_subject4",
+            "anchor_frame_id": 91,
+            "anchor_time_s": 3.033333333333333,
+            "horizon_ms": 150,
+            "normalized_mpjpe": 0.14591706705294885,
+            "mpjpe_mm": 5.836682687553789,
+            "valid_joints": 21
+          },
+          {
+            "sequence_id": "synthetic_keypoint_subject4",
+            "anchor_frame_id": 93,
+            "anchor_time_s": 3.1,
+            "horizon_ms": 150,
+            "normalized_mpjpe": 0.14590304276476718,
+            "mpjpe_mm": 5.836121580143201,
+            "valid_joints": 21
+          },
+          {
+            "sequence_id": "synthetic_keypoint_subject4",
+            "anchor_frame_id": 90,
+            "anchor_time_s": 3.0,
+            "horizon_ms": 150,
+            "normalized_mpjpe": 0.14557316440031162,
+            "mpjpe_mm": 5.822926581435488,
+            "valid_joints": 21
+          },
+          {
+            "sequence_id": "synthetic_keypoint_subject4",
+            "anchor_frame_id": 94,
+            "anchor_time_s": 3.1333333333333333,
+            "horizon_ms": 150,
+            "normalized_mpjpe": 0.14554539366877686,
+            "mpjpe_mm": 5.821815616623352,
+            "valid_joints": 21
+          }
+        ],
+        "coverage_scope": "sampled_history_valid_windows_including_missing_future_labels",
+        "full_future_path_fraction": 0.9295774647887324
+      }
+    },
+    "linear": {
+      "validation": {
+        "selection_metric": "sequence_equal_normalized_mpjpe_mean_50_100ms",
+        "selection_score": 0.0022383380797811403,
+        "per_horizon_ms": {
+          "50": {
+            "normalized_mpjpe": {
+              "sequence_equal_mean": 0.0011193494662555341,
+              "frame_mean": 0.0011193494662555341,
+              "frame_p95": 0.0018048698595434912,
+              "frames": 69,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 0.0011193494662555341
+              }
+            },
+            "mpjpe_mm": {
+              "sequence_equal_mean": 0.04477397875952579,
+              "frame_mean": 0.04477397875952579,
+              "frame_p95": 0.07219479343909521,
+              "frames": 69,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 0.04477397875952579
+              }
+            },
+            "wrist_error_mm": {
+              "sequence_equal_mean": 0.044773973150905845,
+              "frame_mean": 0.044773973150905845,
+              "frame_p95": 0.07219781048954975,
+              "frames": 69,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 0.044773973150905845
+              }
+            },
+            "relative_finger_error_mm": {
+              "sequence_equal_mean": 6.046691285168205e-05,
+              "frame_mean": 6.046691285168205e-05,
+              "frame_p95": 8.434020216322184e-05,
+              "frames": 69,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 6.046691285168205e-05
+              }
+            },
+            "coverage": {
+              "eligible_input_windows": 71,
+              "valid_target_points": 1449,
+              "possible_target_points": 1491,
+              "point_fraction": 0.971830985915493,
+              "complete_target_frames": 69,
+              "complete_target_fraction": 0.971830985915493
+            },
+            "per_subject_normalized_mpjpe": {
+              "subject3": 0.0011193494662555341
+            }
+          },
+          "100": {
+            "normalized_mpjpe": {
+              "sequence_equal_mean": 0.0033573266933067465,
+              "frame_mean": 0.0033573266933067465,
+              "frame_p95": 0.005412573430892783,
+              "frames": 68,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 0.0033573266933067465
+              }
+            },
+            "mpjpe_mm": {
+              "sequence_equal_mean": 0.13429306801651889,
+              "frame_mean": 0.13429306801651889,
+              "frame_p95": 0.2165029407215225,
+              "frames": 68,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 0.13429306801651889
+              }
+            },
+            "wrist_error_mm": {
+              "sequence_equal_mean": 0.13429315558741806,
+              "frame_mean": 0.13429315558741806,
+              "frame_p95": 0.21649867776515286,
+              "frames": 68,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 0.13429315558741806
+              }
+            },
+            "relative_finger_error_mm": {
+              "sequence_equal_mean": 9.439353431107217e-05,
+              "frame_mean": 9.439353431107217e-05,
+              "frame_p95": 0.00011594467559888365,
+              "frames": 68,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 9.439353431107217e-05
+              }
+            },
+            "coverage": {
+              "eligible_input_windows": 71,
+              "valid_target_points": 1428,
+              "possible_target_points": 1491,
+              "point_fraction": 0.9577464788732394,
+              "complete_target_frames": 68,
+              "complete_target_fraction": 0.9577464788732394
+            },
+            "per_subject_normalized_mpjpe": {
+              "subject3": 0.0033573266933067465
+            }
+          },
+          "150": {
+            "normalized_mpjpe": {
+              "sequence_equal_mean": 0.007023579830126683,
+              "frame_mean": 0.007023579830126683,
+              "frame_p95": 0.011255646409075084,
+              "frames": 66,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 0.007023579830126683
+              }
+            },
+            "mpjpe_mm": {
+              "sequence_equal_mean": 0.28094319369459364,
+              "frame_mean": 0.28094319369459364,
+              "frame_p95": 0.4502258593982377,
+              "frames": 66,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 0.28094319369459364
+              }
+            },
+            "wrist_error_mm": {
+              "sequence_equal_mean": 0.28094330278387464,
+              "frame_mean": 0.28094330278387464,
+              "frame_p95": 0.4502232212405585,
+              "frames": 66,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 0.28094330278387464
+              }
+            },
+            "relative_finger_error_mm": {
+              "sequence_equal_mean": 0.00013545355999642204,
+              "frame_mean": 0.00013545355999642204,
+              "frame_p95": 0.00017991696109932807,
+              "frames": 66,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 0.00013545355999642204
+              }
+            },
+            "coverage": {
+              "eligible_input_windows": 71,
+              "valid_target_points": 1386,
+              "possible_target_points": 1491,
+              "point_fraction": 0.9295774647887324,
+              "complete_target_frames": 66,
+              "complete_target_fraction": 0.9295774647887324
+            },
+            "per_subject_normalized_mpjpe": {
+              "subject3": 0.007023579830126683
+            }
+          }
+        },
+        "worst_anchors": [
+          {
+            "sequence_id": "synthetic_keypoint_subject3",
+            "anchor_frame_id": 70,
+            "anchor_time_s": 2.3333333333333335,
+            "horizon_ms": 150,
+            "normalized_mpjpe": 0.011344685561349113,
+            "mpjpe_mm": 0.45378742287658697,
+            "valid_joints": 21
+          },
+          {
+            "sequence_id": "synthetic_keypoint_subject3",
+            "anchor_frame_id": 69,
+            "anchor_time_s": 2.3,
+            "horizon_ms": 150,
+            "normalized_mpjpe": 0.011327586528601297,
+            "mpjpe_mm": 0.4531034510164003,
+            "valid_joints": 21
+          },
+          {
+            "sequence_id": "synthetic_keypoint_subject3",
+            "anchor_frame_id": 71,
+            "anchor_time_s": 2.3666666666666667,
+            "horizon_ms": 150,
+            "normalized_mpjpe": 0.011313707623827505,
+            "mpjpe_mm": 0.45254830537456864,
+            "valid_joints": 21
+          },
+          {
+            "sequence_id": "synthetic_keypoint_subject3",
+            "anchor_frame_id": 68,
+            "anchor_time_s": 2.2666666666666666,
+            "horizon_ms": 150,
+            "normalized_mpjpe": 0.011262418864824306,
+            "mpjpe_mm": 0.45049675501253,
+            "valid_joints": 21
+          },
+          {
+            "sequence_id": "synthetic_keypoint_subject3",
+            "anchor_frame_id": 72,
+            "anchor_time_s": 2.4,
+            "horizon_ms": 150,
+            "normalized_mpjpe": 0.011235329041827419,
+            "mpjpe_mm": 0.44941317255536095,
+            "valid_joints": 21
+          }
+        ],
+        "coverage_scope": "sampled_history_valid_windows_including_missing_future_labels",
+        "full_future_path_fraction": 0.9295774647887324
+      },
+      "historical_reevaluation": {
+        "selection_metric": "sequence_equal_normalized_mpjpe_mean_50_100ms",
+        "selection_score": 0.0022383380797811403,
+        "per_horizon_ms": {
+          "50": {
+            "normalized_mpjpe": {
+              "sequence_equal_mean": 0.0011193494662555341,
+              "frame_mean": 0.0011193494662555341,
+              "frame_p95": 0.0018048698595434912,
+              "frames": 69,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 0.0011193494662555341
+              }
+            },
+            "mpjpe_mm": {
+              "sequence_equal_mean": 0.04477397875952579,
+              "frame_mean": 0.04477397875952579,
+              "frame_p95": 0.07219479343909521,
+              "frames": 69,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 0.04477397875952579
+              }
+            },
+            "wrist_error_mm": {
+              "sequence_equal_mean": 0.044773973150905845,
+              "frame_mean": 0.044773973150905845,
+              "frame_p95": 0.07219781048954975,
+              "frames": 69,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 0.044773973150905845
+              }
+            },
+            "relative_finger_error_mm": {
+              "sequence_equal_mean": 6.046691285168205e-05,
+              "frame_mean": 6.046691285168205e-05,
+              "frame_p95": 8.434020216322184e-05,
+              "frames": 69,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 6.046691285168205e-05
+              }
+            },
+            "coverage": {
+              "eligible_input_windows": 71,
+              "valid_target_points": 1449,
+              "possible_target_points": 1491,
+              "point_fraction": 0.971830985915493,
+              "complete_target_frames": 69,
+              "complete_target_fraction": 0.971830985915493
+            },
+            "per_subject_normalized_mpjpe": {
+              "subject4": 0.0011193494662555341
+            }
+          },
+          "100": {
+            "normalized_mpjpe": {
+              "sequence_equal_mean": 0.0033573266933067465,
+              "frame_mean": 0.0033573266933067465,
+              "frame_p95": 0.005412573430892783,
+              "frames": 68,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 0.0033573266933067465
+              }
+            },
+            "mpjpe_mm": {
+              "sequence_equal_mean": 0.13429306801651889,
+              "frame_mean": 0.13429306801651889,
+              "frame_p95": 0.2165029407215225,
+              "frames": 68,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 0.13429306801651889
+              }
+            },
+            "wrist_error_mm": {
+              "sequence_equal_mean": 0.13429315558741806,
+              "frame_mean": 0.13429315558741806,
+              "frame_p95": 0.21649867776515286,
+              "frames": 68,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 0.13429315558741806
+              }
+            },
+            "relative_finger_error_mm": {
+              "sequence_equal_mean": 9.439353431107217e-05,
+              "frame_mean": 9.439353431107217e-05,
+              "frame_p95": 0.00011594467559888365,
+              "frames": 68,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 9.439353431107217e-05
+              }
+            },
+            "coverage": {
+              "eligible_input_windows": 71,
+              "valid_target_points": 1428,
+              "possible_target_points": 1491,
+              "point_fraction": 0.9577464788732394,
+              "complete_target_frames": 68,
+              "complete_target_fraction": 0.9577464788732394
+            },
+            "per_subject_normalized_mpjpe": {
+              "subject4": 0.0033573266933067465
+            }
+          },
+          "150": {
+            "normalized_mpjpe": {
+              "sequence_equal_mean": 0.007023579830126683,
+              "frame_mean": 0.007023579830126683,
+              "frame_p95": 0.011255646409075084,
+              "frames": 66,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 0.007023579830126683
+              }
+            },
+            "mpjpe_mm": {
+              "sequence_equal_mean": 0.28094319369459364,
+              "frame_mean": 0.28094319369459364,
+              "frame_p95": 0.4502258593982377,
+              "frames": 66,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 0.28094319369459364
+              }
+            },
+            "wrist_error_mm": {
+              "sequence_equal_mean": 0.28094330278387464,
+              "frame_mean": 0.28094330278387464,
+              "frame_p95": 0.4502232212405585,
+              "frames": 66,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 0.28094330278387464
+              }
+            },
+            "relative_finger_error_mm": {
+              "sequence_equal_mean": 0.00013545355999642204,
+              "frame_mean": 0.00013545355999642204,
+              "frame_p95": 0.00017991696109932807,
+              "frames": 66,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 0.00013545355999642204
+              }
+            },
+            "coverage": {
+              "eligible_input_windows": 71,
+              "valid_target_points": 1386,
+              "possible_target_points": 1491,
+              "point_fraction": 0.9295774647887324,
+              "complete_target_frames": 66,
+              "complete_target_fraction": 0.9295774647887324
+            },
+            "per_subject_normalized_mpjpe": {
+              "subject4": 0.007023579830126683
+            }
+          }
+        },
+        "worst_anchors": [
+          {
+            "sequence_id": "synthetic_keypoint_subject4",
+            "anchor_frame_id": 70,
+            "anchor_time_s": 2.3333333333333335,
+            "horizon_ms": 150,
+            "normalized_mpjpe": 0.011344685561349113,
+            "mpjpe_mm": 0.45378742287658697,
+            "valid_joints": 21
+          },
+          {
+            "sequence_id": "synthetic_keypoint_subject4",
+            "anchor_frame_id": 69,
+            "anchor_time_s": 2.3,
+            "horizon_ms": 150,
+            "normalized_mpjpe": 0.011327586528601297,
+            "mpjpe_mm": 0.4531034510164003,
+            "valid_joints": 21
+          },
+          {
+            "sequence_id": "synthetic_keypoint_subject4",
+            "anchor_frame_id": 71,
+            "anchor_time_s": 2.3666666666666667,
+            "horizon_ms": 150,
+            "normalized_mpjpe": 0.011313707623827505,
+            "mpjpe_mm": 0.45254830537456864,
+            "valid_joints": 21
+          },
+          {
+            "sequence_id": "synthetic_keypoint_subject4",
+            "anchor_frame_id": 68,
+            "anchor_time_s": 2.2666666666666666,
+            "horizon_ms": 150,
+            "normalized_mpjpe": 0.011262418864824306,
+            "mpjpe_mm": 0.45049675501253,
+            "valid_joints": 21
+          },
+          {
+            "sequence_id": "synthetic_keypoint_subject4",
+            "anchor_frame_id": 72,
+            "anchor_time_s": 2.4,
+            "horizon_ms": 150,
+            "normalized_mpjpe": 0.011235329041827419,
+            "mpjpe_mm": 0.44941317255536095,
+            "valid_joints": 21
+          }
+        ],
+        "coverage_scope": "sampled_history_valid_windows_including_missing_future_labels",
+        "full_future_path_fraction": 0.9295774647887324
+      }
+    },
+    "residual_gru": {
+      "validation": {
+        "selection_metric": "sequence_equal_normalized_mpjpe_mean_50_100ms",
+        "selection_score": 0.02491158398210233,
+        "per_horizon_ms": {
+          "50": {
+            "normalized_mpjpe": {
+              "sequence_equal_mean": 0.019844431797631734,
+              "frame_mean": 0.019844431797631734,
+              "frame_p95": 0.025523664769190275,
+              "frames": 69,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 0.019844431797631734
+              }
+            },
+            "mpjpe_mm": {
+              "sequence_equal_mean": 0.7937772710360644,
+              "frame_mean": 0.7937772710360644,
+              "frame_p95": 1.0209465679476766,
+              "frames": 69,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 0.7937772710360644
+              }
+            },
+            "wrist_error_mm": {
+              "sequence_equal_mean": 0.7937775409295932,
+              "frame_mean": 0.7937775409295932,
+              "frame_p95": 1.020949747925955,
+              "frames": 69,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 0.7937775409295932
+              }
+            },
+            "relative_finger_error_mm": {
+              "sequence_equal_mean": 2.244444059449166e-05,
+              "frame_mean": 2.244444059449166e-05,
+              "frame_p95": 3.795618684557549e-05,
+              "frames": 69,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 2.244444059449166e-05
+              }
+            },
+            "coverage": {
+              "eligible_input_windows": 71,
+              "valid_target_points": 1449,
+              "possible_target_points": 1491,
+              "point_fraction": 0.971830985915493,
+              "complete_target_frames": 69,
+              "complete_target_fraction": 0.971830985915493
+            },
+            "per_subject_normalized_mpjpe": {
+              "subject3": 0.019844431797631734
+            }
+          },
+          "100": {
+            "normalized_mpjpe": {
+              "sequence_equal_mean": 0.029978736166572924,
+              "frame_mean": 0.029978736166572924,
+              "frame_p95": 0.06618592180125009,
+              "frames": 68,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 0.029978736166572924
+              }
+            },
+            "mpjpe_mm": {
+              "sequence_equal_mean": 1.199149448091177,
+              "frame_mean": 1.199149448091177,
+              "frame_p95": 2.647436855873281,
+              "frames": 68,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 1.199149448091177
+              }
+            },
+            "wrist_error_mm": {
+              "sequence_equal_mean": 1.199149495475512,
+              "frame_mean": 1.199149495475512,
+              "frame_p95": 2.6474331310569745,
+              "frames": 68,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 1.199149495475512
+              }
+            },
+            "relative_finger_error_mm": {
+              "sequence_equal_mean": 1.7595404100421284e-05,
+              "frame_mean": 1.7595404100421284e-05,
+              "frame_p95": 4.5654399769996695e-05,
+              "frames": 68,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 1.7595404100421284e-05
+              }
+            },
+            "coverage": {
+              "eligible_input_windows": 71,
+              "valid_target_points": 1428,
+              "possible_target_points": 1491,
+              "point_fraction": 0.9577464788732394,
+              "complete_target_frames": 68,
+              "complete_target_fraction": 0.9577464788732394
+            },
+            "per_subject_normalized_mpjpe": {
+              "subject3": 0.029978736166572924
+            }
+          },
+          "150": {
+            "normalized_mpjpe": {
+              "sequence_equal_mean": 0.05568199744453603,
+              "frame_mean": 0.05568199744453603,
+              "frame_p95": 0.11170526363514269,
+              "frames": 66,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 0.05568199744453603
+              }
+            },
+            "mpjpe_mm": {
+              "sequence_equal_mean": 2.2272798995267467,
+              "frame_mean": 2.2272798995267467,
+              "frame_p95": 4.468210549567052,
+              "frames": 66,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 2.2272798995267467
+              }
+            },
+            "wrist_error_mm": {
+              "sequence_equal_mean": 2.2272800622052937,
+              "frame_mean": 2.2272800622052937,
+              "frame_p95": 4.468212666368764,
+              "frames": 66,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 2.2272800622052937
+              }
+            },
+            "relative_finger_error_mm": {
+              "sequence_equal_mean": 1.663078002987986e-05,
+              "frame_mean": 1.663078002987986e-05,
+              "frame_p95": 2.436757966232076e-05,
+              "frames": 66,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject3": 1.663078002987986e-05
+              }
+            },
+            "coverage": {
+              "eligible_input_windows": 71,
+              "valid_target_points": 1386,
+              "possible_target_points": 1491,
+              "point_fraction": 0.9295774647887324,
+              "complete_target_frames": 66,
+              "complete_target_fraction": 0.9295774647887324
+            },
+            "per_subject_normalized_mpjpe": {
+              "subject3": 0.05568199744453603
+            }
+          }
+        },
+        "worst_anchors": [
+          {
+            "sequence_id": "synthetic_keypoint_subject3",
+            "anchor_frame_id": 93,
+            "anchor_time_s": 3.1,
+            "horizon_ms": 150,
+            "normalized_mpjpe": 0.1124595053574157,
+            "mpjpe_mm": 4.498380113749994,
+            "valid_joints": 21
+          },
+          {
+            "sequence_id": "synthetic_keypoint_subject3",
+            "anchor_frame_id": 94,
+            "anchor_time_s": 3.1333333333333333,
+            "horizon_ms": 150,
+            "normalized_mpjpe": 0.11240256872632536,
+            "mpjpe_mm": 4.496102648557286,
+            "valid_joints": 21
+          },
+          {
+            "sequence_id": "synthetic_keypoint_subject3",
+            "anchor_frame_id": 92,
+            "anchor_time_s": 3.066666666666667,
+            "horizon_ms": 150,
+            "normalized_mpjpe": 0.11228221151794227,
+            "mpjpe_mm": 4.491288569471487,
+            "valid_joints": 21
+          },
+          {
+            "sequence_id": "synthetic_keypoint_subject3",
+            "anchor_frame_id": 91,
+            "anchor_time_s": 3.033333333333333,
+            "horizon_ms": 150,
+            "normalized_mpjpe": 0.11186805172767215,
+            "mpjpe_mm": 4.474722073274296,
+            "valid_joints": 21
+          },
+          {
+            "sequence_id": "synthetic_keypoint_subject3",
+            "anchor_frame_id": 90,
+            "anchor_time_s": 3.0,
+            "horizon_ms": 150,
+            "normalized_mpjpe": 0.11121689935755429,
+            "mpjpe_mm": 4.448675978445324,
+            "valid_joints": 21
+          }
+        ],
+        "coverage_scope": "sampled_history_valid_windows_including_missing_future_labels",
+        "full_future_path_fraction": 0.9295774647887324
+      },
+      "historical_reevaluation": {
+        "selection_metric": "sequence_equal_normalized_mpjpe_mean_50_100ms",
+        "selection_score": 0.02491158398210233,
+        "per_horizon_ms": {
+          "50": {
+            "normalized_mpjpe": {
+              "sequence_equal_mean": 0.019844431797631734,
+              "frame_mean": 0.019844431797631734,
+              "frame_p95": 0.025523664769190275,
+              "frames": 69,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 0.019844431797631734
+              }
+            },
+            "mpjpe_mm": {
+              "sequence_equal_mean": 0.7937772710360644,
+              "frame_mean": 0.7937772710360644,
+              "frame_p95": 1.0209465679476766,
+              "frames": 69,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 0.7937772710360644
+              }
+            },
+            "wrist_error_mm": {
+              "sequence_equal_mean": 0.7937775409295932,
+              "frame_mean": 0.7937775409295932,
+              "frame_p95": 1.020949747925955,
+              "frames": 69,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 0.7937775409295932
+              }
+            },
+            "relative_finger_error_mm": {
+              "sequence_equal_mean": 2.244444059449166e-05,
+              "frame_mean": 2.244444059449166e-05,
+              "frame_p95": 3.795618684557549e-05,
+              "frames": 69,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 2.244444059449166e-05
+              }
+            },
+            "coverage": {
+              "eligible_input_windows": 71,
+              "valid_target_points": 1449,
+              "possible_target_points": 1491,
+              "point_fraction": 0.971830985915493,
+              "complete_target_frames": 69,
+              "complete_target_fraction": 0.971830985915493
+            },
+            "per_subject_normalized_mpjpe": {
+              "subject4": 0.019844431797631734
+            }
+          },
+          "100": {
+            "normalized_mpjpe": {
+              "sequence_equal_mean": 0.029978736166572924,
+              "frame_mean": 0.029978736166572924,
+              "frame_p95": 0.06618592180125009,
+              "frames": 68,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 0.029978736166572924
+              }
+            },
+            "mpjpe_mm": {
+              "sequence_equal_mean": 1.199149448091177,
+              "frame_mean": 1.199149448091177,
+              "frame_p95": 2.647436855873281,
+              "frames": 68,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 1.199149448091177
+              }
+            },
+            "wrist_error_mm": {
+              "sequence_equal_mean": 1.199149495475512,
+              "frame_mean": 1.199149495475512,
+              "frame_p95": 2.6474331310569745,
+              "frames": 68,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 1.199149495475512
+              }
+            },
+            "relative_finger_error_mm": {
+              "sequence_equal_mean": 1.7595404100421284e-05,
+              "frame_mean": 1.7595404100421284e-05,
+              "frame_p95": 4.5654399769996695e-05,
+              "frames": 68,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 1.7595404100421284e-05
+              }
+            },
+            "coverage": {
+              "eligible_input_windows": 71,
+              "valid_target_points": 1428,
+              "possible_target_points": 1491,
+              "point_fraction": 0.9577464788732394,
+              "complete_target_frames": 68,
+              "complete_target_fraction": 0.9577464788732394
+            },
+            "per_subject_normalized_mpjpe": {
+              "subject4": 0.029978736166572924
+            }
+          },
+          "150": {
+            "normalized_mpjpe": {
+              "sequence_equal_mean": 0.05568199744453603,
+              "frame_mean": 0.05568199744453603,
+              "frame_p95": 0.11170526363514269,
+              "frames": 66,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 0.05568199744453603
+              }
+            },
+            "mpjpe_mm": {
+              "sequence_equal_mean": 2.2272798995267467,
+              "frame_mean": 2.2272798995267467,
+              "frame_p95": 4.468210549567052,
+              "frames": 66,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 2.2272798995267467
+              }
+            },
+            "wrist_error_mm": {
+              "sequence_equal_mean": 2.2272800622052937,
+              "frame_mean": 2.2272800622052937,
+              "frame_p95": 4.468212666368764,
+              "frames": 66,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 2.2272800622052937
+              }
+            },
+            "relative_finger_error_mm": {
+              "sequence_equal_mean": 1.663078002987986e-05,
+              "frame_mean": 1.663078002987986e-05,
+              "frame_p95": 2.436757966232076e-05,
+              "frames": 66,
+              "sequences": 1,
+              "per_sequence": {
+                "synthetic_keypoint_subject4": 1.663078002987986e-05
+              }
+            },
+            "coverage": {
+              "eligible_input_windows": 71,
+              "valid_target_points": 1386,
+              "possible_target_points": 1491,
+              "point_fraction": 0.9295774647887324,
+              "complete_target_frames": 66,
+              "complete_target_fraction": 0.9295774647887324
+            },
+            "per_subject_normalized_mpjpe": {
+              "subject4": 0.05568199744453603
+            }
+          }
+        },
+        "worst_anchors": [
+          {
+            "sequence_id": "synthetic_keypoint_subject4",
+            "anchor_frame_id": 93,
+            "anchor_time_s": 3.1,
+            "horizon_ms": 150,
+            "normalized_mpjpe": 0.1124595053574157,
+            "mpjpe_mm": 4.498380113749994,
+            "valid_joints": 21
+          },
+          {
+            "sequence_id": "synthetic_keypoint_subject4",
+            "anchor_frame_id": 94,
+            "anchor_time_s": 3.1333333333333333,
+            "horizon_ms": 150,
+            "normalized_mpjpe": 0.11240256872632536,
+            "mpjpe_mm": 4.496102648557286,
+            "valid_joints": 21
+          },
+          {
+            "sequence_id": "synthetic_keypoint_subject4",
+            "anchor_frame_id": 92,
+            "anchor_time_s": 3.066666666666667,
+            "horizon_ms": 150,
+            "normalized_mpjpe": 0.11228221151794227,
+            "mpjpe_mm": 4.491288569471487,
+            "valid_joints": 21
+          },
+          {
+            "sequence_id": "synthetic_keypoint_subject4",
+            "anchor_frame_id": 91,
+            "anchor_time_s": 3.033333333333333,
+            "horizon_ms": 150,
+            "normalized_mpjpe": 0.11186805172767215,
+            "mpjpe_mm": 4.474722073274296,
+            "valid_joints": 21
+          },
+          {
+            "sequence_id": "synthetic_keypoint_subject4",
+            "anchor_frame_id": 90,
+            "anchor_time_s": 3.0,
+            "horizon_ms": 150,
+            "normalized_mpjpe": 0.11121689935755429,
+            "mpjpe_mm": 4.448675978445324,
+            "valid_joints": 21
+          }
+        ],
+        "coverage_scope": "sampled_history_valid_windows_including_missing_future_labels",
+        "full_future_path_fraction": 0.9295774647887324
+      }
+    }
+  },
+  "training": {
+    "device": "cuda",
+    "run_label": "residual_gru",
+    "seed": 20260918,
+    "torch_version": "2.7.0+cu126",
+    "cuda_available": true,
+    "deterministic_algorithms": true,
+    "deterministic_warn_only": false,
+    "cublas_workspace_config": ":4096:8",
+    "cuda_sdp_backends": {
+      "flash": false,
+      "memory_efficient": false,
+      "math": true
+    },
+    "parameter_count": 49531,
+    "loss": {
+      "smooth_l1_beta": 0.03,
+      "motion_weight": 0.0
+    },
+    "motion_reference": 0.014108816161751747,
+    "epochs_completed": 2,
+    "best_val_loss": 0.02491158398210233,
+    "validation_metric": "sequence_equal_normalized_mpjpe_mean_50_100ms",
+    "training_seconds": 0.3392510999992737,
+    "total_model_pipeline_seconds": 0.3893639999996594,
+    "latency_single_window": {
+      "samples": 71.0,
+      "p50_ms": 0.4380000000310247,
+      "p95_ms": 0.5963500002508226,
+      "max_ms": 0.6873000002087792
+    },
+    "history": [
+      {
+        "epoch": 1.0,
+        "train_loss": 0.0218007500150374,
+        "val_loss": 0.02491158398210233
+      },
+      {
+        "epoch": 2.0,
+        "train_loss": 0.009817398552383696,
+        "val_loss": 0.03175166215787325
+      }
+    ],
+    "checkpoint": "D:\\VR\\HandAi\\single-hand-teleop-baseline\\outputs\\m1_synthetic\\20260918T091943_772054Z\\checkpoints\\residual_gru.pt",
+    "progress_log": "D:\\VR\\HandAi\\single-hand-teleop-baseline\\outputs\\m1_synthetic\\20260918T091943_772054Z\\training_progress.jsonl"
+  },
+  "load_verification": {
+    "normalized_reload_max_abs_delta": 0.0,
+    "raw_api_max_abs_delta_m": 5.245208745119356e-08
+  },
+  "acceptance": {
+    "m1_functional": true,
+    "algorithm_acceptance": "not_assessed_in_M1"
+  },
+  "environment": {
+    "python": "3.10.20",
+    "torch": "2.7.0+cu126",
+    "numpy": "2.2.6",
+    "device": "cuda",
+    "gpu": "NVIDIA GeForce RTX 4060 Laptop GPU"
+  },
+  "model_config": "D:\\VR\\HandAi\\single-hand-teleop-baseline\\outputs\\m1_synthetic\\20260918T091943_772054Z\\model.json",
+  "latency_scope": "forward_only_device_resident_input"
+}

@@ -16,7 +16,7 @@ from intent_prediction.second_round import run_second_round  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="运行单右手控制意图预测第二轮 validation 选型 + test 一次评估")
+    parser = argparse.ArgumentParser(description="运行时序预测实验：旧 9 通道第二轮或 M1 关键点任务，使用 validation 选型")
     parser.add_argument(
         "--config",
         type=Path,
@@ -45,6 +45,15 @@ def main() -> int:
         synthetic_smoke=args.synthetic_smoke,
     )
     report = json.loads(report_path.read_text(encoding="utf-8"))
+    if report.get("schema_version") == "representation-m2-report-v1":
+        print(json.dumps({"report": str(report_path), "simple_baseline": report["selection"]["simple_baseline"],
+                          "neural_route": report["selection"]["neural_route"]}, ensure_ascii=False))
+        return 0
+    if report.get("schema_version") == "keypoint-m1-report-v1":
+        print(json.dumps({"report": str(report_path), "task": report["task_id"],
+                          "selected": report["selection"]["selected_label"],
+                          "m1_functional": report["acceptance"]["m1_functional"]}, ensure_ascii=False))
+        return 0
     print(
         json.dumps(
             {
