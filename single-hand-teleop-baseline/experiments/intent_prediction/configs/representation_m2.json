@@ -1,0 +1,31 @@
+{
+  "schema_version": "representation-run-v1",
+  "task_spec": "keypoint_m0.json",
+  "mapping_config": "configs/svh_9ch_preview.yaml",
+  "run_purpose": "M2_H2O_all_sequences_three_seeds_development_comparison",
+  "seeds": [20260920, 20260921, 20260922],
+  "data_sample_seed": 20260920,
+  "sampling": {"sequences_per_subject": null, "windows_per_sequence": 64},
+  "linear_fit_frames_candidates": [2, 4, 8],
+  "reference": {
+    "projection": "normalized_perspective_wrist_origin_palm_scale",
+    "gesture": "continuous_state_snapshot_at_anchor",
+    "fractional_query": "interpolate_pose_then_map_without_debounce_update",
+    "common_query_grid": "union_of_30Hz_steps_1_to_5_and_50_100_150ms",
+    "AB_output": "direct_9ch_at_all_common_queries_no_channel_interpolation",
+    "C_output": "5_pose_steps_then_pose_interpolation_and_same_mapping_at_common_queries",
+    "invalid_prediction": "hold_current_9ch_and_count_failure_keep_reference_denominator"
+  },
+  "architecture": {"residual_gru": {"hidden_size": 64, "layers": 1, "dropout": 0.0, "max_delta": null}},
+  "training": {
+    "device": "auto",
+    "epochs": 12,
+    "patience": 4,
+    "batch_size": 128,
+    "learning_rate": 0.001,
+    "weight_decay": 0.0001,
+    "gradient_clip": 1.0,
+    "loss": {"smooth_l1_beta": 0.03, "motion_weight": 0.0},
+    "validation_metric": "sequence_equal_9ch_rmse_mean_50_100ms"
+  }
+}

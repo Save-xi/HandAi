@@ -305,6 +305,16 @@ def run_second_round(
         raise RuntimeError("第二轮需要 PyTorch；请使用 handai-intent-prediction 独立环境")
     config_path = config_path.resolve()
     config = json.loads(config_path.read_text(encoding="utf-8"))
+    if config.get("schema_version") == "representation-run-v1":
+        from .representation_runner import run_representation_experiment
+        return run_representation_experiment(config_path=config_path, data_root=data_root,
+                                             output_root=output_root, synthetic_smoke=synthetic_smoke)
+    if config.get("schema_version") == "keypoint-run-v1":
+        from .keypoint_runner import run_keypoint_experiment
+        return run_keypoint_experiment(config_path=config_path, data_root=data_root,
+                                       output_root=output_root, synthetic_smoke=synthetic_smoke)
+    if config.get("schema_version") == "keypoint-experiment-spec-v1":
+        raise ValueError("M0 文件只是任务定义；运行 M1 请用 configs/keypoint_m1.json")
     run_dir = _unique_run_dir(output_root)
     protocol_events: list[dict[str, Any]] = []
 

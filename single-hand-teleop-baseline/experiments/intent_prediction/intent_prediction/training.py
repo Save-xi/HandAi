@@ -8,7 +8,7 @@ import os
 import random
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 
@@ -37,7 +37,25 @@ def _resolve_device(requested: str) -> str:
 
 
 def _loader(split: WindowSplit, *, batch_size: int, shuffle: bool, seed: int) -> Any:
-    dataset = TensorDataset(torch.from_numpy(split.x), torch.from_numpy(split.y))
+    arrays = [split.x, split.y]
+    if hasattr(split, "target_mask"):
+        mask = split.target_mask
+        if mask.shape != split.y.shape:
+            if mask.shape[:2] != split.y.shape[:2] or mask.shape[-1] * 3 != split.y.shape[-1]:
+                raise ValueError("监督掩码与输出维度不匹配")
+            mask = np.repeat(mask, 3, axis=-1)
+        arrays.append(mask)
+        if getattr(split, "residual_base", None) is not None:
+            arrays.append(split.residual_base)
+        if shuffle:
+            # 无监督的尾部仍保留在覆盖率报告中，不作为零标签训练。
+            eligible = split.target_mask.any(axis=(1, 2))
+            arrays = [array[eligible] for array in arrays]
+            if not eligible.any():
+                raise ValueError("训练集没有有效监督点")
+    elif getattr(split, "residual_base", None) is not None:
+        raise ValueError("外部残差任务必须提供监督掩码")
+    dataset = TensorDataset(*(torch.from_numpy(array) for array in arrays))
     generator = torch.Generator().manual_seed(seed)
     return DataLoader(
         dataset,
@@ -49,17 +67,32 @@ def _loader(split: WindowSplit, *, batch_size: int, shuffle: bool, seed: int) ->
     )
 
 
+def _forward_batch(model: Any, batch: Any, device: str) -> Any:
+    x = batch[0].to(device, non_blocking=True)
+    base = batch[3].to(device, non_blocking=True) if len(batch) == 4 else None
+    return model(x, base) if base is not None else model(x)
+
+
 def _mean_loss(model: Any, loader: Any, criterion: Any, device: str) -> float:
     model.eval()
     total = 0.0
     count = 0
     with torch.no_grad():
-        for x_batch, y_batch in loader:
+        for batch in loader:
+            x_batch, y_batch = batch[:2]
             x_batch = x_batch.to(device, non_blocking=True)
             y_batch = y_batch.to(device, non_blocking=True)
-            loss = criterion(model(x_batch), y_batch)
-            total += float(loss.item()) * len(x_batch)
-            count += len(x_batch)
+            prediction = _forward_batch(model, batch, device)
+            if len(batch) >= 3:
+                mask = batch[2].to(device)
+                loss = _training_loss(prediction, y_batch, x_batch,
+                    loss_config={"smooth_l1_beta": criterion.beta}, motion_reference=1, target_mask=mask)
+                weight = int(mask.sum().item())
+            else:
+                loss = criterion(prediction, y_batch)
+                weight = len(x_batch)
+            total += float(loss.item()) * weight
+            count += weight
     return total / max(1, count)
 
 
@@ -76,6 +109,7 @@ def _training_loss(
     *,
     loss_config: dict[str, Any],
     motion_reference: float,
+    target_mask: Any | None = None,
 ) -> Any:
     beta = float(loss_config.get("smooth_l1_beta", 0.03))
     mse_weight = float(loss_config.get("mse_weight", 0.0))
@@ -85,6 +119,10 @@ def _training_loss(
     element_loss = functional.smooth_l1_loss(prediction, target, beta=beta, reduction="none")
     if mse_weight > 0.0:
         element_loss = element_loss + mse_weight * (prediction - target) ** 2
+    if target_mask is not None:
+        if motion_weight != 0:
+            raise ValueError("M1 掩码位置损失暂不混用旧通道运动加权")
+        return (element_loss * target_mask).sum() / target_mask.sum().clamp_min(1)
     sample_loss = torch.mean(element_loss, dim=(1, 2))
     if motion_weight <= 0.0:
         return torch.mean(sample_loss)
@@ -102,8 +140,8 @@ def _predict(model: Any, split: WindowSplit, *, batch_size: int, device: str) ->
     chunks = []
     model.eval()
     with torch.no_grad():
-        for x_batch, _ in loader:
-            chunks.append(model(x_batch.to(device, non_blocking=True)).cpu().numpy())
+        for batch in loader:
+            chunks.append(_forward_batch(model, batch, device).cpu().numpy())
     return np.concatenate(chunks, axis=0).astype(np.float32)
 
 
@@ -127,6 +165,9 @@ def predict_neural_checkpoint(
         torch.backends.cuda.enable_math_sdp(True)
     torch.use_deterministic_algorithms(True, warn_only=False)
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
+    contract_task = checkpoint.get("data_contract", {}).get("task_id")
+    if contract_task != getattr(split, "task_id", None):
+        raise ValueError("checkpoint 任务与评测窗口不一致")
     if int(checkpoint["history_frames"]) != split.x.shape[1]:
         raise ValueError("checkpoint 历史帧数与评测窗口不一致")
     if int(checkpoint["horizon_count"]) != len(split.horizon_ms):
@@ -138,6 +179,7 @@ def predict_neural_checkpoint(
         history_frames=int(checkpoint["history_frames"]),
         horizon_count=int(checkpoint["horizon_count"]),
         architecture=dict(checkpoint["architecture"]),
+        **checkpoint.get("model_options", {}),
     )
     model.load_state_dict(checkpoint["state_dict"])
     model.to(resolved_device)
@@ -156,16 +198,20 @@ def predict_neural_checkpoint(
 def _latency(model: Any, split: WindowSplit, *, device: str, measurements: int = 100) -> dict[str, float]:
     count = min(max(1, measurements), len(split.x))
     samples = torch.from_numpy(split.x[:count]).to(device)
+    bases = (torch.from_numpy(split.residual_base[:count]).to(device)
+             if getattr(split, "residual_base", None) is not None else None)
+    def forward(index: int):
+        return model(samples[index:index + 1], bases[index:index + 1]) if bases is not None else model(samples[index:index + 1])
     model.eval()
     with torch.no_grad():
         for index in range(min(10, count)):
-            _ = model(samples[index : index + 1])
+            _ = forward(index)
         if device == "cuda":
             torch.cuda.synchronize()
         values = []
         for index in range(count):
             start = time.perf_counter()
-            _ = model(samples[index : index + 1])
+            _ = forward(index)
             if device == "cuda":
                 torch.cuda.synchronize()
             values.append((time.perf_counter() - start) * 1000.0)
@@ -188,6 +234,8 @@ def train_neural_model(
     checkpoint_path: Path,
     seed: int,
     checkpoint_metadata: dict[str, Any] | None = None,
+    model_options: dict[str, Any] | None = None,
+    validation_score: Callable[[np.ndarray], float] | None = None,
 ) -> tuple[np.ndarray, dict[str, Any]]:
     if not TORCH_AVAILABLE:
         raise RuntimeError("当前解释器没有 PyTorch")
@@ -212,6 +260,7 @@ def train_neural_model(
         history_frames=train.x.shape[1],
         horizon_count=train.y.shape[1],
         architecture=architecture,
+        **(model_options or {}),
     ).to(device)
     checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
     progress_path = checkpoint_path.parent.parent / "training_progress.jsonl"
@@ -259,16 +308,18 @@ def train_neural_model(
         model.train()
         running = 0.0
         seen = 0
-        for x_batch, y_batch in train_loader:
+        for batch in train_loader:
+            x_batch, y_batch = batch[:2]
             x_batch = x_batch.to(device, non_blocking=True)
             y_batch = y_batch.to(device, non_blocking=True)
             optimizer.zero_grad(set_to_none=True)
             loss = _training_loss(
-                model(x_batch),
+                _forward_batch(model, batch, device),
                 y_batch,
                 x_batch,
                 loss_config=loss_config,
                 motion_reference=motion_reference,
+                target_mask=batch[2].to(device) if len(batch) >= 3 else None,
             )
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), gradient_clip)
@@ -276,7 +327,10 @@ def train_neural_model(
             running += float(loss.item()) * len(x_batch)
             seen += len(x_batch)
         train_loss = running / max(1, seen)
-        val_loss = _mean_loss(model, val_loader, criterion, device)
+        val_loss = (_mean_loss(model, val_loader, criterion, device) if validation_score is None else
+                    float(validation_score(_predict(model, val, batch_size=batch_size, device=device))))
+        if not np.isfinite(train_loss) or not np.isfinite(val_loss):
+            raise RuntimeError("训练或验证指标出现非有限值")
         history.append({"epoch": float(epoch), "train_loss": train_loss, "val_loss": val_loss})
         improved = val_loss < best_val - 1e-8
         if improved:
@@ -324,6 +378,7 @@ def train_neural_model(
             "training_config": training_config,
             "seed": seed,
             "data_contract": dict(checkpoint_metadata or {}),
+            "model_options": dict(model_options or {}),
         },
         checkpoint_path,
     )
@@ -349,6 +404,7 @@ def train_neural_model(
         "motion_reference": motion_reference,
         "epochs_completed": len(history),
         "best_val_loss": float(best_val),
+        "validation_metric": training_config.get("validation_metric", "smooth_l1_loss"),
         "training_seconds": optimization_seconds,
         "total_model_pipeline_seconds": total_model_pipeline_seconds,
         "latency_single_window": latency,

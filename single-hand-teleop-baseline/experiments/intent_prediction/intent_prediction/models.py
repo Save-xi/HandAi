@@ -55,7 +55,7 @@ if TORCH_AVAILABLE:
 
 
     class ResidualGRUForecaster(nn.Module):
-        """从 hold-last 出发预测有界残差，初始状态严格等于 persistence。"""
+        """从 hold-last 出发预测残差；默认保留旧通道约束，关键点可用无界坐标。"""
 
         def __init__(
             self,
@@ -66,14 +66,20 @@ if TORCH_AVAILABLE:
             dropout: float,
             horizon_count: int,
             output_size: int,
-            max_delta: float,
+            max_delta: float | None,
+            output_bounds: tuple[float, float] | None = (0.0, 1.0),
+            external_residual: bool = False,
         ) -> None:
             super().__init__()
-            if max_delta <= 0.0:
+            if input_size != output_size and not external_residual:
+                raise ValueError("残差模型需要同维输入输出；不同表示必须另行提供残差参考")
+            if max_delta is not None and max_delta <= 0.0:
                 raise ValueError("residual_gru.max_delta 必须为正数")
             self.horizon_count = horizon_count
             self.output_size = output_size
-            self.max_delta = float(max_delta)
+            self.max_delta = None if max_delta is None else float(max_delta)
+            self.output_bounds = output_bounds
+            self.external_residual = external_residual
             self.gru = nn.GRU(
                 input_size=input_size,
                 hidden_size=hidden_size,
@@ -92,13 +98,20 @@ if TORCH_AVAILABLE:
             nn.init.zeros_(final.weight)
             nn.init.zeros_(final.bias)
 
-        def forward(self, x: torch.Tensor) -> torch.Tensor:
+        def forward(self, x: torch.Tensor, residual_base: torch.Tensor | None = None) -> torch.Tensor:
             sequence, _ = self.gru(x)
-            residual = self.max_delta * torch.tanh(
-                self.head(sequence[:, -1, :]).reshape(-1, self.horizon_count, self.output_size)
-            )
-            hold_last = x[:, -1:, :].expand(-1, self.horizon_count, -1)
-            return torch.clamp(hold_last + residual, 0.0, 1.0)
+            logits = self.head(sequence[:, -1, :]).reshape(-1, self.horizon_count, self.output_size)
+            residual = logits if self.max_delta is None else self.max_delta * torch.tanh(logits)
+            if self.external_residual:
+                if residual_base is None or residual_base.shape != (len(x), self.output_size):
+                    raise ValueError("跨表示残差必须显式提供 [N,output_size] 当前参考")
+                hold_last = residual_base[:, None, :].expand(-1, self.horizon_count, -1)
+            else:
+                if residual_base is not None:
+                    raise ValueError("当前模型没有启用外部残差参考")
+                hold_last = x[:, -1:, :].expand(-1, self.horizon_count, -1)
+            prediction = hold_last + residual
+            return prediction if self.output_bounds is None else torch.clamp(prediction, *self.output_bounds)
 
 
     class CausalTemporalBlock(nn.Module):
@@ -223,10 +236,16 @@ def build_model(
     history_frames: int,
     horizon_count: int,
     architecture: dict[str, Any],
+    input_size: int = 9,
+    output_size: int = 9,
+    output_bounds: tuple[float, float] | None = (0.0, 1.0),
+    external_residual: bool = False,
 ) -> Any:
     if not TORCH_AVAILABLE:
         raise RuntimeError("当前解释器没有 PyTorch；请使用 experiments/intent_prediction/environment.yml 创建独立环境")
     normalized = name.lower()
+    if normalized != "residual_gru" and (input_size != 9 or output_size != 9 or output_bounds != (0.0, 1.0) or external_residual):
+        raise ValueError("M1 只为 residual_gru 实现关键点输出；其他模型保留旧 9 通道行为")
     if normalized == "gru":
         config = architecture.get("gru", {})
         return GRUForecaster(
@@ -240,13 +259,15 @@ def build_model(
     if normalized == "residual_gru":
         config = architecture.get("residual_gru", architecture.get("gru", {}))
         return ResidualGRUForecaster(
-            input_size=9,
+            input_size=input_size,
             hidden_size=int(config.get("hidden_size", 128)),
             layers=int(config.get("layers", 2)),
             dropout=float(config.get("dropout", 0.1)),
             horizon_count=horizon_count,
-            output_size=9,
-            max_delta=float(config.get("max_delta", 0.35)),
+            output_size=output_size,
+            max_delta=config.get("max_delta", 0.35),
+            output_bounds=output_bounds,
+            external_residual=external_residual,
         )
     if normalized == "tcn":
         config = architecture.get("tcn", {})

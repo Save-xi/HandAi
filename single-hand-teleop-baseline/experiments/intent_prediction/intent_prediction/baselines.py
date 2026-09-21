@@ -5,25 +5,30 @@ from __future__ import annotations
 import numpy as np
 
 
-def _validate(history: np.ndarray, horizon_steps: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def _validate(history: np.ndarray, horizon_steps: np.ndarray, feature_count: int = 9) -> tuple[np.ndarray, np.ndarray]:
     x = np.asarray(history, dtype=np.float32)
     horizons = np.asarray(horizon_steps, dtype=np.float32)
-    if x.ndim != 3 or x.shape[-1] != 9:
-        raise ValueError(f"history 应为 [N, T, 9]，实际为 {x.shape}")
-    if horizons.ndim != 1 or len(horizons) == 0 or np.any(horizons <= 0):
+    if x.ndim != 3 or x.shape[-1] != feature_count or x.shape[1] < 1 or not np.isfinite(x).all():
+        raise ValueError(f"history 应为有限的 [N, T>=1, {feature_count}]，实际为 {x.shape}")
+    if horizons.ndim != 1 or len(horizons) == 0 or not np.isfinite(horizons).all() or np.any(horizons <= 0):
         raise ValueError("horizon_steps 必须是一维正数数组")
     return x, horizons
 
 
-def predict_hold_last(history: np.ndarray, horizon_steps: np.ndarray) -> np.ndarray:
-    x, horizons = _validate(history, horizon_steps)
+def predict_hold_last(history: np.ndarray, horizon_steps: np.ndarray, *, feature_count: int = 9) -> np.ndarray:
+    x, horizons = _validate(history, horizon_steps, feature_count)
     return np.repeat(x[:, -1:, :], len(horizons), axis=1)
 
 
-def predict_linear(history: np.ndarray, horizon_steps: np.ndarray, *, fit_frames: int = 8) -> np.ndarray:
+def predict_linear(
+    history: np.ndarray, horizon_steps: np.ndarray, *, fit_frames: int = 8,
+    feature_count: int = 9, output_bounds: tuple[float, float] | None = (0.0, 1.0),
+) -> np.ndarray:
     """对最近若干帧做逐通道最小二乘直线拟合并外推。"""
 
-    x, horizons = _validate(history, horizon_steps)
+    x, horizons = _validate(history, horizon_steps, feature_count)
+    if x.shape[1] < 2:
+        raise ValueError("常速度拟合至少需要 2 帧")
     count = min(max(2, int(fit_frames)), x.shape[1])
     recent = x[:, -count:, :].astype(np.float64)
     t = np.arange(count, dtype=np.float64)
@@ -31,7 +36,9 @@ def predict_linear(history: np.ndarray, horizon_steps: np.ndarray, *, fit_frames
     denominator = float(np.sum(centered**2))
     slope = np.sum(recent * centered[None, :, None], axis=1) / denominator
     prediction = recent[:, -1:, :] + slope[:, None, :] * horizons[None, :, None]
-    return np.clip(prediction, 0.0, 1.0).astype(np.float32)
+    if output_bounds is not None:
+        prediction = np.clip(prediction, *output_bounds)
+    return prediction.astype(np.float32)
 
 
 def predict_kalman_cv(
