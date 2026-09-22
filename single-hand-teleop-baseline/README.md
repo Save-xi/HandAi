@@ -10,13 +10,15 @@
 
 日常开发看这三个入口：
 
-- [AI 路线图（M0/M1 与 M2 H2O 对照已完成）](docs/ai_roadmap.md)：实测结论、后续阶段与审核范围。
+- [AI 路线图：先修摄像头基础，再验证预测](docs/ai_roadmap.md)：M0–M2 成果、M3-A/B/C 交付与验收范围。
 - [对接入口](docs/ai_interfaces.md)：替换检测器、接设备关键点、消费 AI 结果。
 - [训练与评测](experiments/intent_prediction/README.md)：数据、训练、模型导出和视频评测。
 
 阶段规划和成果复核可查 [AI 交接说明](docs/agent_handoff/README.md)，其中已合并项目书审核与本机二审意见，区分历史实测、当前缺口及后续计划。
 
-已完成 [M0：数据定义与核对](docs/m0_data_definition.md)、[M1：原生 21 点预测](docs/m1_keypoint_prediction.md)及 [M2：三种子 A/B/C 对照](docs/m2_representation_comparison.md)。M2 覆盖 H2O 全部 217 段、每段最多抽样 64 个窗口；C 优于 A/B，但未稳定胜过验证集预选的简单基线，三条神经路线均未通过本轮研发继续条件。下一步审核摄像头域的简单基线与计算成本评测。现有摄像头与设备输出继续使用原路径。
+已完成 [M0：数据定义与核对](docs/m0_data_definition.md)、[M1：原生 21 点预测](docs/m1_keypoint_prediction.md)及 [M2：三种子 A/B/C 对照](docs/m2_representation_comparison.md)。M2 覆盖 H2O 全部 217 段、每段最多抽样 64 个窗口；C 优于 A/B，但未稳定胜过验证集预选的简单基线，三条神经路线均未通过本轮研发继续条件。
+
+已实现 [M3-A：摄像头基础整改](docs/m3a_camera_foundation.md)：宽高尺度统一、坏帧处理、连续释放与 Linux CPU 预测 CI。开发微扰跳变由 0.470343 降到 0.000106，两段各 180 帧开发视频已检查；真实精度和全部转换连续性仍待后续证据。下一阶段为 M3-B 简单预测与计时，再由 M3-C 新数据和人工标签决定模型投入。
 
 ## 运行
 
@@ -25,10 +27,10 @@
 ```bat
 conda activate handai-intent-prediction
 cd /d D:\VR\HandAi\single-hand-teleop-baseline
-python -X utf8 src\main.py --config configs\ai.yaml --camera-index 0 --save-jsonl
+python -X utf8 src\main.py --config configs\ai_m3a.yaml --camera-index 0 --save-jsonl
 ```
 
-启用现有预测模型：
+重放旧配置及现有预测模型（旧模型不能接新几何/释放语义）：
 
 ```bat
 conda activate handai-intent-prediction
@@ -53,7 +55,8 @@ python -X utf8 scripts\run_prediction_shadow_smoke.py --config configs\ai.yaml
 | 入口 | 用途 |
 |---|---|
 | [configs/default.yaml](configs/default.yaml) | 采集、感知、手势和映射的通用参数 |
-| [configs/ai.yaml](configs/ai.yaml) | 日常 AI 配置，继承通用参数 |
+| [configs/ai.yaml](configs/ai.yaml) | 历史几何/释放、M2 与旧模型兼容配置 |
+| [configs/ai_m3a.yaml](configs/ai_m3a.yaml) | 新摄像头开发入口；明确几何、释放与断帧参数 |
 | [models/residual_motion4.json](models/residual_motion4.json) | 权重路径、采样率、预测时间距、映射参数及门控 |
 | [src/pipeline.py](src/pipeline.py) | 不依赖设备和网络的单帧 AI 处理 |
 | [src/perception/base.py](src/perception/base.py) | 姿态模型/外部 21 点的公共数据结构 |
@@ -61,7 +64,7 @@ python -X utf8 scripts\run_prediction_shadow_smoke.py --config configs\ai.yaml
 | [experiments/freihand_eval](experiments/freihand_eval) | 带真值的二维姿态评测 |
 | [experiments/intent_prediction](experiments/intent_prediction) | H2O 数据、预测训练、回放与摄像头域评测 |
 
-配置通过 `extends` 复用基础 YAML。替换预测模型使用 `--prediction-model 模型配置.json`；模型配置内的相对 checkpoint 路径按子项目根目录解析。
+配置通过 `extends` 复用基础 YAML。`ai.yaml` 保留历史几何/释放语义，供 M2 与旧 checkpoint 重放；`ai_m3a.yaml` 暂不搭配旧模型。替换预测模型使用 `--prediction-model 模型配置.json`；模型配置内的相对 checkpoint 路径按子项目根目录解析。
 
 运行输出在 `outputs/`：最新 AI 帧、可选逐帧 JSONL、独立预测 JSONL，以及记录实际配置和帧数量的会话信息。两份 JSONL 使用同一个 `run_id`，按帧号和时间戳配对。
 

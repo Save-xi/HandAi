@@ -168,6 +168,8 @@ def extract_hand_features(
     confidence: float | None,
     timestamp: float,
     landmarks_xyz: List[Tuple[float, float, float]] | None = None,
+    *,
+    geometry_xyz: List[Tuple[float, float, float]] | None = None,
 ) -> Dict:
     """提取单只手的 baseline 特征。
 
@@ -183,6 +185,12 @@ def extract_hand_features(
         return empty_features(timestamp)
 
     landmarks_xyz = _as_xyz(landmarks_2d, landmarks_xyz)
+    # 原始坐标仅用于输出/绘图。新摄像头入口显式传入同尺度几何；
+    # 未传入时保持历史 H2O 标签与旧模型的计算语义。
+    raw_xy, raw_xyz = landmarks_2d, landmarks_xyz
+    if geometry_xyz is not None:
+        landmarks_xyz = geometry_xyz
+        landmarks_2d = [(p[0], p[1]) for p in geometry_xyz]
     palm_size = _palm_size(landmarks_2d)
     palm_center = _mean_point([landmarks_2d[idx] for idx in PALM_CENTER_POINTS])
     # pinch_distance_norm 是后续 pinch 判断和捏合控制最重要的视觉线索。
@@ -242,8 +250,8 @@ def extract_hand_features(
         "pinch_distance_norm": float(pinch_distance_norm),
         "hand_open_ratio": float(hand_open_ratio),
         "finger_curl": finger_curl,
-        "landmarks_2d": [[float(x), float(y)] for x, y in landmarks_2d],
-        "landmarks_3d": [[float(x), float(y), float(z)] for x, y, z in landmarks_xyz],
+        "landmarks_2d": [[float(x), float(y)] for x, y in raw_xy],
+        "landmarks_3d": [[float(x), float(y), float(z)] for x, y, z in raw_xyz],
     }
 
 

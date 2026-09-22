@@ -1,6 +1,6 @@
 # AI 交接：已核实状态与整改依据
 
-更新：2026-09-21。已合并 Claude 对项目书的审核与本机二审意见。[M0 数据定义](../m0_data_definition.md)、[M1 关键点预测](../m1_keypoint_prediction.md)及 [M2 H2O 三种子表示对照](../m2_representation_comparison.md)已完成；三条神经路线均未稳定胜过本轮预选简单基线。本文记录事实与缺口，下一步 M3 首轮范围及 M4/M5 计划统一放在 [AI 路线图](../ai_roadmap.md)。
+更新：2026-09-22。已合并 Claude、本机二审及 `HandAi_AI_Review_20260921.md` 路线建议。[M0 数据定义](../m0_data_definition.md)、[M1 关键点预测](../m1_keypoint_prediction.md)、[M2 H2O 三种子表示对照](../m2_representation_comparison.md)与 [M3-A 摄像头基础整改](../m3a_camera_foundation.md)已完成。M3-A 新配置具备几何/输入检查和连续释放，已有边界测试、开发视频诊断及 CPU 预测 CI；真实效果仍待标签。H2O 神经模型扩展暂停，下一步 M3-B 简单预测与计时 → M3-C 真实效果证据，具体范围见 [AI 路线图](../ai_roadmap.md)。
 
 日常运行以 [项目指令](../../AGENTS.md) 和 [README](../../README.md) 为准。阶段规划、交接或证据复核时参考本文，不把这份快照作为每次普通修改前的检查关卡。已有数据、权重和历史报告继续保留。
 
@@ -34,7 +34,8 @@
 | MediaPipe 检测与设备关键点输入 | 可运行；设备输入不要求加载 MediaPipe/PyTorch | [pipeline.py](../../src/pipeline.py)、[perception/base.py](../../src/perception/base.py) |
 | open / fist / pinch / unknown 手势 | 规则与去抖已实现；尚缺带人工标签的系统精度评测 | [rule_based_gesture.py](../../src/gesture/rule_based_gesture.py) |
 | 9 通道映射 | 可运行的预览代理，不是实体关节测量 | [svh_adapter.py](../../src/svh/svh_adapter.py) |
-| 50/100/150 ms 预测 | residual GRU 可运行；既有离线门槛未通过，默认关闭、影子运行 | [模型配置](../../models/residual_motion4.json)、[shadow_predictor.py](../../src/prediction/shadow_predictor.py) |
+| 50/100/150 ms 预测 | 旧 ai.yaml 下 residual GRU 可运行；默认关闭，不能接 M3-A 新语义 | [模型配置](../../models/residual_motion4.json)、[shadow_predictor.py](../../src/prediction/shadow_predictor.py) |
+| 摄像头几何/坏帧/释放过渡 | M3-A 已实现；固定微扰跳变 0.470343→0.000106，真实视频仍有大跳变 | [M3-A 交付](../m3a_camera_foundation.md) |
 | 姿态与耗时评测 | 工具和真实历史结果均存在，见下一节 | [FreiHAND 评测](../../experiments/freihand_eval/README.md) |
 | H2O 原生 21 点未来预测 | M1 已实现训练、基线、评测与加载；小样本常速度优于 GRU | [M1 交付](../m1_keypoint_prediction.md) |
 | H2O 预测姿态后判手势/映射 | M2 已实现因果状态和共同参考；C 优于 A/B，但未通过继续条件 | [M2 对照](../m2_representation_comparison.md) |
@@ -42,7 +43,9 @@
 | MMPose 对照、InterHand2.6M 适配、自训练检测网络 | 尚未实现 | 后续路线 |
 | ONNX/量化、边缘端运行 | 尚未实现 | 后续路线 |
 
-2026-09-05 重构记录为 171 项 pytest 通过，并有指定视频片段的重构前后数值一致性检查；Claude 环境的 164 passed / 7 skipped 来自缺少 PyTorch。M1 完成 190 项测试；M2 增至 198 项，并完成三种子真实实验和九个 checkpoint 重载一致性检查。测试通过不等于算法效果成立。参见 [重构记录](../ai_refactor_20260905.md)、[M1](../m1_keypoint_prediction.md)与 [M2 报告](../m2_representation_comparison.md)。
+2026-09-05 重构记录为 171 项 pytest 通过，并有指定视频片段的重构前后数值一致性检查；Claude 环境的 164 passed / 7 skipped 来自缺少 PyTorch。M1 完成 190 项测试；M2 在本机环境增至 198 项，并完成三种子真实实验和九个 checkpoint 重载一致性检查。新审核报告在 Linux/PyTorch CPU 环境复核为 197 passed / 1 skipped，缺本机 ignored 权重的用例未执行；它没有重跑原始 H2O 训练或 FreiHAND 检测。现有 Windows/Ubuntu baseline CI 不安装 torch，绿色状态不能替代神经路径的持续覆盖。测试通过不等于算法效果成立。参见 [重构记录](../ai_refactor_20260905.md)、[M1](../m1_keypoint_prediction.md)与 [M2 报告](../m2_representation_comparison.md)。
+
+新增审核的五项问题均纳入 M3-A：几何宽高比、退化点门控、短输入异常、open 释放跳变与 CPU 预测 CI。当前主循环默认 timestamp 在检测结束后生成，M3-B 还须改用明确的源时刻/媒体时间并记录完整就绪时间。审核中的合成边界复现说明问题可发生，不代表真实摄像头发生频率；本次路线修订只核对了相关源码，并未把这些问题标为已修复。
 
 ## 3. 已有实验及适用范围
 
@@ -118,6 +121,6 @@ FP32/量化需要在明确平台上比较精度、模型大小和实际耗时；
 
 AI 侧负责感知适配、姿态/手势、预测、训练评测、模型导出和调用接口。设备采集、时钟同步、网络、Unity、串口、实体手与机械臂由协作方负责。预测进入实验消费接口也不等同于获准驱动实体设备。
 
-`HandPipeline` 返回的扩展诊断目前只进日志、未进入规范 payload，可在需要逐帧定位降级原因时补可选字段；不是新路线的前置大工程。两次 `prepare_frame_payload` 分别处理 pipeline 输出与主循环补充 timing 后的输出，不因重复调用就判定为缺陷。
+M3-A 已将输入有效性、原因、几何与映射版本加入可选 `input_diagnostics`；扩展异常仍进入日志并退回无效预览。两次 `prepare_frame_payload` 分别处理 pipeline 输出与主循环补充 timing 后的输出，不因重复调用就判定为缺陷。
 
 下一步只维护三处入口：[阶段路线](../ai_roadmap.md)、[AI 接口](../ai_interfaces.md)、[训练评测命令](../../experiments/intent_prediction/README.md)。文件哈希、AST 指纹、Git 身份核验、冻结收据和一次性运行限制不再恢复。

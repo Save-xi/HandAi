@@ -6,6 +6,7 @@ from typing import Any, Dict
 from svh.svh_layout import SVH_9CH_NAMES
 
 MAPPING_CONTRACT_VERSION = "svh9-label-v2-open-release"
+CAMERA_MAPPING_VERSION = "svh9-camera-v3-continuous-release"
 H2O_LABEL_GESTURE_CONTEXT_POLICY = "stateless_raw_gesture_as_stable_proxy"
 RUNTIME_GESTURE_CONTEXT_POLICY = "consecutive_gesture_stabilizer"
 
@@ -42,18 +43,33 @@ _MAPPING_DEFAULTS: Dict[str, Any] = {
     "svh_pinch_spread_scale": 0.10,
 }
 
+_CAMERA_DEFAULTS = {
+    "geometry_mode": "legacy_image_xyz",
+    "geometry_min_palm_size": 1e-4,
+    "geometry_min_bone_palm_ratio": 1e-3,
+    "control_open_release_mode": "legacy",
+    "control_release_curl_half_width": 0.02,
+    "control_release_pinch_band": 0.10,
+    "control_release_hysteresis": 0.01,
+    "mapping_max_frame_gap_ms": 100.0,
+    "stable_gesture_min_consecutive": 2,
+    "stable_unknown_consecutive": 1,
+}
+
 
 
 def mapping_contract_payload(cfg: Dict[str, Any]) -> Dict[str, Any]:
     """返回可序列化的有效映射语义，不包含运行期无关配置。"""
 
+    camera = cfg.get("geometry_mode", "legacy_image_xyz") != "legacy_image_xyz" or cfg.get("control_open_release_mode", "legacy") != "legacy"
+    defaults = {**_MAPPING_DEFAULTS, **_CAMERA_DEFAULTS} if camera else _MAPPING_DEFAULTS
     return {
-        "version": MAPPING_CONTRACT_VERSION,
+        "version": CAMERA_MAPPING_VERSION if camera else MAPPING_CONTRACT_VERSION,
         "single_right_hand": True,
         "channel_order": list(SVH_9CH_NAMES),
         "parameters": {
             key: cfg.get(key, default)
-            for key, default in sorted(_MAPPING_DEFAULTS.items())
+            for key, default in sorted(defaults.items())
         },
     }
 

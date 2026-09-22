@@ -1,0 +1,12 @@
+# M3-A 摄像头开发入口。旧 ai.yaml/H2O 标签和旧预测模型保留旧语义。
+extends: ai.yaml
+geometry_mode: image_width_xyz_v1
+geometry_min_palm_size: 0.0001
+geometry_min_bone_palm_ratio: 0.001
+control_open_release_mode: continuous_v1
+control_release_curl_half_width: 0.02
+control_release_pinch_band: 0.10
+control_release_hysteresis: 0.01
+mapping_max_frame_gap_ms: 100.0
+prediction_shadow_enabled: false
+output_json_path: outputs/latest_ai_m3a_frame.json

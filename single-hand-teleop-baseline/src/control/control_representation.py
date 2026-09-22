@@ -12,6 +12,8 @@ control_representation 输出的是“下游控制可以怎么理解这些量”
 
 from typing import Dict, Iterable
 
+from control.open_release import OpenReleaseState
+
 from features.geometry_utils import clamp01, normalize_between
 from output.frame_payload_contract import get_stable_gesture
 
@@ -104,7 +106,7 @@ def empty_control_representation() -> Dict:
     }
 
 
-def build_control_representation(payload: Dict, cfg: Dict) -> Dict:
+def build_control_representation(payload: Dict, cfg: Dict, *, release_state: OpenReleaseState | None = None) -> Dict:
     """把逐帧感知结果转换成面向控制的连续向量。
 
     这一层刻意保持与硬件无关。它保留手势标签作为上下文，
@@ -126,17 +128,22 @@ def build_control_representation(payload: Dict, cfg: Dict) -> Dict:
         or payload.get("pinch_distance_norm") is None
         or any(finger_curl.get(name) is None for name in CONTROL_FINGERS)
     ):
+        if release_state is not None:
+            release_state.reset()
         return empty_control_representation()
 
     # finger_flex 先继承视觉侧 curl 并夹到 [0, 1]；预览配置可在明确张手时
     # 启用连续释放校正，但原始 finger_curl 始终保留，便于诊断和回放。
     finger_flex = {name: clamp01(float(finger_curl[name])) for name in CONTROL_FINGERS}
-    finger_flex = _apply_open_release(
-        finger_flex,
-        gesture=gesture,
-        hand_open_ratio=float(payload["hand_open_ratio"]),
-        cfg=cfg,
-    )
+    if cfg.get("control_open_release_mode", "legacy") == "continuous_v1":
+        if release_state is None:
+            raise ValueError("continuous_v1 需要该输入流独立的 OpenReleaseState")
+        retain = 1.0 - release_state.update(payload, cfg)
+        finger_flex = {name: value * retain for name, value in finger_flex.items()}
+    else:
+        finger_flex = _apply_open_release(
+            finger_flex, gesture=gesture, hand_open_ratio=float(payload["hand_open_ratio"]), cfg=cfg,
+        )
     mean_non_thumb_flex = _mean(finger_flex[name] for name in NON_THUMB_FINGERS)
     support_flex = _mean(finger_flex[name] for name in SUPPORT_FINGERS)
 
