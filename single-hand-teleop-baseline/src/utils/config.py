@@ -78,6 +78,11 @@ def validate_config(cfg: Dict[str, Any]) -> None:
     for key in (
         "prediction_shadow_target_fps",
         "prediction_shadow_max_frame_gap_ms",
+        "geometry_min_palm_size",
+        "geometry_min_bone_palm_ratio",
+        "control_release_curl_half_width",
+        "control_release_pinch_band",
+        "mapping_max_frame_gap_ms",
     ):
         _require_positive_number(cfg, key, errors)
     for key in (
@@ -86,10 +91,15 @@ def validate_config(cfg: Dict[str, Any]) -> None:
         "control_ready_min_in_bounds_ratio",
         "control_open_release_start_ratio",
         "control_open_release_full_ratio",
+        "control_release_hysteresis",
     ):
         _require_probability(cfg, key, errors)
 
     source_type = str(cfg.get("input_source_type", "webcam")).strip().lower()
+    if cfg.get("geometry_mode", "legacy_image_xyz") not in {"legacy_image_xyz", "image_width_xyz_v1"}:
+        errors.append("geometry_mode 必须是 legacy_image_xyz 或 image_width_xyz_v1")
+    if cfg.get("control_open_release_mode", "legacy") not in {"legacy", "continuous_v1"}:
+        errors.append("control_open_release_mode 必须是 legacy 或 continuous_v1")
     if source_type not in {"webcam", "video_file"}:
         errors.append("input_source_type 只能是 webcam 或 video_file")
 

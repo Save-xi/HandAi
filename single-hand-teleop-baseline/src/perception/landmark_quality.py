@@ -9,6 +9,8 @@ MediaPipe 有时会在手贴边、遮挡或快速运动时仍给出一组关键�
 
 from typing import Dict, List, Tuple
 
+import numpy as np
+
 from features.hand_features import INDEX_MCP, LITTLE_MCP, MIDDLE_MCP, RING_MCP, WRIST
 
 # 掌心核心点比指尖更稳定，适合判断整只手是否贴边或大面积越界。
@@ -30,12 +32,18 @@ def assess_control_readiness(landmarks_2d: List[Tuple[float, float]], cfg: Dict)
     往往会让 pinch / open 指标不稳定。
     """
 
-    if not landmarks_2d:
+    try:
+        points = np.asarray(landmarks_2d, dtype=float)
+        complete = points.shape == (21, 2) and bool(np.isfinite(points).all())
+    except (ValueError, TypeError, OverflowError):
+        complete = False
+    if not complete:
         return {
             "control_ready": False,
             "in_bounds_ratio": 0.0,
             "palm_center_margin": 0.0,
         }
+    landmarks_2d = points.tolist()
 
     min_in_bounds_ratio = float(cfg.get("control_ready_min_in_bounds_ratio", 0.90))
     palm_center_margin = float(cfg.get("control_ready_palm_center_margin", 0.08))

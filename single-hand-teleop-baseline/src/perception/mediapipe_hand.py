@@ -81,6 +81,9 @@ class MediaPipeHandDetector:
                     landmarks_xyz=points_xyz,
                     handedness=label,
                     confidence=score,
+                    image_width=int(bgr_frame.shape[1]),
+                    image_height=int(bgr_frame.shape[0]),
+                    coordinate_space="mediapipe_image_xyz",
                 )
             )
         return detections

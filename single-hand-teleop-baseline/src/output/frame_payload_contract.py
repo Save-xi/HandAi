@@ -158,7 +158,7 @@ DEPRECATED_ALIASES = {
     "svh": "svh_preview",
 }
 
-FRAME_PAYLOAD_OPTIONAL_FIELDS = ("timing", "prediction_diagnostics")
+FRAME_PAYLOAD_OPTIONAL_FIELDS = ("timing", "prediction_diagnostics", "input_diagnostics")
 """canonical 顶层可选字段；其余未知键与 JSON Schema 一样必须拒绝。"""
 
 
@@ -195,6 +195,7 @@ class FramePayload(TypedDict, total=False):
     latency_ms: float
     timing: Dict[str, Any]
     prediction_diagnostics: Dict[str, Any]
+    input_diagnostics: Dict[str, Any]
 
 
 def _is_number(value: Any) -> bool:
@@ -704,6 +705,40 @@ def _validate_prediction_diagnostics(
                 errors.append(f"predicted 状态必须包含 prediction_diagnostics.{field}")
 
 
+def _validate_input_diagnostics(payload: dict, diagnostics: Any, errors: List[str]) -> None:
+    fields = {"task_id", "image_width", "image_height", "input_valid", "reason", "geometry_landmarks",
+              "mapping_version", "release_weight", "state_reset"}
+    if not isinstance(diagnostics, dict) or set(diagnostics) != fields:
+        errors.append("input_diagnostics 必须包含完整且无多余字段的输入诊断")
+        return
+    if diagnostics["task_id"] not in {"camera_mediapipe_geometry_xyz_v1", "legacy_mediapipe_image_xyz"}:
+        errors.append("input_diagnostics.task_id 无效")
+    for key in ("input_valid", "state_reset"):
+        if not isinstance(diagnostics[key], bool):
+            errors.append(f"input_diagnostics.{key} 必须是布尔值")
+    for key in ("reason", "mapping_version"):
+        if not isinstance(diagnostics[key], str) or not diagnostics[key]:
+            errors.append(f"input_diagnostics.{key} 必须是非空字符串")
+    dimensions = [diagnostics[key] for key in ("image_width", "image_height")]
+    valid_size = all(isinstance(v, int) and not isinstance(v, bool) and v > 0 for v in dimensions)
+    if not valid_size and dimensions != [None, None]:
+        errors.append("input_diagnostics 图像宽高必须成对为正整数或 null")
+    if diagnostics["input_valid"] and diagnostics["task_id"] == "camera_mediapipe_geometry_xyz_v1" and not valid_size:
+        errors.append("新几何的有效帧必须声明图像宽高")
+    points = diagnostics["geometry_landmarks"]
+    _validate_landmarks("input_diagnostics.geometry_landmarks", points, 3, errors)
+    if not isinstance(points, list) or len(points) not in (0, 21):
+        errors.append("input_diagnostics.geometry_landmarks 必须为空或 21 点")
+    if diagnostics["input_valid"]:
+        if diagnostics["reason"] != "ok" or not isinstance(points, list) or len(points) != 21 or not payload.get("detected"):
+            errors.append("input_diagnostics 有效帧必须有 ok 原因和完整检测")
+    elif payload.get("control_ready") or (isinstance(payload.get("svh_preview"), dict) and payload["svh_preview"].get("valid")):
+        errors.append("失效输入不得输出可消费控制量")
+    weight = diagnostics["release_weight"]
+    if weight is not None and (not _is_number(weight) or not 0 <= weight <= 1):
+        errors.append("input_diagnostics.release_weight 必须位于 [0, 1] 或为旧映射的 null")
+
+
 def validate_frame_payload(
     payload: Dict[str, Any],
     *,
@@ -791,6 +826,8 @@ def validate_frame_payload(
                     errors.append(f"timing.{field} 不能为负数")
     if "prediction_diagnostics" in payload:
         _validate_prediction_diagnostics(payload, payload["prediction_diagnostics"], errors)
+    if "input_diagnostics" in payload:
+        _validate_input_diagnostics(payload, payload["input_diagnostics"], errors)
 
     if "finger_curl" in payload:
         _validate_finger_map("finger_curl", payload["finger_curl"], errors)

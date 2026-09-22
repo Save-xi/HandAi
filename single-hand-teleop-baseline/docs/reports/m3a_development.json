@@ -1,0 +1,697 @@
+{
+  "scope": "M3-A development diagnostics, not accuracy or device acceptance",
+  "release": {
+    "fps": 30,
+    "source_period_ms": 33.333333333333336,
+    "channel_order": [
+      "thumb_flexion",
+      "thumb_opposition",
+      "index_finger_distal",
+      "index_finger_proximal",
+      "middle_finger_distal",
+      "middle_finger_proximal",
+      "ring_finger",
+      "pinky",
+      "finger_spread"
+    ],
+    "transition_definition": "first persistent 90% endpoint response after frame 3; each arm uses its own endpoint",
+    "cases": {
+      "curl_boundary": {
+        "input_features": [
+          [0.4499, 0.96, 1.0],
+          [0.4499, 0.96, 1.0],
+          [0.4501, 0.96, 1.0]
+        ],
+        "legacy_release": {
+          "consecutive_valid_pairs": 2,
+          "per_channel_p95": [0.4229176415094339, 0.45009, 0.464808786277873, 0.4703283311320755, 0.4618650290222984, 0.46775254353344764, 0.45818533245283016, 0.45671345382504286, 0.09737886792452827],
+          "per_channel_max": [0.42292735849056595, 0.4501, 0.4648222641509433, 0.4703431132075472, 0.46187781132075467, 0.46776671698113204, 0.45819724528301886, 0.4567250188679245, 0.09738113207547167],
+          "max_jump": 0.4703431132075472,
+          "trace": [
+            {
+              "frame_index": 0,
+              "source_time_ms": 0.0,
+              "gesture_raw": "open",
+              "gesture_stable": "unknown",
+              "valid": true,
+              "positions": [0.42273301886792447, 0.4499, 0.4645527066895369, 0.47004747169811323, 0.46162216535162953, 0.46748324802744423, 0.4579589886792453, 0.4564937180102916, 0.15266415094339622],
+              "release_weight": null
+            },
+            {
+              "frame_index": 1,
+              "source_time_ms": 33.333333333333336,
+              "gesture_raw": "open",
+              "gesture_stable": "open",
+              "valid": true,
+              "positions": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.25],
+              "release_weight": null
+            },
+            {
+              "frame_index": 2,
+              "source_time_ms": 66.66666666666667,
+              "gesture_raw": "unknown",
+              "gesture_stable": "unknown",
+              "valid": true,
+              "positions": [0.42292735849056595, 0.4501, 0.4648222641509433, 0.4703431132075472, 0.46187781132075467, 0.46776671698113204, 0.45819724528301886, 0.4567250188679245, 0.15261886792452833],
+              "release_weight": null
+            }
+          ]
+        },
+        "continuous_release": {
+          "consecutive_valid_pairs": 2,
+          "per_channel_p95": [9.369599056605892e-05, 9.642499999997777e-05, 9.976596912517898e-05, 0.00010101883254714921, 9.909777530013874e-05, 0.00010043416295024559, 9.826253301885162e-05, 9.79284361063315e-05, 2.183207547169358e-05],
+          "per_channel_max": [9.862735849058835e-05, 0.00010149999999997661, 0.00010501680960545157, 0.00010633561320752549, 0.00010431344768435657, 0.00010572017152657431, 0.00010343424528300171, 0.00010308256432245422, 2.2981132075466926e-05],
+          "max_jump": 0.00010633561320752549,
+          "trace": [
+            {
+              "frame_index": 0,
+              "source_time_ms": 0.0,
+              "gesture_raw": "open",
+              "gesture_stable": "unknown",
+              "valid": true,
+              "positions": [0.20742828066037727, 0.22832424999999995, 0.16796068123576324, 0.14532434294917448, 0.1800333949886106, 0.1558879674829159, 0.19512428717966976, 0.20116064405609344, 0.20283224528301888],
+              "release_weight": 0.49250000000000016
+            },
+            {
+              "frame_index": 1,
+              "source_time_ms": 33.333333333333336,
+              "gesture_raw": "open",
+              "gesture_stable": "open",
+              "valid": true,
+              "positions": [0.20742828066037727, 0.22832424999999995, 0.16796068123576324, 0.14532434294917448, 0.1800333949886106, 0.1558879674829159, 0.19512428717966976, 0.20116064405609344, 0.20283224528301888],
+              "release_weight": 0.49250000000000016
+            },
+            {
+              "frame_index": 2,
+              "source_time_ms": 66.66666666666667,
+              "gesture_raw": "unknown",
+              "gesture_stable": "unknown",
+              "valid": true,
+              "positions": [0.20752690801886786, 0.22842574999999993, 0.1680656980453687, 0.145430678562382, 0.18013770843629495, 0.15599368765444246, 0.19522772142495276, 0.2012637266204159, 0.2028092641509434],
+              "release_weight": 0.49250000000000016
+            }
+          ]
+        }
+      },
+      "open_to_unknown": {
+        "legacy_release": {
+          "consecutive_valid_pairs": 20,
+          "per_channel_p95": [0.10055031446540906, 0.1183333333333336, 0.08111320754717011, 0.06715566037735882, 0.08855723270440281, 0.07366918238993742, 0.09786226415094369, 0.10158427672956002, 0.022264150943396274],
+          "per_channel_max": [0.4390251572327043, 0.4666666666666666, 0.48226415094339614, 0.4881132075471698, 0.47914465408805024, 0.48538364779874205, 0.47524528301886787, 0.4736855345911949, 0.10113207547169809],
+          "max_jump": 0.4881132075471698,
+          "settled_frame": 16,
+          "transition_lag_ms": 433.3333333333333
+        },
+        "continuous_release": {
+          "consecutive_valid_pairs": 20,
+          "per_channel_p95": [0.08999004192872229, 0.09261111111111223, 0.11115677148847115, 0.11811139412998084, 0.10744763941299938, 0.11486590356394298, 0.10281122431865966, 0.10095665828092372, 0.02096855345911973],
+          "per_channel_max": [0.38025786163521985, 0.39133333333333314, 0.40246717912881325, 0.40664237130211833, 0.4002404099697173, 0.4046939482879093, 0.39745694852084723, 0.3963435639412992, 0.08860377358490562],
+          "max_jump": 0.40664237130211833,
+          "settled_frame": 16,
+          "transition_lag_ms": 433.3333333333333
+        },
+        "added_lag_ms": 0.0
+      },
+      "unknown_to_open": {
+        "legacy_release": {
+          "consecutive_valid_pairs": 20,
+          "per_channel_p95": [0.05110220125786194, 0.05333333333333361, 0.06420583190394533, 0.06828301886792477, 0.06203133218982303, 0.06638033161806774, 0.059313207547170094, 0.058225957690108895, 0.011849056603773642],
+          "per_channel_max": [0.4066352201257861, 0.43333333333333335, 0.4377167905469792, 0.43936058700209646, 0.43684009910425003, 0.4385934819897084, 0.43574423480083857, 0.435305889079474, 0.09358490566037733],
+          "max_jump": 0.43936058700209646,
+          "settled_frame": 8,
+          "transition_lag_ms": 166.66666666666666
+        },
+        "continuous_release": {
+          "consecutive_valid_pairs": 20,
+          "per_channel_p95": [0.08140670859538829, 0.08377777777777824, 0.09760885839527408, 0.10279551362683507, 0.09484264227177498, 0.1003750745187733, 0.091384872117401, 0.09000176405565134, 0.018968553459119596],
+          "per_channel_max": [0.3809056603773583, 0.39199999999999985, 0.41203152701014295, 0.4195433496389467, 0.40802522160811433, 0.41603783241217157, 0.4030173398555786, 0.40101418715456427, 0.08875471698113202],
+          "max_jump": 0.4195433496389467,
+          "settled_frame": 7,
+          "transition_lag_ms": 133.33333333333334
+        },
+        "added_lag_ms": -33.333333333333336
+      },
+      "open_to_pinch": {
+        "legacy_release": {
+          "consecutive_valid_pairs": 20,
+          "per_channel_p95": [0.09674643676695577, 0.10201469275879657, 0.09252605813360547, 0.08408530086690477, 0.07944968553459136, 0.06390452830188696, 0.08931968553459137, 0.09336635220125802, 0.029147223355431053],
+          "per_channel_max": [0.13225504844467106, 0.14029385517593063, 0.13898514363420023, 0.15244533401325852, 0.2969937106918239, 0.2900905660377358, 0.3043937106918239, 0.3093270440251572, 0.23879352371239165],
+          "max_jump": 0.3093270440251572,
+          "settled_frame": 17,
+          "transition_lag_ms": 466.6666666666667
+        },
+        "continuous_release": {
+          "consecutive_valid_pairs": 20,
+          "per_channel_p95": [0.09652313927134694, 0.09496305980508815, 0.09008084310725828, 0.08048740438551766, 0.09824228982656748, 0.08295899029540685, 0.10434645215932913, 0.10353065735086714, 0.037811877443481315],
+          "per_channel_max": [0.1277890985324946, 0.13151111111111097, 0.09008084310725833, 0.08048740438551769, 0.11178540118162758, 0.12894476843910802, 0.10814874968553445, 0.11239645176291202, 0.1904916369199388],
+          "max_jump": 0.1904916369199388,
+          "settled_frame": 17,
+          "transition_lag_ms": 466.6666666666667
+        },
+        "added_lag_ms": 0.0
+      },
+      "pinch_to_open": {
+        "legacy_release": {
+          "consecutive_valid_pairs": 20,
+          "per_channel_p95": [0.09487756246812859, 0.08508286588475272, 0.09008084310725828, 0.08048740438551766, 0.028599371069182627, 0.0279890566037738, 0.02930937106918264, 0.029782704402515948, 0.022880433452320426],
+          "per_channel_max": [0.09487756246812862, 0.08508286588475278, 0.09008084310725833, 0.08048740438551766, 0.2646415094339623, 0.2583622641509434, 0.27124150943396225, 0.27564150943396226, 0.25],
+          "max_jump": 0.27564150943396226,
+          "settled_frame": 9,
+          "transition_lag_ms": 200.0
+        },
+        "continuous_release": {
+          "consecutive_valid_pairs": 20,
+          "per_channel_p95": [0.09487756246812859, 0.08508286588475272, 0.09008084310725828, 0.08048740438551766, 0.07761578532494776, 0.07636883354297705, 0.0793630742138366, 0.0805839631027255, 0.022631125276219792],
+          "per_channel_max": [0.09487756246812862, 0.08508286588475278, 0.09008084310725833, 0.08048740438551766, 0.18001620964360573, 0.18154142557651978, 0.18102798742138348, 0.18282309853249457, 0.2450138364779874],
+          "max_jump": 0.2450138364779874,
+          "settled_frame": 9,
+          "transition_lag_ms": 200.0
+        },
+        "added_lag_ms": 0.0
+      },
+      "normal_opening": {
+        "legacy_release": {
+          "consecutive_valid_pairs": 20,
+          "per_channel_p95": [0.07595778077268658, 0.06667333333333349, 0.07413986691715002, 0.08529981701108126, 0.06818789353372001, 0.0800918403005801, 0.0607479268044325, 0.057771940112717565, 0.018600610961365702],
+          "per_channel_max": [0.13516010781671153, 0.12759999999999994, 0.10968390753900184, 0.10296537286612754, 0.11326712603120145, 0.10610068904680221, 0.11774614914645098, 0.11953775839255079, 0.03239532794249775],
+          "max_jump": 0.13516010781671153,
+          "settled_frame": 16,
+          "transition_lag_ms": 433.3333333333333
+        },
+        "continuous_release": {
+          "consecutive_valid_pairs": 20,
+          "per_channel_p95": [0.08691529649595692, 0.07795000000000005, 0.07295310714694118, 0.08460927232704413, 0.0746357425097334, 0.07916972857632949, 0.07876519797544168, 0.08041698016172501, 0.021153818508535524],
+          "per_channel_max": [0.09706954177897567, 0.08839999999999992, 0.08594871213482541, 0.08915447918538494, 0.08423896970786035, 0.08765845456179047, 0.08210179167415399, 0.08124692046067145, 0.02351985624438452],
+          "max_jump": 0.09706954177897567,
+          "settled_frame": 16,
+          "transition_lag_ms": 433.3333333333333
+        },
+        "added_lag_ms": 0.0
+      },
+      "normal_closing": {
+        "legacy_release": {
+          "consecutive_valid_pairs": 20,
+          "per_channel_p95": [0.08892671159029651, 0.08859999999999996, 0.0730590151433473, 0.08471364582210253, 0.07387746736148543, 0.07927481817201683, 0.07831283898173108, 0.08207050462141632, 0.02162249775381854],
+          "per_channel_max": [0.09668086253369268, 0.1, 0.08806687206294757, 0.0912419490865529, 0.08637349765035807, 0.08976024647553707, 0.08425677963462119, 0.08341009242832642, 0.023429290206648662],
+          "max_jump": 0.1,
+          "settled_frame": 16,
+          "transition_lag_ms": 433.3333333333333
+        },
+        "continuous_release": {
+          "consecutive_valid_pairs": 20,
+          "per_channel_p95": [0.09093812668463616, 0.08209000000000004, 0.07316425898881002, 0.08481710610961375, 0.07312875598682236, 0.07937911078657209, 0.07756039474094037, 0.07933305024258755, 0.02209117699910153],
+          "per_channel_max": [0.09629218328840963, 0.08759999999999994, 0.09017174897220186, 0.09331115483677753, 0.08849739917776148, 0.0918460987666422, 0.08640446193471102, 0.08556728703749084, 0.02333872416891286],
+          "max_jump": 0.09629218328840963,
+          "settled_frame": 16,
+          "transition_lag_ms": 433.3333333333333
+        },
+        "added_lag_ms": 0.0
+      },
+      "loss_recovery": {
+        "input_features": [
+          [0.1, 0.96, 1.0],
+          [0.1, 0.96, 1.0],
+          [0.1, 0.96, 1.0],
+          null,
+          null,
+          [0.1, 0.96, 1.0],
+          [0.1, 0.96, 1.0],
+          [0.1, 0.96, 1.0]
+        ],
+        "legacy_release": {
+          "consecutive_valid_pairs": 4,
+          "per_channel_p95": [0.08273584905660378, 0.1, 0.06, 0.045000000000000005, 0.068, 0.052000000000000005, 0.07800000000000001, 0.082, 0.018113207547169802],
+          "per_channel_max": [0.08273584905660378, 0.1, 0.06, 0.045000000000000005, 0.068, 0.052000000000000005, 0.07800000000000001, 0.082, 0.018113207547169802],
+          "max_jump": 0.1,
+          "trace": [
+            {
+              "frame_index": 0,
+              "source_time_ms": 0.0,
+              "gesture_raw": "open",
+              "gesture_stable": "unknown",
+              "valid": true,
+              "positions": [0.08273584905660378, 0.1, 0.06, 0.045000000000000005, 0.068, 0.052000000000000005, 0.07800000000000001, 0.082, 0.2318867924528302],
+              "release_weight": null
+            },
+            {
+              "frame_index": 1,
+              "source_time_ms": 33.333333333333336,
+              "gesture_raw": "open",
+              "gesture_stable": "open",
+              "valid": true,
+              "positions": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.25],
+              "release_weight": null
+            },
+            {
+              "frame_index": 2,
+              "source_time_ms": 66.66666666666667,
+              "gesture_raw": "open",
+              "gesture_stable": "open",
+              "valid": true,
+              "positions": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.25],
+              "release_weight": null
+            },
+            {
+              "frame_index": 3,
+              "source_time_ms": 100.0,
+              "gesture_raw": "unknown",
+              "gesture_stable": "unknown",
+              "valid": false,
+              "positions": [],
+              "release_weight": null
+            },
+            {
+              "frame_index": 4,
+              "source_time_ms": 133.33333333333334,
+              "gesture_raw": "unknown",
+              "gesture_stable": "unknown",
+              "valid": false,
+              "positions": [],
+              "release_weight": null
+            },
+            {
+              "frame_index": 5,
+              "source_time_ms": 166.66666666666666,
+              "gesture_raw": "open",
+              "gesture_stable": "unknown",
+              "valid": true,
+              "positions": [0.08273584905660378, 0.1, 0.06, 0.045000000000000005, 0.068, 0.052000000000000005, 0.07800000000000001, 0.082, 0.2318867924528302],
+              "release_weight": null
+            },
+            {
+              "frame_index": 6,
+              "source_time_ms": 200.0,
+              "gesture_raw": "open",
+              "gesture_stable": "open",
+              "valid": true,
+              "positions": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.25],
+              "release_weight": null
+            },
+            {
+              "frame_index": 7,
+              "source_time_ms": 233.33333333333334,
+              "gesture_raw": "open",
+              "gesture_stable": "open",
+              "valid": true,
+              "positions": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.25],
+              "release_weight": null
+            }
+          ]
+        },
+        "continuous_release": {
+          "consecutive_valid_pairs": 4,
+          "per_channel_p95": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+          "per_channel_max": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+          "max_jump": 0.0,
+          "trace": [
+            {
+              "frame_index": 0,
+              "source_time_ms": 0.0,
+              "gesture_raw": "open",
+              "gesture_stable": "unknown",
+              "valid": true,
+              "positions": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.25],
+              "release_weight": 1.0
+            },
+            {
+              "frame_index": 1,
+              "source_time_ms": 33.333333333333336,
+              "gesture_raw": "open",
+              "gesture_stable": "open",
+              "valid": true,
+              "positions": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.25],
+              "release_weight": 1.0
+            },
+            {
+              "frame_index": 2,
+              "source_time_ms": 66.66666666666667,
+              "gesture_raw": "open",
+              "gesture_stable": "open",
+              "valid": true,
+              "positions": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.25],
+              "release_weight": 1.0
+            },
+            {
+              "frame_index": 3,
+              "source_time_ms": 100.0,
+              "gesture_raw": "unknown",
+              "gesture_stable": "unknown",
+              "valid": false,
+              "positions": [],
+              "release_weight": 0.0
+            },
+            {
+              "frame_index": 4,
+              "source_time_ms": 133.33333333333334,
+              "gesture_raw": "unknown",
+              "gesture_stable": "unknown",
+              "valid": false,
+              "positions": [],
+              "release_weight": 0.0
+            },
+            {
+              "frame_index": 5,
+              "source_time_ms": 166.66666666666666,
+              "gesture_raw": "open",
+              "gesture_stable": "unknown",
+              "valid": true,
+              "positions": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.25],
+              "release_weight": 1.0
+            },
+            {
+              "frame_index": 6,
+              "source_time_ms": 200.0,
+              "gesture_raw": "open",
+              "gesture_stable": "open",
+              "valid": true,
+              "positions": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.25],
+              "release_weight": 1.0
+            },
+            {
+              "frame_index": 7,
+              "source_time_ms": 233.33333333333334,
+              "gesture_raw": "open",
+              "gesture_stable": "open",
+              "valid": true,
+              "positions": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.25],
+              "release_weight": 1.0
+            }
+          ]
+        }
+      }
+    },
+    "gates": {
+      "microjump_at_most_0_05": true,
+      "extra_lag_at_most_one_source_period": true,
+      "maximum_added_lag_ms": 0,
+      "loss_immediately_invalid": true
+    }
+  },
+  "videos": [
+    {
+      "video": "v1.mp4",
+      "frames": 180,
+      "nominal_fps": 29.92657147029101,
+      "image_sizes": [
+        [1920, 1080]
+      ],
+      "timestamp_sources": {
+        "container_pts_ms": 180
+      },
+      "trace_file": "v1.frames.jsonl",
+      "scope": "historical development clip; person/session unknown; no manual labels",
+      "arms": {
+        "legacy_geometry_release": {
+          "valid_frames": 180,
+          "reasons": {
+            "ok": 180
+          },
+          "stable_gestures": {
+            "unknown": 21,
+            "open": 105,
+            "fist": 54
+          },
+          "state_reset_frames": 0,
+          "raw_gesture_disagreements_with_legacy_on_joint_valid_frames": 0,
+          "consecutive_valid_pairs": 179,
+          "per_channel_p95": [0.00684947676926002, 0.0, 0.012621124722958689, 0.011162966335115397, 0.014150326658246674, 0.014824953160287296, 0.015888816917763213, 0.010828698595272912, 0.0021488554570227715],
+          "per_channel_max": [0.47942898224130914, 0.7, 0.4152219792467913, 0.42514176966423084, 0.3277878588610483, 0.33125989590867544, 0.4277041275703369, 0.5931050670920703, 0.0990517225683126],
+          "max_jump": 0.7
+        },
+        "corrected_geometry_legacy_release": {
+          "valid_frames": 180,
+          "reasons": {
+            "ok": 180
+          },
+          "stable_gestures": {
+            "unknown": 22,
+            "open": 115,
+            "fist": 43
+          },
+          "state_reset_frames": 0,
+          "raw_gesture_disagreements_with_legacy_on_joint_valid_frames": 21,
+          "consecutive_valid_pairs": 179,
+          "per_channel_p95": [0.007907927159566784, 0.005824878174920754, 0.012587238354550648, 0.012741540257665994, 0.014496095138687267, 0.014943555551418025, 0.014466211051629096, 0.015022803709989015, 0.0018846730060093127],
+          "per_channel_max": [0.41116827891405106, 0.41132320071809625, 0.356218364190824, 0.3552984870852376, 0.358223514005211, 0.3573426111306883, 0.4944722003483299, 0.5692211678474748, 0.09748787422496222],
+          "max_jump": 0.5692211678474748
+        },
+        "corrected_geometry_continuous_release": {
+          "valid_frames": 180,
+          "reasons": {
+            "ok": 180
+          },
+          "stable_gestures": {
+            "unknown": 22,
+            "open": 115,
+            "fist": 43
+          },
+          "state_reset_frames": 0,
+          "raw_gesture_disagreements_with_legacy_on_joint_valid_frames": 21,
+          "consecutive_valid_pairs": 179,
+          "per_channel_p95": [0.009214344121791056, 0.00839519390668583, 0.014222245817569847, 0.012978531260153296, 0.015304531269592995, 0.015565847533503858, 0.019443982739917046, 0.018248481258812666, 0.0024855633548163314],
+          "per_channel_max": [0.15125955320850942, 0.13793454011473216, 0.15348524607305036, 0.1636005195403632, 0.153005392193234, 0.16404198794613922, 0.20410612473693704, 0.22650393191108137, 0.03663558217406318],
+          "max_jump": 0.22650393191108137
+        }
+      }
+    },
+    {
+      "video": "v5.mp4",
+      "frames": 180,
+      "nominal_fps": 29.995865672473297,
+      "image_sizes": [
+        [1920, 1080]
+      ],
+      "timestamp_sources": {
+        "container_pts_ms": 180
+      },
+      "trace_file": "v5.frames.jsonl",
+      "scope": "historical development clip; person/session unknown; no manual labels",
+      "arms": {
+        "legacy_geometry_release": {
+          "valid_frames": 180,
+          "reasons": {
+            "ok": 180
+          },
+          "stable_gestures": {
+            "unknown": 27,
+            "open": 85,
+            "fist": 68
+          },
+          "state_reset_frames": 0,
+          "raw_gesture_disagreements_with_legacy_on_joint_valid_frames": 0,
+          "consecutive_valid_pairs": 179,
+          "per_channel_p95": [0.4647789895166281, 0.6812676953148407, 0.42891905223234705, 0.4334202072415756, 0.2676453993770736, 0.2604766633767772, 0.3763970172998135, 0.5824606487105797, 0.09373986519779329],
+          "per_channel_max": [0.5262020165819159, 0.7, 0.4920021288137498, 0.5067278776228284, 0.36855947913562315, 0.37467216528698455, 0.49099724713573284, 0.6502288548430574, 0.11018102481001285],
+          "max_jump": 0.7
+        },
+        "corrected_geometry_legacy_release": {
+          "valid_frames": 180,
+          "reasons": {
+            "ok": 180
+          },
+          "stable_gestures": {
+            "unknown": 9,
+            "open": 107,
+            "fist": 64
+          },
+          "state_reset_frames": 0,
+          "raw_gesture_disagreements_with_legacy_on_joint_valid_frames": 22,
+          "consecutive_valid_pairs": 179,
+          "per_channel_p95": [0.03449721632985385, 0.0301879428736826, 0.05036708854380952, 0.05016654204476339, 0.04852477856566006, 0.0435227402337632, 0.024345018694318633, 0.006543784809515615, 0.006750270823341867],
+          "per_channel_max": [0.4491888176085862, 0.4427001129080173, 0.3982207249319969, 0.4063996195832149, 0.44522418773803474, 0.45854177530748763, 0.5472335942610649, 0.6734108800539859, 0.11092296871756507],
+          "max_jump": 0.6734108800539859
+        },
+        "corrected_geometry_continuous_release": {
+          "valid_frames": 180,
+          "reasons": {
+            "ok": 180
+          },
+          "stable_gestures": {
+            "unknown": 9,
+            "open": 107,
+            "fist": 64
+          },
+          "state_reset_frames": 0,
+          "raw_gesture_disagreements_with_legacy_on_joint_valid_frames": 22,
+          "consecutive_valid_pairs": 179,
+          "per_channel_p95": [0.03449721632985385, 0.0301879428736826, 0.04984600769260693, 0.04517104905832141, 0.04852477856566006, 0.042533563880417846, 0.024345018694318633, 0.006543784809515615, 0.006750270823341867],
+          "per_channel_max": [0.3562897837756623, 0.3383757058306536, 0.344540647106992, 0.36613956121446123, 0.382420909200921, 0.4105157387791065, 0.46829620761424573, 0.5828433285114066, 0.09138330966188468],
+          "max_jump": 0.5828433285114066
+        }
+      }
+    }
+  ],
+  "run_directory": "outputs/m3a/20260922T105434_910453Z",
+  "validation": {
+    "environment": "handai-intent-prediction / Python 3.10 / Windows",
+    "pytest_passed": 251,
+    "pytest_skipped": 0,
+    "ruff": "passed",
+    "compileall": "passed",
+    "runtime_cli_frames": 30,
+    "runtime_cli_config": "configs/ai_m3a.yaml"
+  },
+  "mapping_configs": {
+    "legacy_geometry_release": {
+      "version": "svh9-label-v2-open-release",
+      "single_right_hand": true,
+      "channel_order": [
+        "thumb_flexion",
+        "thumb_opposition",
+        "index_finger_distal",
+        "index_finger_proximal",
+        "middle_finger_distal",
+        "middle_finger_proximal",
+        "ring_finger",
+        "pinky",
+        "finger_spread"
+      ],
+      "parameters": {
+        "control_grasp_closed_ref": 0.55,
+        "control_grasp_open_ref": 0.02,
+        "control_hand_open_ratio_closed_ref": 0.25,
+        "control_hand_open_ratio_open_ref": 0.95,
+        "control_open_release_enabled": true,
+        "control_open_release_full_ratio": 0.95,
+        "control_open_release_start_ratio": 0.85,
+        "control_pinch_closed_ref": 0.08,
+        "control_pinch_index_closed_ref": 0.35,
+        "control_pinch_index_open_ref": 0.05,
+        "control_pinch_open_ref": 0.45,
+        "fist_compact_ratio_threshold": 0.65,
+        "fist_mean_curl_min": 0.45,
+        "fist_ratio_threshold": 0.85,
+        "open_mean_curl_max": 0.45,
+        "open_ratio_threshold": 0.85,
+        "pinch_distance_norm_threshold": 0.45,
+        "pinch_open_ratio_min": 0.75,
+        "pinch_support_curl_max": 0.65,
+        "svh_enable_gesture_fallback": false,
+        "svh_grasp_spread_scale": 0.05,
+        "svh_open_spread_scale": 0.25,
+        "svh_pinch_spread_scale": 0.1,
+        "svh_pinch_support_scale": 0.2,
+        "svh_position_closed_value": 1.0,
+        "svh_position_open_value": 0.0,
+        "svh_preview_channel_count": 9,
+        "svh_preview_layout": "svh_9ch",
+        "svh_thumb_grasp_scale": 0.85,
+        "svh_thumb_opposition_scale": 0.75
+      }
+    },
+    "corrected_geometry_legacy_release": {
+      "version": "svh9-camera-v3-continuous-release",
+      "single_right_hand": true,
+      "channel_order": [
+        "thumb_flexion",
+        "thumb_opposition",
+        "index_finger_distal",
+        "index_finger_proximal",
+        "middle_finger_distal",
+        "middle_finger_proximal",
+        "ring_finger",
+        "pinky",
+        "finger_spread"
+      ],
+      "parameters": {
+        "control_grasp_closed_ref": 0.55,
+        "control_grasp_open_ref": 0.02,
+        "control_hand_open_ratio_closed_ref": 0.25,
+        "control_hand_open_ratio_open_ref": 0.95,
+        "control_open_release_enabled": true,
+        "control_open_release_full_ratio": 0.95,
+        "control_open_release_mode": "legacy",
+        "control_open_release_start_ratio": 0.85,
+        "control_pinch_closed_ref": 0.08,
+        "control_pinch_index_closed_ref": 0.35,
+        "control_pinch_index_open_ref": 0.05,
+        "control_pinch_open_ref": 0.45,
+        "control_release_curl_half_width": 0.02,
+        "control_release_hysteresis": 0.01,
+        "control_release_pinch_band": 0.1,
+        "fist_compact_ratio_threshold": 0.65,
+        "fist_mean_curl_min": 0.45,
+        "fist_ratio_threshold": 0.85,
+        "geometry_min_bone_palm_ratio": 0.001,
+        "geometry_min_palm_size": 0.0001,
+        "geometry_mode": "image_width_xyz_v1",
+        "mapping_max_frame_gap_ms": 100.0,
+        "open_mean_curl_max": 0.45,
+        "open_ratio_threshold": 0.85,
+        "pinch_distance_norm_threshold": 0.45,
+        "pinch_open_ratio_min": 0.75,
+        "pinch_support_curl_max": 0.65,
+        "stable_gesture_min_consecutive": 2,
+        "stable_unknown_consecutive": 1,
+        "svh_enable_gesture_fallback": false,
+        "svh_grasp_spread_scale": 0.05,
+        "svh_open_spread_scale": 0.25,
+        "svh_pinch_spread_scale": 0.1,
+        "svh_pinch_support_scale": 0.2,
+        "svh_position_closed_value": 1.0,
+        "svh_position_open_value": 0.0,
+        "svh_preview_channel_count": 9,
+        "svh_preview_layout": "svh_9ch",
+        "svh_thumb_grasp_scale": 0.85,
+        "svh_thumb_opposition_scale": 0.75
+      }
+    },
+    "corrected_geometry_continuous_release": {
+      "version": "svh9-camera-v3-continuous-release",
+      "single_right_hand": true,
+      "channel_order": [
+        "thumb_flexion",
+        "thumb_opposition",
+        "index_finger_distal",
+        "index_finger_proximal",
+        "middle_finger_distal",
+        "middle_finger_proximal",
+        "ring_finger",
+        "pinky",
+        "finger_spread"
+      ],
+      "parameters": {
+        "control_grasp_closed_ref": 0.55,
+        "control_grasp_open_ref": 0.02,
+        "control_hand_open_ratio_closed_ref": 0.25,
+        "control_hand_open_ratio_open_ref": 0.95,
+        "control_open_release_enabled": true,
+        "control_open_release_full_ratio": 0.95,
+        "control_open_release_mode": "continuous_v1",
+        "control_open_release_start_ratio": 0.85,
+        "control_pinch_closed_ref": 0.08,
+        "control_pinch_index_closed_ref": 0.35,
+        "control_pinch_index_open_ref": 0.05,
+        "control_pinch_open_ref": 0.45,
+        "control_release_curl_half_width": 0.02,
+        "control_release_hysteresis": 0.01,
+        "control_release_pinch_band": 0.1,
+        "fist_compact_ratio_threshold": 0.65,
+        "fist_mean_curl_min": 0.45,
+        "fist_ratio_threshold": 0.85,
+        "geometry_min_bone_palm_ratio": 0.001,
+        "geometry_min_palm_size": 0.0001,
+        "geometry_mode": "image_width_xyz_v1",
+        "mapping_max_frame_gap_ms": 100.0,
+        "open_mean_curl_max": 0.45,
+        "open_ratio_threshold": 0.85,
+        "pinch_distance_norm_threshold": 0.45,
+        "pinch_open_ratio_min": 0.75,
+        "pinch_support_curl_max": 0.65,
+        "stable_gesture_min_consecutive": 2,
+        "stable_unknown_consecutive": 1,
+        "svh_enable_gesture_fallback": false,
+        "svh_grasp_spread_scale": 0.05,
+        "svh_open_spread_scale": 0.25,
+        "svh_pinch_spread_scale": 0.1,
+        "svh_pinch_support_scale": 0.2,
+        "svh_position_closed_value": 1.0,
+        "svh_position_open_value": 0.0,
+        "svh_preview_channel_count": 9,
+        "svh_preview_layout": "svh_9ch",
+        "svh_thumb_grasp_scale": 0.85,
+        "svh_thumb_opposition_scale": 0.75
+      }
+    }
+  }
+}

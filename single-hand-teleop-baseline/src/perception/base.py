@@ -12,7 +12,9 @@ import numpy as np
 class HandDetection:
     """单手 21 点，按 MediaPipe 关节顺序排列。
 
-    xy 为图像归一化坐标；xyz 为同尺度相对坐标，不能直接当作毫米。
+    xy 为图像归一化坐标；xyz 保留 MediaPipe 原始 x/y/z，不能当作毫米。
+    x、y 分别按图像宽、高归一化，z 约为图像宽尺度。M3-A 必须提供
+    image_width/image_height；流水线另算 (x, y*H/W, z) 用于几何。
     handedness 必须是按真实左右手修正后的 Right/Left。
     """
 
@@ -20,6 +22,9 @@ class HandDetection:
     landmarks_xyz: list[tuple[float, float, float]]
     handedness: str
     confidence: float
+    image_width: int | None = None
+    image_height: int | None = None
+    coordinate_space: str | None = None
 
 
 class HandDetector(Protocol):

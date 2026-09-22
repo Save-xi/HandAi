@@ -17,7 +17,7 @@ from utils.config import load_config  # noqa: E402
 
 def build_device_callback(publish):
     """设备成员提供关键点，下游成员提供 publish(payload) 函数。"""
-    pipeline = HandPipeline(load_config(str(PROJECT_ROOT / "configs/ai.yaml")))
+    pipeline = HandPipeline(load_config(str(PROJECT_ROOT / "configs/ai_m3a.yaml")))
 
     def on_landmarks(detections: list[HandDetection], frame_index: int, timestamp: float):
         payload = pipeline.process_detections(

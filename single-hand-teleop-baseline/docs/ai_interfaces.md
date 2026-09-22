@@ -2,7 +2,7 @@
 
 ## 输入
 
-`src/pipeline.py` 的 `HandPipeline` 负责一次单手输入流。每个流使用一个实例，内部保留手势去抖状态。
+`src/pipeline.py` 的 `HandPipeline` 负责一次单手输入流。每个流使用一个实例，内部保留手势去抖、释放权重和连续性状态。新摄像头开发使用 `configs/ai_m3a.yaml`。
 
 - `process_frame(bgr_frame, frame_index=..., timestamp=..., fps=...)`：处理图像，构造实例时注入检测器。
 - `process_detections(detections, frame_index=..., timestamp=..., fps=...)`：直接处理设备或其他模型给出的关键点，无需初始化 MediaPipe。
@@ -12,7 +12,9 @@
 | 字段 | 约定 |
 |---|---|
 | `landmarks_2d` | 21×2 图像归一化坐标，顺序为 wrist、thumb、index、middle、ring、little |
-| `landmarks_xyz` | 当前为 MediaPipe 原始 21×3 x/y/z；XY 分别按宽高归一化，z 是相对深度，尚未统一几何轴尺度 |
+| `landmarks_xyz` | MediaPipe 原始 21×3 x/y/z；XY 分别按宽高归一化，z 是相对深度；保持原值输出 |
+| `image_width` / `image_height` | 原图正整数宽高；M3-A 外部关键点入口必须提供，图像入口可从实际帧取得并核对 |
+| `coordinate_space` | M3-A 必须明确为 `mediapipe_image_xyz`；缺失或其他坐标域产生失效帧 |
 | `handedness` | 已校正镜像含义的真实 Right/Left 标签 |
 | `confidence` | [0,1] 的置信度；不同模型置信度含义在适配器内说明 |
 | `timestamp` | 秒；当前默认由 pipeline 在检测结束后生成 Unix 时间；显式传入时由调用方定义时间轴，离线评测会传媒体时间偏移值 |
@@ -20,7 +22,9 @@
 
 设备成员负责 RGB-D 采集、内参和坐标转换；单位为米的 3D 点不能直接冒充 MediaPipe 的相对坐标。
 
-2026-09-21 审核确认的接口缺口列入 [M3-A](ai_roadmap.md#3-m3-a先稳定几何坏帧与映射边界)：当前 `HandDetection` 尚不携带图像宽高，几何计算存在轴尺度问题；短输入可能进入固定索引，退化点也可能通过可控性检查。下一版将分开保存显示点和几何点，并统一流式无效帧行为。拟议的 `camera_mediapipe_geometry_xyz_v1` 尚未实现，当前 API 不应被描述为已经完成这些整改。
+[M3-A](m3a_camera_foundation.md) 已实现 `camera_mediapipe_geometry_xyz_v1`：`g=(x, y*H/W, z)`，以图像宽度为单位，x 向右、y 向下、z 越小表示越靠近相机。这只是单目近似相对几何，不能当作公制 3D 或 H2O 输入。原始点用于显示和边界，几何点用于比例和角度。处理顺序为结构/有限值、几何转换、掌部/骨段、图像边界、特征与手势。短输入、缺 XYZ、非有限值和退化姿态会返回原因，坏帧当帧不可控，后续有效帧可恢复。
+
+例如：`HandDetection(xy, xyz, "Right", 0.99, image_width=1920, image_height=1080, coordinate_space="mediapipe_image_xyz")`。旧四参数调用仍适用于 `ai.yaml` 兼容入口；它不自动推断新的坐标域。纯 `extract_hand_features` 保留历史二维退化接口，不能替代严格的流式入口。
 
 ## 输出
 
@@ -30,6 +34,10 @@
 
 下游收到 `control_ready=false` 或 `svh_preview.valid=false` 时，该帧没有有效的可消费目标。字段会保留稳定形状；下游自行处理设备相关策略。
 
+新增可选 `input_diagnostics` 包含 `task_id`、图像宽高、`input_valid`、`reason`、`geometry_landmarks`、`mapping_version`、`release_weight` 和 `state_reset`。原始 `landmarks_2d/landmarks_3d` 的含义不变。结构/数值/尺度失效时不输出坏坐标；仅越界时保留已核验的有限坐标。`release_weight` 是新连续候选的状态，旧映射为 null。输入有效不等于已分类；有效 `unknown` 可输出连续表示，失效输入则立即清空状态。
+
+`reset()` 用于显式换流。新配置在时间倒序、间隔超过 100ms 或图像尺寸改变时重启映射状态。`fork_mapping()` 复制手势候选、计数、释放权重、上次时间和图像尺寸，副本不携带检测器；复制不推进状态。未来网格推进和分数时刻查询由 M3-B 实现。现有预测旁路遇到无效预览会清空历史；外部消费者也必须处理每次断流信号。
+
 最小调用见 [examples/use_ai_api.py](../examples/use_ai_api.py)。JSON/JSONL 输出由 `JsonExporter` 提供；可选 UDP 使用 `configs/unity_udp_preview.yaml`。协作方可直接调用 AI API，也可订阅文件/数据报，不需要把自己的 SDK 加进 AI 模块。
 
 ## 预测
@@ -37,6 +45,8 @@
 `PredictionShadow.observe(payload)` 读取已生成的 9 通道序列，返回未来 50/100/150 ms 的 hold/raw/gated 结果。实时 CLI 通过容量为 1 的后台队列推理，结果写入独立 prediction JSONL。
 
 模型配置指定历史长度、采样率和预测时间距。加载时比较可读参数、模型维度与通道顺序；无效输入、断帧和推理异常仍会产生明确诊断。
+
+M3-A 新映射版本为 `svh9-camera-v3-continuous-release`，旧 `svh9-label-v2-open-release` 模型加载时会因版本不符拒绝接入新配置。当前新配置默认关闭预测；M3-B 将建立同域共同参考和简单基线，不能直接复用旧 H2O checkpoint。
 
 9 通道新模型可通过 `scripts/export_prediction_model.py` 从对应第二轮报告导出配置；运行时使用 `--prediction-model`。9 通道训练选中神经网络后也会在结果目录生成 `model.json`。
 
@@ -64,7 +74,7 @@
 
 [representation_data.py](../experiments/intent_prediction/intent_prediction/representation_data.py) 的 `RepresentationBatch.training_view("A"/"B"/"C")` 提供实验输入、监督掩码及残差参考，供已有 `predict_neural_checkpoint` 批量重载。A/B 输出共同七个时刻的 9 通道；C 输出五个规则姿态，再由 `map_predictions` 用当前腕点、尺度和手势状态副本转换成共同七个查询。该函数不读取未来真实姿态、标签掩码或真实手势，返回通道与映射有效位。
 
-该入口属于 H2O 离线实验，没有替换 M1 的独立原始坐标 API，也不是摄像头实时输出协议。共同查询、映射失败回退和结果见 [M2 文档](m2_representation_comparison.md)。M3-A 先明确几何和映射语义；M3-B 再提供带源时间、目标时间、就绪时间、时间轴、版本、有效位和回退原因的独立候选输出，均为待实现范围。
+该入口属于 H2O 离线实验，没有替换 M1 的独立原始坐标 API，也不是摄像头实时输出协议。共同查询、映射失败回退和结果见 [M2 文档](m2_representation_comparison.md)。M3-A 已明确新几何和映射语义；M3-B 再提供带源时间、目标时间、就绪时间、时间轴、版本、有效位和回退原因的独立候选输出，后者尚未实现。
 
 ## 兼容变化
 

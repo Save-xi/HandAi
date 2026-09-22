@@ -1,5 +1,7 @@
-# AI 日常入口；通用参数在 default.yaml。
+# 历史 AI/M2/旧模型兼容入口；新摄像头开发使用 ai_m3a.yaml。
 extends: default.yaml
+geometry_mode: legacy_image_xyz
+control_open_release_mode: legacy
 output_json_path: outputs/latest_ai_frame.json
 enable_control_extension: true
 control_open_release_enabled: true

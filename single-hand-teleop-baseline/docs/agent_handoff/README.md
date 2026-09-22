@@ -1,6 +1,6 @@
 # AI 交接：已核实状态与整改依据
 
-更新：2026-09-21。已合并 Claude 对项目书的审核、本机二审及负责人新提供的 `HandAi_AI_Review_20260921.md` 路线建议。[M0 数据定义](../m0_data_definition.md)、[M1 关键点预测](../m1_keypoint_prediction.md)及 [M2 H2O 三种子表示对照](../m2_representation_comparison.md)已完成，当前 H2O 神经模型扩展暂停。下一步改为 M3-A 摄像头基础整改 → M3-B 简单预测与计时 → M3-C 真实效果证据，具体范围统一见 [AI 路线图](../ai_roadmap.md)。这些整改尚未实现。
+更新：2026-09-22。已合并 Claude、本机二审及 `HandAi_AI_Review_20260921.md` 路线建议。[M0 数据定义](../m0_data_definition.md)、[M1 关键点预测](../m1_keypoint_prediction.md)、[M2 H2O 三种子表示对照](../m2_representation_comparison.md)与 [M3-A 摄像头基础整改](../m3a_camera_foundation.md)已完成。M3-A 新配置具备几何/输入检查和连续释放，已有边界测试、开发视频诊断及 CPU 预测 CI；真实效果仍待标签。H2O 神经模型扩展暂停，下一步 M3-B 简单预测与计时 → M3-C 真实效果证据，具体范围见 [AI 路线图](../ai_roadmap.md)。
 
 日常运行以 [项目指令](../../AGENTS.md) 和 [README](../../README.md) 为准。阶段规划、交接或证据复核时参考本文，不把这份快照作为每次普通修改前的检查关卡。已有数据、权重和历史报告继续保留。
 
@@ -34,7 +34,8 @@
 | MediaPipe 检测与设备关键点输入 | 可运行；设备输入不要求加载 MediaPipe/PyTorch | [pipeline.py](../../src/pipeline.py)、[perception/base.py](../../src/perception/base.py) |
 | open / fist / pinch / unknown 手势 | 规则与去抖已实现；尚缺带人工标签的系统精度评测 | [rule_based_gesture.py](../../src/gesture/rule_based_gesture.py) |
 | 9 通道映射 | 可运行的预览代理，不是实体关节测量 | [svh_adapter.py](../../src/svh/svh_adapter.py) |
-| 50/100/150 ms 预测 | residual GRU 可运行；既有离线门槛未通过，默认关闭、影子运行 | [模型配置](../../models/residual_motion4.json)、[shadow_predictor.py](../../src/prediction/shadow_predictor.py) |
+| 50/100/150 ms 预测 | 旧 ai.yaml 下 residual GRU 可运行；默认关闭，不能接 M3-A 新语义 | [模型配置](../../models/residual_motion4.json)、[shadow_predictor.py](../../src/prediction/shadow_predictor.py) |
+| 摄像头几何/坏帧/释放过渡 | M3-A 已实现；固定微扰跳变 0.470343→0.000106，真实视频仍有大跳变 | [M3-A 交付](../m3a_camera_foundation.md) |
 | 姿态与耗时评测 | 工具和真实历史结果均存在，见下一节 | [FreiHAND 评测](../../experiments/freihand_eval/README.md) |
 | H2O 原生 21 点未来预测 | M1 已实现训练、基线、评测与加载；小样本常速度优于 GRU | [M1 交付](../m1_keypoint_prediction.md) |
 | H2O 预测姿态后判手势/映射 | M2 已实现因果状态和共同参考；C 优于 A/B，但未通过继续条件 | [M2 对照](../m2_representation_comparison.md) |
@@ -120,6 +121,6 @@ FP32/量化需要在明确平台上比较精度、模型大小和实际耗时；
 
 AI 侧负责感知适配、姿态/手势、预测、训练评测、模型导出和调用接口。设备采集、时钟同步、网络、Unity、串口、实体手与机械臂由协作方负责。预测进入实验消费接口也不等同于获准驱动实体设备。
 
-`HandPipeline` 返回的扩展诊断目前只进日志、未进入规范 payload，可在需要逐帧定位降级原因时补可选字段；不是新路线的前置大工程。两次 `prepare_frame_payload` 分别处理 pipeline 输出与主循环补充 timing 后的输出，不因重复调用就判定为缺陷。
+M3-A 已将输入有效性、原因、几何与映射版本加入可选 `input_diagnostics`；扩展异常仍进入日志并退回无效预览。两次 `prepare_frame_payload` 分别处理 pipeline 输出与主循环补充 timing 后的输出，不因重复调用就判定为缺陷。
 
 下一步只维护三处入口：[阶段路线](../ai_roadmap.md)、[AI 接口](../ai_interfaces.md)、[训练评测命令](../../experiments/intent_prediction/README.md)。文件哈希、AST 指纹、Git 身份核验、冻结收据和一次性运行限制不再恢复。

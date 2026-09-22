@@ -20,6 +20,36 @@ env:
   PYTHONIOENCODING: "utf-8"
 
 jobs:
+  prediction-cpu:
+    name: 可重建预测检查 (Linux CPU)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: single-hand-teleop-baseline
+    env:
+      CUDA_VISIBLE_DEVICES: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: single-hand-teleop-baseline/requirements.txt
+      - name: 安装 CPU PyTorch 与运行依赖
+        run: |
+          python -m pip install -r requirements.txt
+          python -m pip install torch==2.7.0 --index-url https://download.pytorch.org/whl/cpu
+          python -m pip check
+          python -c "import torch; assert not torch.cuda.is_available(); print('CPU torch:', torch.__version__)"
+      - name: M1/M2 训练、掩码、导出与重载
+        run: |
+          python -m pytest -q tests/test_keypoint_prediction.py tests/test_representation_comparison.py --junitxml=outputs/cpu-prediction.xml
+          python -c "import xml.etree.ElementTree as E; r=E.parse('outputs/cpu-prediction.xml').getroot(); s=list(r.iter('testsuite')); assert sum(int(x.get('tests',0)) for x in s)>0; assert sum(int(x.get('skipped',0)) for x in s)==0, 'CPU 预测测试不允许跳过'"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cpu-prediction-results
+          path: single-hand-teleop-baseline/outputs/cpu-prediction.xml
   baseline-ci:
     name: baseline 检查 (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

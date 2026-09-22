@@ -128,6 +128,12 @@ class GestureStabilizer:
 
         return self.stable_gesture
 
+    def reset(self) -> None:
+        """失效输入立即清空状态，与有效但未分类的 unknown 分开。"""
+        self.stable_gesture = "unknown"
+        self.candidate_gesture = None
+        self.candidate_count = 0
+
 
 def infer_stable_gesture(history: List[Dict], cfg: Dict) -> str:
     """旧版基于 history 窗口的稳定手势推断。
