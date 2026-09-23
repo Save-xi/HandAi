@@ -28,6 +28,44 @@
     "svh": "svh_preview"
   },
   "properties": {
+    "source_timing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_time_ms",
+        "timebase",
+        "timestamp_source",
+        "read_return_monotonic_ms",
+        "nominal_fps"
+      ],
+      "properties": {
+        "source_time_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "timebase": {
+          "enum": [
+            "media_pts_ms",
+            "monotonic_ms"
+          ]
+        },
+        "timestamp_source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "read_return_monotonic_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "nominal_fps": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "exclusiveMinimum": 0
+        }
+      }
+    },
     "input_diagnostics": {
       "type": "object",
       "additionalProperties": false,

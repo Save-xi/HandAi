@@ -72,4 +72,4 @@ python -X utf8 -m pytest -q tests\test_keypoint_prediction.py tests\test_represe
 python -X utf8 -m ruff check src tests scripts experiments examples/use_ai_api.py
 ```
 
-下一阶段为 M3-B 的保持通道、保持姿态后映射、常速度姿态后映射三种基线，以及源时间、目标时间和全部后处理完成时间。当前主循环时间戳仍在检测后生成；本次开发脚本明确传媒体 PTS，两者不能混为端到端延迟证明。M3-C 再补新人员/会话与人工标签，设备、驱动和通信保持协作方边界。
+本次交付时，下一阶段为 M3-B 的三个简单基线与完整计时；当时主循环时间戳仍在检测后生成，开发脚本则明确传媒体 PTS。该计时缺口现已由 [M3-B](m3b_camera_prediction.md) 在 2026-09-23 补充独立源时间和成本重放，仍不是设备端到端证明。M3-C 再补新人员/会话与人工标签，设备、驱动和通信保持协作方边界。

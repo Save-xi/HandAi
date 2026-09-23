@@ -1,0 +1,25 @@
+{
+  "schema_version": "camera-m3b-development-v1",
+  "runtime_config": "../../../configs/ai_m3a.yaml",
+  "video_root": "D:/HandAiVideos/camera_domain_dev_v1",
+  "provenance_policy": "unknown_sources_are_historical_development_only",
+  "max_frames_per_video": 300,
+  "prediction_fps": 30.0,
+  "velocity_windows": [2, 4, 8],
+  "selection_metric": "nominal_50_100ms_sequence_equal_penalized_rmse",
+  "missing_output_error": 1.0,
+  "videos": [
+    {"video_id": "V1", "file": "v1.mp4", "person_id": null, "session_id": null, "role": "development_validation"},
+    {"video_id": "V2", "file": "v2.mp4", "person_id": null, "session_id": null, "role": "development_validation"},
+    {"video_id": "V3", "file": "v3.mp4", "person_id": null, "session_id": null, "role": "development_validation"},
+    {"video_id": "V4", "file": "v4.mp4", "person_id": null, "session_id": null, "role": "development_validation"},
+    {"video_id": "V5", "file": "v5.mp4", "person_id": null, "session_id": null, "role": "historical_reevaluation"},
+    {"video_id": "V6", "file": "v6.mp4", "person_id": null, "session_id": null, "role": "historical_reevaluation"},
+    {"video_id": "V7", "file": "v7.mp4", "person_id": null, "session_id": null, "role": "historical_reevaluation"}
+  ],
+  "scenarios": [
+    {"name": "nominal", "arrival_delay_cycle_ms": [0], "drop_every": 0, "detection_stall_ms": 0, "prediction_stall_ms": 0},
+    {"name": "jitter_drop", "arrival_delay_cycle_ms": [0, 10, 20, 5], "drop_every": 17, "detection_stall_ms": 0, "prediction_stall_ms": 0},
+    {"name": "compute_load", "arrival_delay_cycle_ms": [0], "drop_every": 0, "detection_stall_ms": 25, "prediction_stall_ms": 35}
+  ]
+}

@@ -2,7 +2,7 @@
 
 这里保留 H2O 数据转换、预测模型训练、validation 选型、误差统计和摄像头域评测。每次实验生成独立结果目录，可以正常重复运行。
 
-当前支持既有 9 通道 `svh_preview` 代理序列、M1 的 H2O 原生 21 点预测，以及 M2 的 A/B/C 共同参考对照。下一步按 [AI 路线图](../../docs/ai_roadmap.md) 先做 M3-A 几何/输入/映射整改与 CPU 预测 CI，再做 M3-B 摄像头简单预测与计时、M3-C 新数据效果验证；这些阶段尚未实现。
+当前支持既有 9 通道 `svh_preview`、M1 的 H2O 原生 21 点预测、M2 的 A/B/C 共同参考，以及 M3-A/B 的摄像头几何、简单预测和计时。下一步按 [AI 路线图](../../docs/ai_roadmap.md) 做 M3-C 新数据和人工标签效果验证。
 
 ## 环境与数据
 
@@ -56,6 +56,24 @@ python -X utf8 experiments\intent_prediction\scripts\run_second_round.py --confi
 默认真实配置使用全部 217 段、每段最多 64 个固定抽样窗口和三个训练种子。前期建窗与生成参考可能一两分钟没有 epoch 日志；结果保存九个 checkpoint、共同目标样例、逐序列/分层/覆盖率指标以及研发继续条件。M2 合成数据额外弯曲手指，保证映射后的学习目标非恒定。
 
 M2 权重使用实验批量重载接口，不能直接传给旧 `export_prediction_model.py` 或 M1 的原始坐标 API。H2O 代理结果不代表摄像头泛化或实体关节精度；既有实时配置保持原路径。
+
+## M3-B：摄像头简单预测与成本重放
+
+[M3-B 交付](../../docs/m3b_camera_prediction.md)使用 `camera_mediapipe_geometry_xyz_v1`，不加载 H2O checkpoint。[配置](configs/camera_m3b.json)事先指定 V1–V4 开发选型、V5–V7 历史复评，人员/会话为未知。已知会话不能跨用途；未知来源只能明确标为历史开发，不能宣称独立验证。
+
+```bat
+python -X utf8 experiments\intent_prediction\scripts\run_camera_m3b.py
+```
+
+每帧保存原始点、几何点、PTS/来源、尺寸、有效性、段号与感知耗时。每个方法共享源帧和参考，先按 nominal 场景的 50/100ms 序列等权惩罚 RMSE 选择速度窗口与简单赢家，再做复评。产生纯算法、正常成本、抖动丢帧及计算拥塞四组结果；每个阶段只有一个等待槽，丢弃与逾期均进入覆盖分母。姿态先插值再映射，分数查询不更新手势/释放状态。
+
+保存的观测可重复评分，无需再次检测：
+
+```bat
+python -X utf8 experiments\intent_prediction\scripts\run_camera_m3b.py --observations-root outputs\m3b\实际结果目录
+```
+
+复用时检查坐标/映射参数、数值、连续时间和段号；报告明记检测耗时来自缓存。本轮预测耗时仍重新测量。时间是从源读回之后开始的 PC 成本重放，不是曝光到设备的实测。
 
 ## 旧 9 通道训练
 

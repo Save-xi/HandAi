@@ -106,7 +106,8 @@ def empty_control_representation() -> Dict:
     }
 
 
-def build_control_representation(payload: Dict, cfg: Dict, *, release_state: OpenReleaseState | None = None) -> Dict:
+def build_control_representation(payload: Dict, cfg: Dict, *, release_state: OpenReleaseState | None = None,
+                                 advance_release: bool = True) -> Dict:
     """把逐帧感知结果转换成面向控制的连续向量。
 
     这一层刻意保持与硬件无关。它保留手势标签作为上下文，
@@ -138,7 +139,8 @@ def build_control_representation(payload: Dict, cfg: Dict, *, release_state: Ope
     if cfg.get("control_open_release_mode", "legacy") == "continuous_v1":
         if release_state is None:
             raise ValueError("continuous_v1 需要该输入流独立的 OpenReleaseState")
-        retain = 1.0 - release_state.update(payload, cfg)
+        weight = release_state.update(payload, cfg) if advance_release else release_state.weight
+        retain = 1.0 - weight
         finger_flex = {name: value * retain for name, value in finger_flex.items()}
     else:
         finger_flex = _apply_open_release(
