@@ -158,7 +158,7 @@ DEPRECATED_ALIASES = {
     "svh": "svh_preview",
 }
 
-FRAME_PAYLOAD_OPTIONAL_FIELDS = ("timing", "prediction_diagnostics", "input_diagnostics")
+FRAME_PAYLOAD_OPTIONAL_FIELDS = ("timing", "prediction_diagnostics", "input_diagnostics", "source_timing")
 """canonical 顶层可选字段；其余未知键与 JSON Schema 一样必须拒绝。"""
 
 
@@ -196,6 +196,7 @@ class FramePayload(TypedDict, total=False):
     timing: Dict[str, Any]
     prediction_diagnostics: Dict[str, Any]
     input_diagnostics: Dict[str, Any]
+    source_timing: Dict[str, Any]
 
 
 def _is_number(value: Any) -> bool:
@@ -828,6 +829,22 @@ def validate_frame_payload(
         _validate_prediction_diagnostics(payload, payload["prediction_diagnostics"], errors)
     if "input_diagnostics" in payload:
         _validate_input_diagnostics(payload, payload["input_diagnostics"], errors)
+    if "source_timing" in payload:
+        source = payload["source_timing"]
+        fields = {"source_time_ms", "timebase", "timestamp_source", "read_return_monotonic_ms", "nominal_fps"}
+        if not isinstance(source, dict) or set(source) != fields:
+            errors.append("source_timing 字段不完整或存在多余字段")
+        else:
+            for key in ("source_time_ms", "read_return_monotonic_ms"):
+                if not _is_number(source[key]) or source[key] < 0:
+                    errors.append(f"source_timing.{key} 必须为有限非负数")
+            if source["timebase"] not in ("media_pts_ms", "monotonic_ms"):
+                errors.append("source_timing.timebase 无效")
+            if not isinstance(source["timestamp_source"], str) or not source["timestamp_source"]:
+                errors.append("source_timing.timestamp_source 无效")
+            fps = source["nominal_fps"]
+            if fps is not None and (not _is_number(fps) or fps <= 0):
+                errors.append("source_timing.nominal_fps 必须为正数或 null")
 
     if "finger_curl" in payload:
         _validate_finger_map("finger_curl", payload["finger_curl"], errors)

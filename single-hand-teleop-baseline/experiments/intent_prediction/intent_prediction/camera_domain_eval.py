@@ -15,6 +15,7 @@ from typing import Any, Callable, Iterable
 import cv2
 import numpy as np
 
+from capture.timeline import resolve_media_timestamp_ms
 from pipeline import HandPipeline
 from perception.mediapipe_hand import MediaPipeHandDetector
 from prediction.shadow_predictor import build_prediction_shadow
@@ -37,14 +38,6 @@ class VideoSpec:
 
     video_id: str
     path: Path
-
-
-@dataclass(frozen=True)
-class TimestampDecision:
-    """一帧最终采用的媒体时间戳及来源。"""
-
-    timestamp_ms: float
-    source: str
 
 
 def _utc_now() -> str:
@@ -87,35 +80,6 @@ def _nonnegative_int_property(value: Any) -> int:
     if not _finite_number(value) or float(value) < 0.0:
         return 0
     return int(float(value))
-
-
-def resolve_media_timestamp_ms(
-    frame_index: int,
-    *,
-    raw_pts_ms: float | None,
-    nominal_fps: float,
-    previous_timestamp_ms: float | None,
-) -> TimestampDecision:
-    """选择严格递增的媒体时间戳，绝不使用处理 wall-clock 代替源时间轴。"""
-
-    if frame_index < 0:
-        raise ValueError("frame_index 必须是非负整数")
-    if not math.isfinite(float(nominal_fps)) or float(nominal_fps) <= 0.0:
-        raise ValueError("nominal_fps 必须是有限正数")
-    period_ms = 1000.0 / float(nominal_fps)
-    raw_valid = raw_pts_ms is not None and math.isfinite(float(raw_pts_ms)) and float(raw_pts_ms) >= 0.0
-    if raw_valid and (
-        previous_timestamp_ms is None or float(raw_pts_ms) > previous_timestamp_ms + 1e-6
-    ):
-        return TimestampDecision(float(raw_pts_ms), "container_pts_ms")
-
-    fallback_ms = float(frame_index) * period_ms
-    if previous_timestamp_ms is not None and fallback_ms <= previous_timestamp_ms + 1e-6:
-        fallback_ms = previous_timestamp_ms + period_ms
-        source = "continuity_fallback_period"
-    else:
-        source = "frame_index_over_nominal_fps"
-    return TimestampDecision(float(fallback_ms), source)
 
 
 def parse_video_specs(values: Iterable[str]) -> list[VideoSpec]:

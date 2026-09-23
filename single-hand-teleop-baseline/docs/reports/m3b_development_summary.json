@@ -1,0 +1,614 @@
+{
+  "schema_version": "camera-m3b-report-v1",
+  "config": {
+    "schema_version": "camera-m3b-development-v1",
+    "runtime_config": "../../../configs/ai_m3a.yaml",
+    "video_root": "D:/HandAiVideos/camera_domain_dev_v1",
+    "provenance_policy": "unknown_sources_are_historical_development_only",
+    "max_frames_per_video": 300,
+    "prediction_fps": 30.0,
+    "velocity_windows": [
+      2,
+      4,
+      8
+    ],
+    "selection_metric": "nominal_50_100ms_sequence_equal_penalized_rmse",
+    "missing_output_error": 1.0,
+    "videos": [
+      {
+        "video_id": "V1",
+        "file": "v1.mp4",
+        "person_id": null,
+        "session_id": null,
+        "role": "development_validation"
+      },
+      {
+        "video_id": "V2",
+        "file": "v2.mp4",
+        "person_id": null,
+        "session_id": null,
+        "role": "development_validation"
+      },
+      {
+        "video_id": "V3",
+        "file": "v3.mp4",
+        "person_id": null,
+        "session_id": null,
+        "role": "development_validation"
+      },
+      {
+        "video_id": "V4",
+        "file": "v4.mp4",
+        "person_id": null,
+        "session_id": null,
+        "role": "development_validation"
+      },
+      {
+        "video_id": "V5",
+        "file": "v5.mp4",
+        "person_id": null,
+        "session_id": null,
+        "role": "historical_reevaluation"
+      },
+      {
+        "video_id": "V6",
+        "file": "v6.mp4",
+        "person_id": null,
+        "session_id": null,
+        "role": "historical_reevaluation"
+      },
+      {
+        "video_id": "V7",
+        "file": "v7.mp4",
+        "person_id": null,
+        "session_id": null,
+        "role": "historical_reevaluation"
+      }
+    ],
+    "scenarios": [
+      {
+        "name": "nominal",
+        "arrival_delay_cycle_ms": [
+          0
+        ],
+        "drop_every": 0,
+        "detection_stall_ms": 0,
+        "prediction_stall_ms": 0
+      },
+      {
+        "name": "jitter_drop",
+        "arrival_delay_cycle_ms": [
+          0,
+          10,
+          20,
+          5
+        ],
+        "drop_every": 17,
+        "detection_stall_ms": 0,
+        "prediction_stall_ms": 0
+      },
+      {
+        "name": "compute_load",
+        "arrival_delay_cycle_ms": [
+          0
+        ],
+        "drop_every": 0,
+        "detection_stall_ms": 25,
+        "prediction_stall_ms": 35
+      }
+    ]
+  },
+  "mapping": {
+    "version": "svh9-camera-v3-continuous-release",
+    "single_right_hand": true,
+    "channel_order": [
+      "thumb_flexion",
+      "thumb_opposition",
+      "index_finger_distal",
+      "index_finger_proximal",
+      "middle_finger_distal",
+      "middle_finger_proximal",
+      "ring_finger",
+      "pinky",
+      "finger_spread"
+    ],
+    "parameters": {
+      "control_grasp_closed_ref": 0.55,
+      "control_grasp_open_ref": 0.02,
+      "control_hand_open_ratio_closed_ref": 0.25,
+      "control_hand_open_ratio_open_ref": 0.95,
+      "control_open_release_enabled": true,
+      "control_open_release_full_ratio": 0.95,
+      "control_open_release_mode": "continuous_v1",
+      "control_open_release_start_ratio": 0.85,
+      "control_pinch_closed_ref": 0.08,
+      "control_pinch_index_closed_ref": 0.35,
+      "control_pinch_index_open_ref": 0.05,
+      "control_pinch_open_ref": 0.45,
+      "control_release_curl_half_width": 0.02,
+      "control_release_hysteresis": 0.01,
+      "control_release_pinch_band": 0.1,
+      "fist_compact_ratio_threshold": 0.65,
+      "fist_mean_curl_min": 0.45,
+      "fist_ratio_threshold": 0.85,
+      "geometry_min_bone_palm_ratio": 0.001,
+      "geometry_min_palm_size": 0.0001,
+      "geometry_mode": "image_width_xyz_v1",
+      "mapping_max_frame_gap_ms": 100.0,
+      "open_mean_curl_max": 0.45,
+      "open_ratio_threshold": 0.85,
+      "pinch_distance_norm_threshold": 0.45,
+      "pinch_open_ratio_min": 0.75,
+      "pinch_support_curl_max": 0.65,
+      "stable_gesture_min_consecutive": 2,
+      "stable_unknown_consecutive": 1,
+      "svh_enable_gesture_fallback": false,
+      "svh_grasp_spread_scale": 0.05,
+      "svh_open_spread_scale": 0.25,
+      "svh_pinch_spread_scale": 0.1,
+      "svh_pinch_support_scale": 0.2,
+      "svh_position_closed_value": 1.0,
+      "svh_position_open_value": 0.0,
+      "svh_preview_channel_count": 9,
+      "svh_preview_layout": "svh_9ch",
+      "svh_thumb_grasp_scale": 0.85,
+      "svh_thumb_opposition_scale": 0.75
+    }
+  },
+  "observation_cache_source": "outputs\\m3b\\20260922T155842_739538Z",
+  "scope": "历史摄像头开发片段的检测轨迹代理评测；人员/会话未知时不支持独立泛化结论",
+  "reference": "各源锚点的完整无扰动状态副本 + 同段真实未来姿态；所有方法及调度场景共享",
+  "timing": "媒体 PTS 上的两阶段成本重放；感知成本来自实际测量，预测含当前方法全部状态复制/后处理；每阶段一个等待槽",
+  "timing_limits": "从 source.read 返回计时，不含曝光、解码等待、文件导出、设备/网络实测；丢帧不重新运行 MediaPipe 跟踪器",
+  "error_policy": "有参考却无输出时各通道平方误差按 1 惩罚；明确另列条件输出误差。预测失败优先保持当前；无有效当前或基础输出逾期则无输出。",
+  "coverage_denominator": "全部实际源帧，包含预热、坏帧、源丢弃、队列替换、逾期和尾部无参考帧",
+  "selection": {
+    "metric": "nominal_50_100ms_sequence_equal_penalized_rmse",
+    "scores": {
+      "hold_channels": 0.06591273552454023,
+      "hold_pose": 0.06593656943776886,
+      "linear_pose_w2": 0.052007547880633505,
+      "linear_pose_w4": 0.05746964225444191,
+      "linear_pose_w8": 0.06498820845177394
+    },
+    "linear_window": 2,
+    "winner": "linear_pose_w2",
+    "independent_validation": false,
+    "note": "按预先分配文件做历史开发选型，人员/会话未知；不在复评后改名为独立测试"
+  },
+  "reevaluation_50_100_scores": {
+    "algorithm_only": {
+      "hold_channels": 0.09661709002356529,
+      "hold_pose": 0.09666342436309383,
+      "linear_pose_w2": 0.06790533627217854
+    },
+    "nominal": {
+      "hold_channels": 0.09661709002356529,
+      "hold_pose": 0.09666342436309383,
+      "linear_pose_w2": 0.06788970808751364
+    },
+    "jitter_drop": {
+      "hold_channels": 0.2592724819217236,
+      "hold_pose": 0.2592876696448032,
+      "linear_pose_w2": 0.251742657374957
+    },
+    "compute_load": {
+      "hold_channels": 0.7721427225115044,
+      "hold_pose": 0.7721427225115044,
+      "linear_pose_w2": 0.7721427225115044
+    }
+  },
+  "run_directory": "outputs/m3b/20260922T160738_685061Z",
+  "sequences": [
+    {
+      "video_id": "V1",
+      "person_id": null,
+      "session_id": null,
+      "role": "development_validation",
+      "nominal_fps": 29.92657147029101,
+      "source_frames": 300,
+      "valid_frames": 300,
+      "valid_segments": 1,
+      "reasons": {
+        "ok": 300
+      },
+      "timestamp_sources": {
+        "container_pts_ms": 300
+      }
+    },
+    {
+      "video_id": "V2",
+      "person_id": null,
+      "session_id": null,
+      "role": "development_validation",
+      "nominal_fps": 29.913646411475643,
+      "source_frames": 300,
+      "valid_frames": 300,
+      "valid_segments": 1,
+      "reasons": {
+        "ok": 300
+      },
+      "timestamp_sources": {
+        "container_pts_ms": 300
+      }
+    },
+    {
+      "video_id": "V3",
+      "person_id": null,
+      "session_id": null,
+      "role": "development_validation",
+      "nominal_fps": 29.94222415901711,
+      "source_frames": 300,
+      "valid_frames": 300,
+      "valid_segments": 1,
+      "reasons": {
+        "ok": 300
+      },
+      "timestamp_sources": {
+        "container_pts_ms": 300
+      }
+    },
+    {
+      "video_id": "V4",
+      "person_id": null,
+      "session_id": null,
+      "role": "development_validation",
+      "nominal_fps": 30.0190694908651,
+      "source_frames": 300,
+      "valid_frames": 300,
+      "valid_segments": 1,
+      "reasons": {
+        "ok": 300
+      },
+      "timestamp_sources": {
+        "container_pts_ms": 300
+      }
+    },
+    {
+      "video_id": "V5",
+      "person_id": null,
+      "session_id": null,
+      "role": "historical_reevaluation",
+      "nominal_fps": 29.995865672473297,
+      "source_frames": 300,
+      "valid_frames": 180,
+      "valid_segments": 1,
+      "reasons": {
+        "ok": 180,
+        "no_right_hand": 120
+      },
+      "timestamp_sources": {
+        "container_pts_ms": 300
+      }
+    },
+    {
+      "video_id": "V6",
+      "person_id": null,
+      "session_id": null,
+      "role": "historical_reevaluation",
+      "nominal_fps": 29.952249377512143,
+      "source_frames": 300,
+      "valid_frames": 231,
+      "valid_segments": 2,
+      "reasons": {
+        "ok": 231,
+        "no_right_hand": 69
+      },
+      "timestamp_sources": {
+        "container_pts_ms": 300
+      }
+    },
+    {
+      "video_id": "V7",
+      "person_id": null,
+      "session_id": null,
+      "role": "historical_reevaluation",
+      "nominal_fps": 29.964051171851466,
+      "source_frames": 300,
+      "valid_frames": 300,
+      "valid_segments": 1,
+      "reasons": {
+        "ok": 300
+      },
+      "timestamp_sources": {
+        "container_pts_ms": 300
+      }
+    }
+  ],
+  "verification": {
+    "local_tests_passed": 270,
+    "local_tests_skipped": 0,
+    "ruff": "passed",
+    "compileall": "passed",
+    "real_cli_frames": 5,
+    "forecast_rows_checked": 104400,
+    "forecast_count_and_time_invariants": "passed"
+  },
+  "metric_rows": 348,
+  "reevaluation_horizon_means": {
+    "algorithm_only": {
+      "hold_channels": {
+        "50": {
+          "penalized_rmse": 0.06650020643384963,
+          "penalized_p95_frame_rmse": 0.1060576067075142,
+          "output_coverage": 0.79,
+          "prediction_coverage": 0.79,
+          "candidate_ready_latency_p95_ms": 0.0
+        },
+        "100": {
+          "penalized_rmse": 0.12673397361328095,
+          "penalized_p95_frame_rmse": 0.3295989374421399,
+          "output_coverage": 0.79,
+          "prediction_coverage": 0.79,
+          "candidate_ready_latency_p95_ms": 0.0
+        },
+        "150": {
+          "penalized_rmse": 0.15894157526506067,
+          "penalized_p95_frame_rmse": 0.4154067109745852,
+          "output_coverage": 0.79,
+          "prediction_coverage": 0.79,
+          "candidate_ready_latency_p95_ms": 0.0
+        }
+      },
+      "hold_pose": {
+        "50": {
+          "penalized_rmse": 0.06653608555149931,
+          "penalized_p95_frame_rmse": 0.10925790237894469,
+          "output_coverage": 0.79,
+          "prediction_coverage": 0.79,
+          "candidate_ready_latency_p95_ms": 0.0
+        },
+        "100": {
+          "penalized_rmse": 0.12679076317468832,
+          "penalized_p95_frame_rmse": 0.3295989374421399,
+          "output_coverage": 0.79,
+          "prediction_coverage": 0.79,
+          "candidate_ready_latency_p95_ms": 0.0
+        },
+        "150": {
+          "penalized_rmse": 0.15899112531640583,
+          "penalized_p95_frame_rmse": 0.4154067109745852,
+          "output_coverage": 0.79,
+          "prediction_coverage": 0.79,
+          "candidate_ready_latency_p95_ms": 0.0
+        }
+      },
+      "linear_pose_w2": {
+        "50": {
+          "penalized_rmse": 0.04698796073527519,
+          "penalized_p95_frame_rmse": 0.07201297620050728,
+          "output_coverage": 0.79,
+          "prediction_coverage": 0.7822222222222223,
+          "candidate_ready_latency_p95_ms": 0.0
+        },
+        "100": {
+          "penalized_rmse": 0.0888227118090819,
+          "penalized_p95_frame_rmse": 0.19208663968859874,
+          "output_coverage": 0.79,
+          "prediction_coverage": 0.7799999999999999,
+          "candidate_ready_latency_p95_ms": 0.0
+        },
+        "150": {
+          "penalized_rmse": 0.113463714399975,
+          "penalized_p95_frame_rmse": 0.30713902291791934,
+          "output_coverage": 0.79,
+          "prediction_coverage": 0.7733333333333333,
+          "candidate_ready_latency_p95_ms": 0.0
+        }
+      }
+    },
+    "nominal": {
+      "hold_channels": {
+        "50": {
+          "penalized_rmse": 0.06650020643384963,
+          "penalized_p95_frame_rmse": 0.1060576067075142,
+          "output_coverage": 0.79,
+          "prediction_coverage": 0.79,
+          "candidate_ready_latency_p95_ms": 24.781993333393377
+        },
+        "100": {
+          "penalized_rmse": 0.12673397361328095,
+          "penalized_p95_frame_rmse": 0.3295989374421399,
+          "output_coverage": 0.79,
+          "prediction_coverage": 0.79,
+          "candidate_ready_latency_p95_ms": 24.781993333393377
+        },
+        "150": {
+          "penalized_rmse": 0.15894157526506067,
+          "penalized_p95_frame_rmse": 0.4154067109745852,
+          "output_coverage": 0.79,
+          "prediction_coverage": 0.79,
+          "candidate_ready_latency_p95_ms": 24.781993333393377
+        }
+      },
+      "hold_pose": {
+        "50": {
+          "penalized_rmse": 0.06653608555149931,
+          "penalized_p95_frame_rmse": 0.10925790237894469,
+          "output_coverage": 0.79,
+          "prediction_coverage": 0.7855555555555555,
+          "candidate_ready_latency_p95_ms": 38.98721166824051
+        },
+        "100": {
+          "penalized_rmse": 0.12679076317468832,
+          "penalized_p95_frame_rmse": 0.3295989374421399,
+          "output_coverage": 0.79,
+          "prediction_coverage": 0.79,
+          "candidate_ready_latency_p95_ms": 38.98721166824051
+        },
+        "150": {
+          "penalized_rmse": 0.15899112531640583,
+          "penalized_p95_frame_rmse": 0.4154067109745852,
+          "output_coverage": 0.79,
+          "prediction_coverage": 0.79,
+          "candidate_ready_latency_p95_ms": 38.98721166824051
+        }
+      },
+      "linear_pose_w2": {
+        "50": {
+          "penalized_rmse": 0.0469567043659454,
+          "penalized_p95_frame_rmse": 0.07201297620050728,
+          "output_coverage": 0.79,
+          "prediction_coverage": 0.7811111111111111,
+          "candidate_ready_latency_p95_ms": 38.35777166702125
+        },
+        "100": {
+          "penalized_rmse": 0.0888227118090819,
+          "penalized_p95_frame_rmse": 0.19208663968859874,
+          "output_coverage": 0.79,
+          "prediction_coverage": 0.7799999999999999,
+          "candidate_ready_latency_p95_ms": 38.35777166702125
+        },
+        "150": {
+          "penalized_rmse": 0.113463714399975,
+          "penalized_p95_frame_rmse": 0.30713902291791934,
+          "output_coverage": 0.79,
+          "prediction_coverage": 0.7733333333333333,
+          "candidate_ready_latency_p95_ms": 38.35777166702125
+        }
+      }
+    },
+    "jitter_drop": {
+      "hold_channels": {
+        "50": {
+          "penalized_rmse": 0.2506725210275968,
+          "penalized_p95_frame_rmse": 1.0,
+          "output_coverage": 0.7444444444444445,
+          "prediction_coverage": 0.7444444444444445,
+          "candidate_ready_latency_p95_ms": 43.888575000031175
+        },
+        "100": {
+          "penalized_rmse": 0.2678724428158504,
+          "penalized_p95_frame_rmse": 0.9822664349713754,
+          "output_coverage": 0.7455555555555556,
+          "prediction_coverage": 0.7455555555555556,
+          "candidate_ready_latency_p95_ms": 43.888575000031175
+        },
+        "150": {
+          "penalized_rmse": 0.28429369577494507,
+          "penalized_p95_frame_rmse": 1.0,
+          "output_coverage": 0.7455555555555556,
+          "prediction_coverage": 0.7455555555555556,
+          "candidate_ready_latency_p95_ms": 43.888575000031175
+        }
+      },
+      "hold_pose": {
+        "50": {
+          "penalized_rmse": 0.2506725210275968,
+          "penalized_p95_frame_rmse": 1.0,
+          "output_coverage": 0.7444444444444445,
+          "prediction_coverage": 0.5433333333333333,
+          "candidate_ready_latency_p95_ms": 57.147409999670344
+        },
+        "100": {
+          "penalized_rmse": 0.2679028182620096,
+          "penalized_p95_frame_rmse": 0.9822664349713754,
+          "output_coverage": 0.7455555555555556,
+          "prediction_coverage": 0.7455555555555556,
+          "candidate_ready_latency_p95_ms": 57.147409999670344
+        },
+        "150": {
+          "penalized_rmse": 0.2843247418740976,
+          "penalized_p95_frame_rmse": 1.0,
+          "output_coverage": 0.7455555555555556,
+          "prediction_coverage": 0.7455555555555556,
+          "candidate_ready_latency_p95_ms": 57.147409999670344
+        }
+      },
+      "linear_pose_w2": {
+        "50": {
+          "penalized_rmse": 0.24849650870087645,
+          "penalized_p95_frame_rmse": 1.0,
+          "output_coverage": 0.7444444444444445,
+          "prediction_coverage": 0.4855555555555556,
+          "candidate_ready_latency_p95_ms": 56.97489999873748
+        },
+        "100": {
+          "penalized_rmse": 0.25498880604903756,
+          "penalized_p95_frame_rmse": 0.977893922874426,
+          "output_coverage": 0.7455555555555556,
+          "prediction_coverage": 0.6544444444444445,
+          "candidate_ready_latency_p95_ms": 56.97489999873748
+        },
+        "150": {
+          "penalized_rmse": 0.26497795988647527,
+          "penalized_p95_frame_rmse": 1.0,
+          "output_coverage": 0.7455555555555556,
+          "prediction_coverage": 0.6477777777777778,
+          "candidate_ready_latency_p95_ms": 56.97489999873748
+        }
+      }
+    },
+    "compute_load": {
+      "hold_channels": {
+        "50": {
+          "penalized_rmse": 0.9794993922226216,
+          "penalized_p95_frame_rmse": 1.0,
+          "output_coverage": 0.03333333333333333,
+          "prediction_coverage": 0.0,
+          "candidate_ready_latency_p95_ms": 116.9325838807642
+        },
+        "100": {
+          "penalized_rmse": 0.5647860528003871,
+          "penalized_p95_frame_rmse": 1.0,
+          "output_coverage": 0.5466666666666667,
+          "prediction_coverage": 0.2644444444444444,
+          "candidate_ready_latency_p95_ms": 116.9325838807642
+        },
+        "150": {
+          "penalized_rmse": 0.5700606173720163,
+          "penalized_p95_frame_rmse": 1.0,
+          "output_coverage": 0.5466666666666667,
+          "prediction_coverage": 0.5466666666666667,
+          "candidate_ready_latency_p95_ms": 116.9325838807642
+        }
+      },
+      "hold_pose": {
+        "50": {
+          "penalized_rmse": 0.9794993922226216,
+          "penalized_p95_frame_rmse": 1.0,
+          "output_coverage": 0.03333333333333333,
+          "prediction_coverage": 0.0,
+          "candidate_ready_latency_p95_ms": 151.3751044428669
+        },
+        "100": {
+          "penalized_rmse": 0.5647860528003871,
+          "penalized_p95_frame_rmse": 1.0,
+          "output_coverage": 0.5466666666666667,
+          "prediction_coverage": 0.015555555555555557,
+          "candidate_ready_latency_p95_ms": 151.3751044428669
+        },
+        "150": {
+          "penalized_rmse": 0.5700838628610742,
+          "penalized_p95_frame_rmse": 1.0,
+          "output_coverage": 0.5466666666666667,
+          "prediction_coverage": 0.33666666666666667,
+          "candidate_ready_latency_p95_ms": 151.3751044428669
+        }
+      },
+      "linear_pose_w2": {
+        "50": {
+          "penalized_rmse": 0.9794993922226216,
+          "penalized_p95_frame_rmse": 1.0,
+          "output_coverage": 0.03333333333333333,
+          "prediction_coverage": 0.0,
+          "candidate_ready_latency_p95_ms": 127.95691887204838
+        },
+        "100": {
+          "penalized_rmse": 0.5647860528003871,
+          "penalized_p95_frame_rmse": 1.0,
+          "output_coverage": 0.5466666666666667,
+          "prediction_coverage": 0.0011111111111111111,
+          "candidate_ready_latency_p95_ms": 127.95691887204838
+        },
+        "150": {
+          "penalized_rmse": 0.5696030569969528,
+          "penalized_p95_frame_rmse": 1.0,
+          "output_coverage": 0.5466666666666667,
+          "prediction_coverage": 0.056666666666666664,
+          "candidate_ready_latency_p95_ms": 127.95691887204838
+        }
+      }
+    }
+  }
+}

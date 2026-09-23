@@ -19,6 +19,7 @@ from typing import Any, Dict
 import cv2
 
 from capture.input_source import InputSource
+from capture.timeline import resolve_media_timestamp_ms
 from capture.video_file import VideoFileSource
 from capture.webcam import WebcamSource
 from output.frame_payload_contract import assert_valid_frame_payload, prepare_frame_payload
@@ -419,11 +420,13 @@ def main() -> None:
 
         timer = FrameTimer()
         frame_index = 0
+        previous_source_ms = None
 
         while True:
             source_read_start_unix_ms = _unix_ms()
             ok, frame = source.read()
             source_read_end_unix_ms = _unix_ms()
+            read_return_monotonic_ms = time.monotonic() * 1000.0
             if not ok or frame is None:
                 if frame_index == 0:
                     logger.warning("输入源没有产出任何帧；程序将安全退出。")
@@ -432,9 +435,23 @@ def main() -> None:
                 break
 
             t0 = time.perf_counter()
+            if runtime.input_source_type == "video_file":
+                decision = resolve_media_timestamp_ms(frame_index, raw_pts_ms=source.last_pts_ms,
+                    nominal_fps=source.nominal_fps, previous_timestamp_ms=previous_source_ms)
+                source_ms, timestamp_source, timebase = decision.timestamp_ms, decision.source, "media_pts_ms"
+                nominal_fps = source.nominal_fps
+            else:
+                source_ms, timestamp_source = read_return_monotonic_ms, "source_read_return"
+                timebase, nominal_fps = "monotonic_ms", None
+            previous_source_ms = source_ms
             payload = pipeline.process_frame(
-                frame, frame_index=frame_index, draw_landmarks=draw_landmarks,
+                frame, frame_index=frame_index, timestamp=source_ms / 1000.0, draw_landmarks=draw_landmarks,
             )
+            # 旧 9 通道影子日志的 timestamp 仍是 Unix 兼容字段；M3 使用明确的源时间。
+            payload["timestamp"] = source_read_end_unix_ms / 1000.0
+            payload["source_timing"] = {"source_time_ms": source_ms, "timebase": timebase,
+                "timestamp_source": timestamp_source, "read_return_monotonic_ms": read_return_monotonic_ms,
+                "nominal_fps": nominal_fps}
             baseline_end_unix_ms = pipeline.last_stage_timing["baseline_end_unix_ms"]
             preview_end_unix_ms = pipeline.last_stage_timing["preview_end_unix_ms"]
             payload["frame_index"] = frame_index
@@ -446,8 +463,7 @@ def main() -> None:
                 "clock": "unix_epoch_ms",
                 "source_read_start_unix_ms": source_read_start_unix_ms,
                 "source_read_end_unix_ms": source_read_end_unix_ms,
-                # pipeline 在检测完成后生成 timestamp。
-                "detection_end_unix_ms": float(payload["timestamp"]) * 1000.0,
+                "detection_end_unix_ms": pipeline.last_stage_timing["detection_end_unix_ms"],
                 "baseline_end_unix_ms": baseline_end_unix_ms,
                 "preview_end_unix_ms": preview_end_unix_ms,
                 "payload_ready_unix_ms": _unix_ms(),
