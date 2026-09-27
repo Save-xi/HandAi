@@ -1,0 +1,26 @@
+{
+  "schema_version": "camera-m3c-plan-v1",
+  "status": "acquisition_pending",
+  "split_policy": "independent_person",
+  "people": {
+    "P01": "development",
+    "P02": "heldout",
+    "P03": "heldout"
+  },
+  "sessions_per_person": ["S01", "S02"],
+  "clip_names": [
+    "01_static_rotate",
+    "02_fast_flex",
+    "03_pinch_transition",
+    "04_side_view",
+    "05_occlusion_recovery"
+  ],
+  "target_duration_seconds_per_clip": [20, 30],
+  "first_batch": "P01/S01",
+  "default_pck_threshold_original_pixels": 20,
+  "event_match_tolerance_ms": 250,
+  "fixed_prediction_fps": 30,
+  "fixed_methods": ["hold_channels", "hold_pose", "linear_pose_w2"],
+  "horizons_ms": [50, 100, 150],
+  "note": "这是采集计划，不是已经取得的视频、人工标签或数据集清单。留出在开发配置固定后明确使用 --role heldout 评测。"
+}
