@@ -1,6 +1,6 @@
 # AI 交接：已核实状态与整改依据
 
-更新：2026-09-22。已合并 Claude、本机二审及 `HandAi_AI_Review_20260921.md` 路线建议。[M0 数据定义](../m0_data_definition.md)、[M1 关键点预测](../m1_keypoint_prediction.md)、[M2 H2O 三种子表示对照](../m2_representation_comparison.md)与 [M3-A 摄像头基础整改](../m3a_camera_foundation.md)已完成。M3-A 新配置具备几何/输入检查和连续释放，已有边界测试、开发视频诊断及 CPU 预测 CI；真实效果仍待标签。H2O 神经模型扩展暂停，下一步 M3-B 简单预测与计时 → M3-C 真实效果证据，具体范围见 [AI 路线图](../ai_roadmap.md)。
+更新：2026-09-23。已合并 Claude、本机二审及 `HandAi_AI_Review_20260921.md` 路线建议。M0/M1/M2、[M3-A 摄像头基础整改](../m3a_camera_foundation.md)与 [M3-B 简单预测/成本重放](../m3b_camera_prediction.md)已完成。V1–V7 共 2100 帧只有历史开发身份，未证明独立泛化或真实精度；H2O 神经模型扩展继续暂停。下一步 M3-C 补人员/会话及人工标签，见 [AI 路线图](../ai_roadmap.md)。
 
 日常运行以 [项目指令](../../AGENTS.md) 和 [README](../../README.md) 为准。阶段规划、交接或证据复核时参考本文，不把这份快照作为每次普通修改前的检查关卡。已有数据、权重和历史报告继续保留。
 
@@ -39,13 +39,14 @@
 | 姿态与耗时评测 | 工具和真实历史结果均存在，见下一节 | [FreiHAND 评测](../../experiments/freihand_eval/README.md) |
 | H2O 原生 21 点未来预测 | M1 已实现训练、基线、评测与加载；小样本常速度优于 GRU | [M1 交付](../m1_keypoint_prediction.md) |
 | H2O 预测姿态后判手势/映射 | M2 已实现因果状态和共同参考；C 优于 A/B，但未通过继续条件 | [M2 对照](../m2_representation_comparison.md) |
-| 摄像头域 21 点预测、计算就绪时间与人工手势评测 | 尚未实现 | M3 |
+| 摄像头简单姿态预测与计算就绪时间 | M3-B 已实现三个基线、独立候选输出及有界队列成本重放；不是墙钟实时/设备测试 | [M3-B](../m3b_camera_prediction.md) |
+| 新人员/会话与人工关键点/手势评测 | 尚未实现 | M3-C |
 | MMPose 对照、InterHand2.6M 适配、自训练检测网络 | 尚未实现 | 后续路线 |
 | ONNX/量化、边缘端运行 | 尚未实现 | 后续路线 |
 
 2026-09-05 重构记录为 171 项 pytest 通过，并有指定视频片段的重构前后数值一致性检查；Claude 环境的 164 passed / 7 skipped 来自缺少 PyTorch。M1 完成 190 项测试；M2 在本机环境增至 198 项，并完成三种子真实实验和九个 checkpoint 重载一致性检查。新审核报告在 Linux/PyTorch CPU 环境复核为 197 passed / 1 skipped，缺本机 ignored 权重的用例未执行；它没有重跑原始 H2O 训练或 FreiHAND 检测。现有 Windows/Ubuntu baseline CI 不安装 torch，绿色状态不能替代神经路径的持续覆盖。测试通过不等于算法效果成立。参见 [重构记录](../ai_refactor_20260905.md)、[M1](../m1_keypoint_prediction.md)与 [M2 报告](../m2_representation_comparison.md)。
 
-新增审核的五项问题均纳入 M3-A：几何宽高比、退化点门控、短输入异常、open 释放跳变与 CPU 预测 CI。当前主循环默认 timestamp 在检测结束后生成，M3-B 还须改用明确的源时刻/媒体时间并记录完整就绪时间。审核中的合成边界复现说明问题可发生，不代表真实摄像头发生频率；本次路线修订只核对了相关源码，并未把这些问题标为已修复。
+审核的五项基础问题已由 M3-A 实施并做工程验证。M3-B 进一步加入明确源时间、规则状态查询、共同参考及完整处理成本调度。合成边界与检测轨迹代理结果不等于真实摄像头准确率；人工标签和设备验收仍有明确缺口。
 
 ## 3. 已有实验及适用范围
 

@@ -19,6 +19,8 @@ class VideoFileSource(InputSource):
     def __init__(self, video_path: str) -> None:
         self.video_path = video_path
         self.cap = cv2.VideoCapture(video_path)
+        self.nominal_fps = float(self.cap.get(cv2.CAP_PROP_FPS))
+        self.last_pts_ms: float | None = None
 
     def is_opened(self) -> bool:
         return bool(self.cap is not None and self.cap.isOpened())
@@ -29,6 +31,7 @@ class VideoFileSource(InputSource):
         ret, frame = self.cap.read()
         if not ret:
             return False, None
+        self.last_pts_ms = float(self.cap.get(cv2.CAP_PROP_POS_MSEC))
         return True, frame
 
     def release(self) -> None:

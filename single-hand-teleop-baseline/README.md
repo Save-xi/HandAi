@@ -18,7 +18,7 @@
 
 已完成 [M0：数据定义与核对](docs/m0_data_definition.md)、[M1：原生 21 点预测](docs/m1_keypoint_prediction.md)及 [M2：三种子 A/B/C 对照](docs/m2_representation_comparison.md)。M2 覆盖 H2O 全部 217 段、每段最多抽样 64 个窗口；C 优于 A/B，但未稳定胜过验证集预选的简单基线，三条神经路线均未通过本轮研发继续条件。
 
-已实现 [M3-A：摄像头基础整改](docs/m3a_camera_foundation.md)：宽高尺度统一、坏帧处理、连续释放与 Linux CPU 预测 CI。开发微扰跳变由 0.470343 降到 0.000106，两段各 180 帧开发视频已检查；真实精度和全部转换连续性仍待后续证据。下一阶段为 M3-B 简单预测与计时，再由 M3-C 新数据和人工标签决定模型投入。
+已实现 [M3-A：摄像头基础整改](docs/m3a_camera_foundation.md)与 [M3-B：摄像头简单预测和计时](docs/m3b_camera_prediction.md)。M3-B 提供保持通道、保持姿态后映射、常速度姿态后映射，以及共同参考、有界队列成本重放和带时间的独立候选输出。V1–V7 仅作历史开发片段，下一阶段 M3-C 用新人员/会话及人工标签验证真实效果。
 
 ## 运行
 
@@ -49,6 +49,16 @@ python -X utf8 scripts\run_prediction_shadow_smoke.py --config configs\ai.yaml
 ```
 
 实时 CLI 也可用 `--video-file 视频路径 --headless` 处理本地视频；算法效果评测使用下述媒体时间轴命令。
+
+M3-B 摄像头开发评测（默认七段各前 300 帧，通常数分钟）：
+
+```bat
+conda activate handai-intent-prediction
+cd /d D:\VR\HandAi\single-hand-teleop-baseline
+python -X utf8 experiments\intent_prediction\scripts\run_camera_m3b.py
+```
+
+先按配置用 V1–V4 选型，再处理 V5–V7 历史复评；人员/会话来源未知，不视为独立泛化测试。新预测结果保存在独立 JSONL，不接入旧模型或设备发送。完整复现与评分分母见 M3-B 文档。
 
 ## 配置和代码
 

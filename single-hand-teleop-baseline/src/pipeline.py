@@ -70,16 +70,18 @@ def _build_baseline_payload(
     *,
     draw_landmarks: bool,
     timestamp: float | None = None,
-) -> Dict[str, Any]:
+) -> tuple[Dict[str, Any], float, float]:
     """从单帧图像生成 baseline payload。
 
     这一层只做视觉 baseline：检测右手、检查输入、提取特征和 raw 手势。
     control_representation 和 svh_preview 在后续扩展链路里再补上。
     """
 
+    ts = time.monotonic() if timestamp is None else float(timestamp)
     detections = detector.detect(frame)
+    detection_end = time.perf_counter()
+    detection_end_unix_ms = time.time() * 1000.0
     right = select_right_hand(detections)
-    ts = time.time() if timestamp is None else float(timestamp)
 
     diagnostics = prepare_geometry(right, cfg, frame=frame)
     payload = empty_features(ts)
@@ -105,7 +107,7 @@ def _build_baseline_payload(
 
     payload["input_diagnostics"] = diagnostics
     payload["gesture_raw"] = infer_gesture_raw(payload, cfg)
-    return payload
+    return payload, detection_end, detection_end_unix_ms
 
 
 def _summarize_exception(exc: Exception, *, max_length: int = 160) -> str:
@@ -146,6 +148,7 @@ def _apply_extension_chain(
     *,
     logger,
     release_state: OpenReleaseState | None = None,
+    advance_state: bool = True,
 ) -> ExtensionDiagnostics:
     """依次运行可选扩展层，并在失败时退回规范占位对象。
 
@@ -158,7 +161,8 @@ def _apply_extension_chain(
     diagnostics: ExtensionDiagnostics = []
     if runtime.control_extension_enabled:
         try:
-            control_representation = build_control_representation(payload, cfg, release_state=release_state)
+            control_representation = build_control_representation(payload, cfg, release_state=release_state,
+                                                                 advance_release=advance_state)
         except Exception as exc:
             _record_extension_failure(
                 diagnostics,
@@ -249,13 +253,13 @@ class HandPipeline:
         fork._last_image_size = self._last_image_size
         return fork
 
-    def _process(self, frame, detector, *, frame_index, timestamp, fps, draw_landmarks):
+    def _process(self, frame, detector, *, frame_index, timestamp, fps, draw_landmarks, advance_state=True):
         if not isinstance(frame_index, int) or isinstance(frame_index, bool) or frame_index < 0:
             raise ValueError("frame_index 必须是非负整数")
         if timestamp is not None and (not math.isfinite(timestamp) or timestamp < 0):
             raise ValueError("timestamp 必须是有限非负秒数")
         started = time.perf_counter()
-        payload = _build_baseline_payload(
+        payload, detection_end, detection_end_unix_ms = _build_baseline_payload(
             frame,
             detector,
             self.cfg,
@@ -265,7 +269,7 @@ class HandPipeline:
         diagnostics = payload["input_diagnostics"]
         image_size = (diagnostics["image_width"], diagnostics["image_height"])
         # 旧标签不加入新的时序策略；新流遇到断帧/倒序/换尺寸即重启状态。
-        discontinuity = self.cfg.get("geometry_mode") == "image_width_xyz_v1" and (
+        discontinuity = advance_state and self.cfg.get("geometry_mode") == "image_width_xyz_v1" and (
             (self._last_timestamp is not None and not 0 < payload["timestamp"] - self._last_timestamp
              <= float(self.cfg.get("mapping_max_frame_gap_ms", 100.0)) / 1000.0)
             or (self._last_image_size is not None and image_size != self._last_image_size)
@@ -274,27 +278,38 @@ class HandPipeline:
         if reset:
             self.reset()
         if diagnostics["input_valid"]:
-            payload["gesture_stable"] = self.stabilizer.update(payload["gesture_raw"])
-            self._last_timestamp = payload["timestamp"]
-            self._last_image_size = image_size
+            payload["gesture_stable"] = (self.stabilizer.update(payload["gesture_raw"]) if advance_state
+                                         else self.stabilizer.stable_gesture)
+            if advance_state:
+                self._last_timestamp = payload["timestamp"]
+                self._last_image_size = image_size
         else:
             payload["gesture_stable"] = "unknown"
         baseline_end = time.time() * 1000.0
-        _apply_extension_chain(payload, self.cfg, self.runtime, logger=self.logger, release_state=self.release_state)
+        _apply_extension_chain(payload, self.cfg, self.runtime, logger=self.logger,
+                               release_state=self.release_state, advance_state=advance_state)
         diagnostics.update(mapping_version=self._mapping_version,
                            release_weight=self.release_state.weight if self.cfg.get("control_open_release_mode") == "continuous_v1" else None,
                            state_reset=bool(reset))
         self.last_stage_timing = {
+            "detection_end_unix_ms": detection_end_unix_ms,
+            "detection_ms": (detection_end - started) * 1000.0,
+            "post_detection_ms": (time.perf_counter() - detection_end) * 1000.0,
             "baseline_end_unix_ms": baseline_end,
             "preview_end_unix_ms": time.time() * 1000.0,
         }
         payload.update(frame_index=frame_index, fps=float(fps), latency_ms=(time.perf_counter() - started) * 1000.0)
         return prepare_frame_payload(payload, include_deprecated_aliases=False)
 
+    def query_detections(self, detections: list[HandDetection], *, frame_index: int, timestamp: float) -> dict:
+        """在完整状态副本上读取分数时刻；不额外更新手势确认和释放权重。"""
+        return self.fork_mapping()._process(None, _SuppliedDetections(detections), frame_index=frame_index,
+            timestamp=timestamp, fps=0.0, draw_landmarks=False, advance_state=False)
+
     def process_frame(
         self, frame, *, frame_index: int, timestamp: float | None = None, fps: float = 0.0, draw_landmarks: bool = False
     ) -> dict[str, Any]:
-        """处理 BGR 图像；视频评测应显式传媒体时间，实时输入可用默认时钟。"""
+        """处理 BGR；显式源时间优先，缺省取调用检测前的单调时钟（非曝光时间）。"""
         if self.detector is None:
             raise ValueError("process_frame 需要注入 detector；已有关键点请用 process_detections")
         return self._process(
