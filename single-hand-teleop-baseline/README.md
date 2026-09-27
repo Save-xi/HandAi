@@ -20,6 +20,8 @@
 
 已实现 [M3-A：摄像头基础整改](docs/m3a_camera_foundation.md)与 [M3-B：摄像头简单预测和计时](docs/m3b_camera_prediction.md)。M3-B 提供保持通道、保持姿态后映射、常速度姿态后映射，以及共同参考、有界队列成本重放和带时间的独立候选输出。V1–V7 仅作历史开发片段，下一阶段 M3-C 用新人员/会话及人工标签验证真实效果。
 
+[M3-C 采集/标注/真实标签评测工具](docs/m3c_real_label_evaluation.md)已可运行；新人员/会话及人工 GT 尚待采集确认，不能将工具完成视为真实效果验收。
+
 ## 运行
 
 使用已有 Conda 环境 `handai-intent-prediction`：

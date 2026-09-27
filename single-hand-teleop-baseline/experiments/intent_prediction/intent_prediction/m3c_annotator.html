@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>M3-C 人工标注</title>
+<style>
+body{font:15px system-ui,sans-serif;background:#f4f6f8;color:#1e293b;margin:0;padding:20px}
+main{max-width:1200px;margin:auto}section{background:white;padding:16px;margin:12px 0;border-radius:10px;box-shadow:0 2px 9px #0001}
+h1{margin:0}button,input,select{font:inherit;margin:3px;padding:5px}button{cursor:pointer}
+#stage{position:relative;display:inline-block;max-width:100%}#still{display:block;max-width:100%;width:800px}video{display:block;max-width:100%;width:500px}
+canvas{position:absolute;inset:0;width:100%;height:100%;cursor:crosshair;pointer-events:auto}
+#points{display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:3px}
+.active{background:#fde68a}.done{background:#bbf7d0}.muted{color:#64748b}
+table{border-collapse:collapse}td,th{border:1px solid #ddd;padding:4px}
+</style></head><body><main>
+<h1>M3-C 人工标注</h1><p id="source" class="muted"></p>
+<section><p>视频预览（暂停后定位到最近帧；浏览器不支持编码时仍可逐帧）：</p><video id="video" src="/video" controls preload="metadata"></video>
+<p id="videoerror" class="muted"></p><p>准确帧图像（以导入帧号读取）：<span id="imagestatus"></span></p><div id="stage"><img id="still" alt="当前帧"><canvas id="canvas"></canvas></div>
+<p>帧 <input id="frame" type="number" min="0" value="0" style="width:95px"> <button id="go">跳转</button>
+<button id="prev">上一帧</button><button id="next">下一帧</button>
+<button id="uniform">下一均匀抽样</button> <span id="clock"></span></p>
+<p>均匀抽样仅是姿态首轮入口；失败专项帧请按帧号定位另行记录。连续手势须覆盖完整时间段。</p></section>
+<section><h2>二维右手 21 点（原图像素）</h2>
+<p><button id="right">标右手</button><button id="absent">确认右手不存在/出框</button><button id="clear">清除本帧标注</button>
+<button id="invisible">当前点人工确认不可见</button> 当前点 <b id="joint">0</b>；画面中点击该点。未处理点显示“未标”，不可见点须逐个确认。点号按 MediaPipe 顺序。</p>
+<p>本帧抽样用途 <select id="sampling"><option value="uniform">事先均匀抽样</option><option value="failure_targeted">失败专项</option><option value="dense_transition">转换局部密集</option></select>；不同用途在报告中分开，不按模型是否检出决定均匀样本。</p>
+<div id="points"></div></section>
+<section><h2>连续手势区间</h2>
+<p>标签 <select id="label"><option>open</option><option>fist</option><option>pinch</option><option>unknown</option><option>absent</option></select>
+起始 PTS(ms) <input id="start" type="number" step="0.001"> 结束 PTS(ms) <input id="end" type="number" step="0.001">
+<button id="setstart">起点取当前帧</button><button id="setend">终点取当前帧</button>
+<button id="add">新增区间</button></p><p>unknown 表示人工确认存在但无法分类；absent 表示右手不存在。区间外是未标注。可删除后重新添加。</p>
+<table><thead><tr><th>起</th><th>止</th><th>标签</th><th></th></tr></thead><tbody id="intervals"></tbody></table></section>
+<section><h2>人工转换事件区间</h2><p>从 <select id="eventfrom"><option>open</option><option>fist</option><option>pinch</option><option>unknown</option></select>
+到 <select id="eventto"><option>fist</option><option>open</option><option>pinch</option><option>unknown</option></select>
+起点 PTS(ms) <input id="eventstart" type="number" step="0.001"> 终点 PTS(ms) <input id="eventend" type="number" step="0.001">
+<button id="eventstartnow">起点取当前帧</button><button id="eventendnow">终点取当前帧</button><button id="addevent">新增事件区间</button></p>
+<p>在区间内发生的预测转换记 0ms 滞后；区间外按最近边界记提前或滞后。手势区间和事件区间分别保存。</p>
+<table><thead><tr><th>起</th><th>止</th><th>从</th><th>到</th><th></th></tr></thead><tbody id="events"></tbody></table></section>
+<section><button id="save">保存并校验</button> <span id="status"></span></section>
+</main><script>
+let data, current=0, selected=0, uniformIndex=0, loadedFrame=-1;
+const $=id=>document.getElementById(id), video=$('video'), canvas=$('canvas'), ctx=canvas.getContext('2d');
+const names=['腕','拇指1','拇指2','拇指3','拇指尖','食指1','食指2','食指3','食指尖','中指1','中指2','中指3','中指尖','无名指1','无名指2','无名指3','无名指尖','小指1','小指2','小指3','小指尖'];
+function row(){return data.annotations.keypoint_frames.find(x=>x.frame_id===current)}
+function ensure(){let r=row();if(!r){r={frame_id:current,presence:'right',sampling_purpose:$('sampling').value,points:Array.from({length:21},()=>({x:null,y:null,visible:null}))};data.annotations.keypoint_frames.push(r)}return r}
+function pointControls(){for(const id of ['right','absent','clear','invisible','sampling'])$(id).disabled=loadedFrame!==current}
+function render(){
+ const t=data.timeline[current]; $('frame').value=current;$('clock').textContent='PTS '+t.pts_ms.toFixed(3)+' ms · '+t.timestamp_source+' · '+t.width+'×'+t.height;
+ if($('still').dataset.frame!==String(current)){loadedFrame=-1;$('imagestatus').textContent='加载中，暂不可标点';$('still').dataset.frame=String(current);$('still').src='/frame?index='+current}
+ pointControls();
+ canvas.width=t.width;canvas.height=t.height;ctx.clearRect(0,0,canvas.width,canvas.height);
+ const r=row();$('joint').textContent=selected+' '+names[selected];$('sampling').value=r?.sampling_purpose||'uniform';
+ $('points').replaceChildren();
+ for(let i=0;i<21;i++){const b=document.createElement('button');const p=r?.points?.[i];
+ b.textContent=i+' '+names[i]+(p?.visible===true?' ✓':p?.visible===false?' 遮挡':' 未标');b.className=(selected===i?'active ':'')+(p?.visible!==null&&p?.visible!==undefined?'done':'');
+ b.onclick=()=>{selected=i;render()};$('points').append(b)}
+ if(r?.presence==='right')for(let i=0;i<21;i++){const p=r.points[i];if(!p.visible)continue;
+ ctx.fillStyle=i===selected?'#ffda2d':'#18d6e4';ctx.beginPath();ctx.arc(p.x,p.y,Math.max(4,t.width/180),0,2*Math.PI);ctx.fill();
+ ctx.fillStyle='#111';ctx.font=Math.max(12,t.width/90)+'px sans-serif';ctx.fillText(String(i),p.x+5,p.y-5)}
+ $('intervals').replaceChildren();data.annotations.gesture_intervals.forEach((v,i)=>{const tr=document.createElement('tr');
+ for(const key of ['start_ms','end_ms','label']){const td=document.createElement('td');td.textContent=v[key];tr.append(td)}
+ const td=document.createElement('td'), b=document.createElement('button');b.textContent='删除';b.onclick=()=>{data.annotations.gesture_intervals.splice(i,1);render()};td.append(b);tr.append(td);$('intervals').append(tr)});
+ $('events').replaceChildren();data.annotations.transition_events.forEach((v,i)=>{const tr=document.createElement('tr');
+ for(const key of ['start_ms','end_ms','from','to']){const td=document.createElement('td');td.textContent=v[key];tr.append(td)}
+ const td=document.createElement('td'),b=document.createElement('button');b.textContent='删除';b.onclick=()=>{data.annotations.transition_events.splice(i,1);render()};td.append(b);tr.append(td);$('events').append(tr)});
+}
+function goto(i){const number=Number(i);if(!Number.isInteger(number)){alert('帧号必须是整数');return}
+current=Math.max(0,Math.min(data.timeline.length-1,number));video.currentTime=data.timeline[current].pts_ms/1000;render()}
+function nearest(ms){let lo=0,hi=data.timeline.length-1;while(lo<hi){const mid=(lo+hi)>>1;if(data.timeline[mid].pts_ms<ms)lo=mid+1;else hi=mid}return lo>0&&Math.abs(data.timeline[lo-1].pts_ms-ms)<Math.abs(data.timeline[lo].pts_ms-ms)?lo-1:lo}
+fetch('/api').then(r=>r.json()).then(x=>{data=x;data.annotations.transition_events??=[];$('source').textContent=x.manifest.clip_id+' · '+x.manifest.person_id+'/'+x.manifest.session_id+' · '+x.manifest.role+' · '+x.manifest.scenario;
+render();video.addEventListener('seeked',()=>{current=nearest(video.currentTime*1000);render()})});
+$('go').onclick=()=>goto($('frame').value);$('prev').onclick=()=>goto(current-1);$('next').onclick=()=>goto(current+1);
+$('uniform').onclick=()=>{const i=Math.round(uniformIndex++*(data.timeline.length-1)/Math.max(1,Math.ceil((data.timeline.at(-1).pts_ms-data.timeline[0].pts_ms)/5000)));goto(i)};
+$('sampling').onchange=()=>{if(loadedFrame!==current)return;const r=row();if(r){r.sampling_purpose=$('sampling').value;render()}};
+$('right').onclick=()=>{if(loadedFrame!==current)return;const r=ensure();r.presence='right';if(r.points.length!==21)r.points=Array.from({length:21},()=>({x:null,y:null,visible:null}));render()};
+$('absent').onclick=()=>{if(loadedFrame!==current)return;const r=ensure();r.presence='absent';r.points=[];render()};
+$('clear').onclick=()=>{if(loadedFrame!==current)return;data.annotations.keypoint_frames=data.annotations.keypoint_frames.filter(x=>x.frame_id!==current);render()};
+canvas.onclick=e=>{if(loadedFrame!==current){$('imagestatus').textContent='请等待当前帧加载';return}
+const r=ensure();r.presence='right';if(r.points.length!==21)r.points=Array.from({length:21},()=>({x:null,y:null,visible:null}));
+const box=canvas.getBoundingClientRect();r.points[selected]={x:Math.max(0,Math.min(canvas.width-1,(e.clientX-box.left)*canvas.width/box.width)),y:Math.max(0,Math.min(canvas.height-1,(e.clientY-box.top)*canvas.height/box.height)),visible:true};selected=Math.min(20,selected+1);render()};
+document.addEventListener('keydown',e=>{if(e.target.tagName==='INPUT')return;if(e.key==='ArrowLeft')goto(current-1);if(e.key==='ArrowRight')goto(current+1);if(e.key==='Delete'&&loadedFrame===current){const r=row();if(r?.presence==='right'){r.points[selected]={x:null,y:null,visible:false};render()}}});
+$('invisible').onclick=()=>{if(loadedFrame!==current)return;const r=ensure();r.presence='right';if(r.points.length!==21)r.points=Array.from({length:21},()=>({x:null,y:null,visible:null}));r.points[selected]={x:null,y:null,visible:false};selected=Math.min(20,selected+1);render()};
+$('setstart').onclick=()=>$('start').value=data.timeline[current].pts_ms;
+$('setend').onclick=()=>$('end').value=data.timeline[current].pts_ms;
+$('add').onclick=()=>{data.annotations.gesture_intervals.push({start_ms:Number($('start').value),end_ms:Number($('end').value),label:$('label').value});data.annotations.gesture_intervals.sort((a,b)=>a.start_ms-b.start_ms);render()};
+$('eventstartnow').onclick=()=>$('eventstart').value=data.timeline[current].pts_ms;
+$('eventendnow').onclick=()=>$('eventend').value=data.timeline[current].pts_ms;
+$('addevent').onclick=()=>{data.annotations.transition_events.push({start_ms:Number($('eventstart').value),end_ms:Number($('eventend').value),from:$('eventfrom').value,to:$('eventto').value});data.annotations.transition_events.sort((a,b)=>a.start_ms-b.start_ms);render()};
+$('save').onclick=async()=>{try{const r=await fetch('/api',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data.annotations)});
+const msg=await r.text();$('status').textContent=r.ok?'已保存并验证':'保存失败：'+msg}catch(e){$('status').textContent='保存失败：'+e}};
+$('still').onload=()=>{loadedFrame=Number($('still').dataset.frame);$('imagestatus').textContent=loadedFrame===current?'已加载第 '+current+' 帧':'加载中';pointControls()};
+$('still').onerror=()=>{loadedFrame=-1;$('imagestatus').textContent='当前帧图像加载失败，不能标点';pointControls()};
+video.onerror=()=>$('videoerror').textContent='浏览器不支持此视频编码。仍可按帧号使用准确帧图标注。';
+</script></body></html>
