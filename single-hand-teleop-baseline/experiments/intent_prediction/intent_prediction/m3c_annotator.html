@@ -26,14 +26,15 @@ table{border-collapse:collapse}td,th{border:1px solid #ddd;padding:4px}
 <section><h2>连续手势区间</h2>
 <p>标签 <select id="label"><option>open</option><option>fist</option><option>pinch</option><option>unknown</option><option>absent</option></select>
 起始 PTS(ms) <input id="start" type="number" step="0.001"> 结束 PTS(ms) <input id="end" type="number" step="0.001">
-<button id="setstart">起点取当前帧</button><button id="setend">终点取当前帧</button>
-<button id="add">新增区间</button></p><p>unknown 表示人工确认存在但无法分类；absent 表示右手不存在。区间外是未标注。可删除后重新添加。</p>
-<table><thead><tr><th>起</th><th>止</th><th>标签</th><th></th></tr></thead><tbody id="intervals"></tbody></table></section>
+<button id="setstart">起点取当前帧（含本帧）</button><button id="setend">终点取当前帧（不含本帧）</button><button id="setendnext">终点取下一帧（含本帧）</button>
+<button id="add">新增区间</button></p><p>区间为半开 [起点, 终点)：起点帧计入，终点 PTS 所在帧不计入。要把当前帧算进区间（包括最后一帧），用“终点取下一帧”。相邻区间须首尾相接，即前一终点 = 后一起点：可在新手势首帧先点“终点取当前帧”再点“起点取当前帧”。留缝的帧不计分，也不会自动生成转换事件；保存时提示不足两帧的缝隙。</p>
+<p>unknown 表示人工确认存在但无法分类；absent 表示右手不存在。区间外是未标注。可删除后重新添加。</p>
+<table><thead><tr><th>起（含）</th><th>止（不含）</th><th>标签</th><th></th></tr></thead><tbody id="intervals"></tbody></table></section>
 <section><h2>人工转换事件区间</h2><p>从 <select id="eventfrom"><option>open</option><option>fist</option><option>pinch</option><option>unknown</option></select>
 到 <select id="eventto"><option>fist</option><option>open</option><option>pinch</option><option>unknown</option></select>
 起点 PTS(ms) <input id="eventstart" type="number" step="0.001"> 终点 PTS(ms) <input id="eventend" type="number" step="0.001">
 <button id="eventstartnow">起点取当前帧</button><button id="eventendnow">终点取当前帧</button><button id="addevent">新增事件区间</button></p>
-<p>在区间内发生的预测转换记 0ms 滞后；区间外按最近边界记提前或滞后。手势区间和事件区间分别保存。</p>
+<p>事件窗口是闭区间 [起点, 终点]，两端帧都计入。在区间内发生的预测转换记 0ms 滞后；区间外按最近边界记提前或滞后。手势区间和事件区间分别保存。</p>
 <table><thead><tr><th>起</th><th>止</th><th>从</th><th>到</th><th></th></tr></thead><tbody id="events"></tbody></table></section>
 <section><button id="save">保存并校验</button> <span id="status"></span></section>
 </main><script>
@@ -81,11 +82,22 @@ document.addEventListener('keydown',e=>{if(e.target.tagName==='INPUT')return;if(
 $('invisible').onclick=()=>{if(loadedFrame!==current)return;const r=ensure();r.presence='right';if(r.points.length!==21)r.points=Array.from({length:21},()=>({x:null,y:null,visible:null}));r.points[selected]={x:null,y:null,visible:false};selected=Math.min(20,selected+1);render()};
 $('setstart').onclick=()=>$('start').value=data.timeline[current].pts_ms;
 $('setend').onclick=()=>$('end').value=data.timeline[current].pts_ms;
+// 末帧之后按最后一帧间隔外推，与后端校验允许的上界一致。
+function nextPts(i){const t=data.timeline;return i+1<t.length?t[i+1].pts_ms:t[i].pts_ms+(t.length>1?t[i].pts_ms-t[i-1].pts_ms:1000)}
+$('setendnext').onclick=()=>$('end').value=nextPts(current);
+// 相邻区间只差不到两帧多半是按“包含式”误标；转换事件要求首尾严格相接。
+function smallGaps(){const rows=[...data.annotations.gesture_intervals].sort((a,b)=>a.start_ms-b.start_ms),out=[];
+ for(let i=1;i<rows.length;i++){const a=rows[i-1],b=rows[i];if(b.start_ms-a.end_ms<1e-6)continue;
+ const inside=data.timeline.filter(f=>f.pts_ms>=a.end_ms&&f.pts_ms<b.start_ms).map(f=>f.frame_id);
+ if(inside.length<2)out.push(a.label+' 止 '+a.end_ms+' → '+b.label+' 起 '+b.start_ms+'：'+(inside.length?'第 '+inside[0]+' 帧未标注':'缝隙内无整帧'))}
+ return out}
 $('add').onclick=()=>{data.annotations.gesture_intervals.push({start_ms:Number($('start').value),end_ms:Number($('end').value),label:$('label').value});data.annotations.gesture_intervals.sort((a,b)=>a.start_ms-b.start_ms);render()};
 $('eventstartnow').onclick=()=>$('eventstart').value=data.timeline[current].pts_ms;
 $('eventendnow').onclick=()=>$('eventend').value=data.timeline[current].pts_ms;
 $('addevent').onclick=()=>{data.annotations.transition_events.push({start_ms:Number($('eventstart').value),end_ms:Number($('eventend').value),from:$('eventfrom').value,to:$('eventto').value});data.annotations.transition_events.sort((a,b)=>a.start_ms-b.start_ms);render()};
-$('save').onclick=async()=>{try{const r=await fetch('/api',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data.annotations)});
+$('save').onclick=async()=>{const gaps=smallGaps();
+if(gaps.length&&!confirm('以下相邻手势区间没有首尾相接：\n'+gaps.join('\n')+'\n\n区间为半开 [起点, 终点)，相接须令前一终点 = 后一起点；缝隙帧不计分，也不会自动生成转换事件。仍要保存吗？'))return;
+try{const r=await fetch('/api',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data.annotations)});
 const msg=await r.text();$('status').textContent=r.ok?'已保存并验证':'保存失败：'+msg}catch(e){$('status').textContent='保存失败：'+e}};
 $('still').onload=()=>{loadedFrame=Number($('still').dataset.frame);$('imagestatus').textContent=loadedFrame===current?'已加载第 '+current+' 帧':'加载中';pointControls()};
 $('still').onerror=()=>{loadedFrame=-1;$('imagestatus').textContent='当前帧图像加载失败，不能标点';pointControls()};
