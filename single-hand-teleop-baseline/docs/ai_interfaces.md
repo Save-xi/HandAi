@@ -13,7 +13,7 @@
 |---|---|
 | `landmarks_2d` | 21×2 图像归一化坐标，顺序为 wrist、thumb、index、middle、ring、little |
 | `landmarks_xyz` | MediaPipe 原始 21×3 x/y/z；XY 分别按宽高归一化，z 是相对深度；保持原值输出 |
-| `image_width` / `image_height` | 原图正整数宽高；M3-A 外部关键点入口必须提供，图像入口可从实际帧取得并核对 |
+| `image_width` / `image_height` | 原图正整数宽高（Python 或 numpy 整数，bool/浮点不接受；诊断中统一输出 Python int）；M3-A 外部关键点入口必须提供，图像入口可从实际帧取得并核对 |
 | `coordinate_space` | M3-A 必须明确为 `mediapipe_image_xyz`；缺失或其他坐标域产生失效帧 |
 | `handedness` | 已校正镜像含义的真实 Right/Left 标签 |
 | `confidence` | [0,1] 的置信度；不同模型置信度含义在适配器内说明 |

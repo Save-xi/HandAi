@@ -71,20 +71,23 @@ def _draw_text_rows(panel: np.ndarray, rows: list[str]) -> np.ndarray:
     return cv2.cvtColor(np.asarray(image), cv2.COLOR_RGB2BGR)
 
 
-def build_status_panel(height: int, width: int, data: Dict) -> np.ndarray:
-    """根据当前 payload 构建一张状态面板图像。"""
+def build_status_rows(data: Dict) -> list[str]:
+    """把 payload 整理成面板文本行；行数受 720 高画面约束（18 + 行数×30 ≤ 720）。"""
 
-    panel = np.zeros((height, width, 3), dtype=np.uint8)
     svh = get_svh_preview(data)
     control = data.get("control_representation", {})
-    text_rows = [
+    # 现场需看到失效原因；标签只用两个字，最长原因码在 1280 宽画面的面板内不被截断。
+    diagnostics = data.get("input_diagnostics") or {}
+    return [
         f"检测到手: {data.get('detected')}",
         f"左右手标签: {data.get('handedness')}",
         f"稳定手势: {get_stable_gesture(data)}",
         f"原始手势: {data.get('gesture_raw')}",
         f"控制就绪: {data.get('control_ready')}",
+        f"输入: {diagnostics.get('reason') or '无'}",
         f"归一化捏合距离: {_fmt_float(data.get('pinch_distance_norm'))}",
         f"手掌张开比例: {_fmt_float(data.get('hand_open_ratio'))}",
+        f"释放权重: {_fmt_float(diagnostics.get('release_weight'))}",
         f"控制特征有效: {control.get('features_valid')}",
         f"抓握闭合度: {_fmt_float(control.get('grasp_close'))}",
         f"有效捏合强度: {_fmt_float(control.get('effective_pinch_strength'))}",
@@ -100,4 +103,10 @@ def build_status_panel(height: int, width: int, data: Dict) -> np.ndarray:
         f"帧率 fps: {data.get('fps', 0.0):.2f}",
         f"时延 ms: {data.get('latency_ms', 0.0):.2f}",
     ]
-    return _draw_text_rows(panel, text_rows)
+
+
+def build_status_panel(height: int, width: int, data: Dict) -> np.ndarray:
+    """根据当前 payload 构建一张状态面板图像。"""
+
+    panel = np.zeros((height, width, 3), dtype=np.uint8)
+    return _draw_text_rows(panel, build_status_rows(data))

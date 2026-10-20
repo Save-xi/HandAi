@@ -243,10 +243,18 @@ class HandPipeline:
     def fork_mapping(self) -> HandPipeline:
         """复制全部映射状态用于独立姿态分支；复制本身不推进任何计数。
 
+        只复制可变状态：cfg 在构造时已校验并深拷贝，之后只读，故与 runtime、
+        映射版本一起共享，不再重复校验/深拷贝（M3-B 每次预测约复制 9 次）。
         不复制检测器。未来查询须在副本上按源采样网格推进；M3-B 的
         分数时刻插值/查询调度尚不属于此接口。
         """
-        fork = HandPipeline(self.cfg, logger=self.logger)
+        fork = object.__new__(HandPipeline)
+        fork.cfg = self.cfg
+        fork.runtime = self.runtime
+        fork._mapping_version = self._mapping_version
+        fork.detector = None
+        fork.logger = self.logger
+        fork.last_stage_timing = {}
         fork.stabilizer = deepcopy(self.stabilizer)
         fork.release_state = deepcopy(self.release_state)
         fork._last_timestamp = self._last_timestamp
