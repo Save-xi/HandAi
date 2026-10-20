@@ -28,11 +28,11 @@ python -X utf8 experiments\intent_prediction\scripts\run_camera_m3c.py annotate 
 python -X utf8 experiments\intent_prediction\scripts\run_camera_m3c.py evaluate
 ```
 
-`annotate` 只监听 `127.0.0.1:8765`，显示的逐帧 JPEG 由原视频按帧号解码；视频播放器仅供预览，浏览器不支持编码也能逐帧标注。每帧保留原图宽高、帧号、容器 PTS 或显式 FPS/连续性回退来源。若源视频无有效名义 FPS、帧不可解码或导入/评测时帧号、尺寸、PTS 不一致，拒绝评测。原始素材路径保留在 manifest，导入不复制、不改动视频。
+`annotate` 只监听 `127.0.0.1:8765`，显示的逐帧 JPEG 与导入/评测的顺序解码逐帧一致；视频播放器仅供预览，浏览器不支持编码也能逐帧标注。取帧不直接用 `CAP_PROP_POS_FRAMES`：OpenCV 按“帧号/名义 FPS”换算 seek 并按同一换算回报帧号，可变帧率（VFR）视频上会取到别的帧而帧号自检照样通过。现以 `timeline.jsonl` 的容器 PTS 为准：在目标 PTS 前约 8 个名义帧处 seek，逐帧解码到前一帧与本帧 PTS 都和时间轴一致，越过目标就改从约 32 帧前 seek；本帧或前一帧为回退时间戳、靠近片段开头或 seek 失败时，从头顺序计数并逐帧核对 PTS 与来源，仍不一致即返回 400 并说明原因（通常是视频已更换，需重新导入）。每帧保留原图宽高、帧号、容器 PTS 或显式 FPS/连续性回退来源。若源视频无有效名义 FPS、帧不可解码或导入/评测时帧号、尺寸、PTS 不一致，拒绝评测。原始素材路径保留在 manifest，导入不复制、不改动视频。
 
 数据集 `dataset.json` 记录人员、会话、片段、类别、用途及 real/synthetic 身份。各片段 `manifest.json`、`timeline.jsonl`、`annotations.json` 保存来源、时间和真值。人工关键点每帧明确 `sampling_purpose`：`uniform`、`failure_targeted`、`dense_transition`。建议每段先均匀选约五帧，独立于模型是否检出；专项失败另选并分表。21 个点各有原图像素 `x/y` 及人工 `visible`；未处理点不可保存为完成 GT，人工不可见点不计入定位分母。右手不存在/出框用 `presence=absent`，无记录是未标注。约五帧/段只支持稀疏二维检测评测；50/100/150ms 未来二维轨迹误差需要转换附近局部密集点标签，目前不声称有该真值。
 
-手势在 `gesture_intervals` 按原始 PTS 保存连续半开区间 `[start_ms,end_ms)`，类别为 open/fist/pinch/unknown/absent。unknown 是人工确认的未知手势；absent 是无右手；区间外是未标注。额外的 `transition_events` 记录转换起止 PTS、from/to，可标时间不确定窗口。事件预测落入窗口记 0ms，早于起点记负滞后，晚于终点记正滞后；同类事件在 ±250ms 内求一对一最大匹配。没有显式事件时报告可从相邻连续手势区间边界生成零宽候选，但人工事件窗口更准确；未标注孔洞或右手离场都隔断事件，不跨段匹配。
+手势在 `gesture_intervals` 按原始 PTS 保存连续半开区间 `[start_ms,end_ms)`，类别为 open/fist/pinch/unknown/absent。unknown 是人工确认的未知手势；absent 是无右手；区间外是未标注。标注器中“起点取当前帧”含本帧，“终点取当前帧”不含本帧，“终点取下一帧”含本帧（末帧按最后一帧间隔外推）。相邻区间须令前一终点等于后一起点，否则缝隙帧不计分，也不自动生成转换事件；保存时对不足两帧的缝隙弹窗确认。额外的 `transition_events` 记录转换起止 PTS（闭区间）、from/to，可标时间不确定窗口。事件预测落入窗口记 0ms，早于起点记负滞后，晚于终点记正滞后；同类事件在 ±250ms 内求一对一最大匹配。没有显式事件时报告可从相邻连续手势区间边界生成零宽候选，但人工事件窗口更准确；未标注孔洞或右手离场都隔断事件，不跨段匹配。
 
 ## 评测与结论边界
 
@@ -67,3 +67,5 @@ python -X utf8 experiments\intent_prediction\scripts\run_camera_m3c.py --dataset
 本机使用 `handai-intent-prediction` 环境、上述子项目运行目录，主审独立复跑全套 pytest **282 passed、0 skipped**，Ruff 全范围及 compileall 均通过。测试记录保存在 `D:\VR\HandAi\single-hand-teleop-baseline\outputs\m3c_parent_review\release_tests.xml`。
 
 合成空画面端到端运行报告在 `D:\VR\HandAi\single-hand-teleop-baseline\outputs\datasets\camera_m3c_synthetic_demo_v2\reports\20260926T140702_867946Z\report.json`，同目录有配置与各片段标注、来源、时间轴快照。独立复核另用两段各 12 帧的编号视频及注入的有效 open 姿态，完整走提取、HandPipeline、四场景、三方法、三时距和评分；24 个源帧、全 GT PCK 为 11/12，默认开发评测未打开虚设留出片段。复核摘要在 `D:\VR\HandAi\single-hand-teleop-baseline\outputs\m3c_parent_review\positive_integration\parent_verification.json`。本地标注器完成了逐点可见性、失败专项用途、连续手势与人工转换区间的保存和重新读回；截图在 `D:\VR\HandAi\single-hand-teleop-baseline\outputs\m3c_parent_review\final_annotation_roundtrip.png`。这些均为合成/注入验证，不能替代新人员视频的人工 GT 和独立效果判断。
+
+2026-10-20 修复标注器 VFR 取帧：V1–V7、v1_pilot、mirror_check 共 5624 帧上，新取帧与顺序解码逐帧像素一致；旧 `POS_FRAMES` 取帧有 2531 帧偏早 1–2 帧，帧号自检全部照样通过。V1 片段经本地 HTTP 取第 30–689 帧，与顺序解码同帧 JPEG 逐字节一致，单帧约 0.17s。回归测试按 OpenCV seek 规则模拟 VFR 时间轴，不依赖本机录像；另测 Range 后缀与非对象 POST。新建 worktree 中全套 pytest 283 passed、1 skipped（无 ignored checkpoint），Ruff 通过。

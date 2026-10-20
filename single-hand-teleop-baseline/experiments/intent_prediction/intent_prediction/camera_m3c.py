@@ -150,12 +150,17 @@ def load_timeline(clip_dir: Path) -> list[dict]:
 
 
 def validate_annotations(annotation: dict, timeline: list[dict], clip_id: str) -> None:
+    if not isinstance(annotation, dict):
+        raise ValueError("标注必须是 JSON 对象")
     if annotation.get("schema_version") != "camera-m3c-annotation-v1" or annotation.get("clip_id") != clip_id:
         raise ValueError("标注版本或片段 ID 不匹配")
     if (not isinstance(annotation.get("keypoint_frames"), list)
             or not isinstance(annotation.get("gesture_intervals"), list)
             or not isinstance(annotation.get("transition_events"), list)):
         raise ValueError("标注列表无效")
+    if not all(isinstance(row, dict) for key in ("keypoint_frames", "gesture_intervals", "transition_events")
+               for row in annotation[key]):
+        raise ValueError("关键点帧、手势区间和转换事件的每条记录都必须是 JSON 对象")
     frame_ids = set()
     for row in annotation["keypoint_frames"]:
         index = row.get("frame_id")
