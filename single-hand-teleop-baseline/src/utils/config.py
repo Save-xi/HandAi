@@ -83,14 +83,15 @@ def validate_config(cfg: Dict[str, Any]) -> None:
         "control_release_curl_half_width",
         "control_release_pinch_band",
         "mapping_max_frame_gap_ms",
+        # hand_open_ratio 不是概率，真实张开手常大于 1；释放阈值只要求有限正数。
+        "control_open_release_start_ratio",
+        "control_open_release_full_ratio",
     ):
         _require_positive_number(cfg, key, errors)
     for key in (
         "min_detection_confidence",
         "min_tracking_confidence",
         "control_ready_min_in_bounds_ratio",
-        "control_open_release_start_ratio",
-        "control_open_release_full_ratio",
         "control_release_hysteresis",
     ):
         _require_probability(cfg, key, errors)

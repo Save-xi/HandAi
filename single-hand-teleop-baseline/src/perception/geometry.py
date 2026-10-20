@@ -1,6 +1,8 @@
 """摄像头坐标声明与最低可用性检查；不把单目相对深度当作度量真值。"""
 from __future__ import annotations
 
+from numbers import Integral
+
 import numpy as np
 
 from perception.base import HandDetection
@@ -67,8 +69,10 @@ def prepare_geometry(detection: HandDetection | None, cfg: dict, *, frame=None) 
             return invalid("image_size_mismatch")
         width, height = int(actual_width), int(actual_height)
     if width is not None or height is not None or corrected:
-        if not all(isinstance(v, int) and not isinstance(v, bool) and v > 0 for v in (width, height)):
+        # 设备适配方常传 numpy 整数；接受任意整数类型（不含 bool），诊断里统一写 Python int 以便 JSON 序列化。
+        if not all(isinstance(v, Integral) and not isinstance(v, bool) and v > 0 for v in (width, height)):
             return invalid("missing_or_invalid_image_size")
+        width, height = int(width), int(height)
         result.update(image_width=width, image_height=height)
     geometry = xyz.copy()
     with np.errstate(over="ignore", invalid="ignore"):
