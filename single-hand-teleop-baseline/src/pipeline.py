@@ -9,6 +9,7 @@ import math
 import time
 from typing import Any, Dict
 
+from capture.timeline import SourceCadence
 from control.control_representation import build_control_representation, empty_control_representation
 from control.open_release import OpenReleaseState
 from features.hand_features import empty_features, extract_hand_features
@@ -231,10 +232,15 @@ class HandPipeline:
         self.release_state = OpenReleaseState()
         self._last_timestamp: float | None = None
         self._last_image_size: tuple | None = None
+        # 源节奏属于这条输入流本身，reset() 不清空；换流应新建实例。
+        self.cadence = SourceCadence.from_config(self.cfg)
         self._mapping_version = mapping_contract_payload(self.cfg)["version"]
 
     def reset(self) -> None:
-        """换流或明确中断时丢弃全部映射历史；预测器历史由调用方同步重置。"""
+        """明确中断时丢弃全部映射历史；预测器历史由调用方同步重置。
+
+        源节奏估计保留：同一流里的坏帧或已知缺帧不改变相机周期。
+        """
         self.stabilizer.reset()
         self.release_state.reset()
         self._last_timestamp = None
@@ -251,6 +257,7 @@ class HandPipeline:
         fork.release_state = deepcopy(self.release_state)
         fork._last_timestamp = self._last_timestamp
         fork._last_image_size = self._last_image_size
+        fork.cadence = deepcopy(self.cadence)
         return fork
 
     def _process(self, frame, detector, *, frame_index, timestamp, fps, draw_landmarks, advance_state=True):
@@ -268,13 +275,24 @@ class HandPipeline:
         )
         diagnostics = payload["input_diagnostics"]
         image_size = (diagnostics["image_width"], diagnostics["image_height"])
-        # 旧标签不加入新的时序策略；新流遇到断帧/倒序/换尺寸即重启状态。
-        discontinuity = advance_state and self.cfg.get("geometry_mode") == "image_width_xyz_v1" and (
-            (self._last_timestamp is not None and not 0 < payload["timestamp"] - self._last_timestamp
-             <= float(self.cfg.get("mapping_max_frame_gap_ms", 100.0)) / 1000.0)
-            or (self._last_image_size is not None and image_size != self._last_image_size)
-        )
-        reset = not diagnostics["input_valid"] or discontinuity
+        # 旧标签不加入新的时序策略；新流遇到真实断流/倒序/换尺寸即重启状态。
+        # 断流阈值随该流近期周期放宽（下限 mapping_max_frame_gap_ms），慢而连续的相机不算断流。
+        corrected = self.cfg.get("geometry_mode") == "image_width_xyz_v1"
+        gap_limit_s = self.cadence.gap_limit_s() if corrected else None
+        reset_reason = None
+        if not diagnostics["input_valid"]:
+            reset_reason = "invalid_input"
+        elif advance_state and corrected and self._last_timestamp is not None:
+            interval = payload["timestamp"] - self._last_timestamp
+            if image_size != self._last_image_size:
+                reset_reason = "image_size_changed"
+            elif interval <= 0:
+                reset_reason = "timestamp_not_increasing"
+            elif interval > gap_limit_s:
+                reset_reason = "frame_gap"
+        if advance_state:
+            self.cadence.observe(payload["timestamp"])
+        reset = reset_reason is not None
         if reset:
             self.reset()
         if diagnostics["input_valid"]:
@@ -290,7 +308,8 @@ class HandPipeline:
                                release_state=self.release_state, advance_state=advance_state)
         diagnostics.update(mapping_version=self._mapping_version,
                            release_weight=self.release_state.weight if self.cfg.get("control_open_release_mode") == "continuous_v1" else None,
-                           state_reset=bool(reset))
+                           state_reset=bool(reset), reset_reason=reset_reason,
+                           frame_gap_limit_ms=None if gap_limit_s is None else gap_limit_s * 1000.0)
         self.last_stage_timing = {
             "detection_end_unix_ms": detection_end_unix_ms,
             "detection_ms": (detection_end - started) * 1000.0,

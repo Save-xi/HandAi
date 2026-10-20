@@ -78,7 +78,9 @@
         "geometry_landmarks",
         "mapping_version",
         "release_weight",
-        "state_reset"
+        "state_reset",
+        "reset_reason",
+        "frame_gap_limit_ms"
       ],
       "properties": {
         "task_id": {
@@ -142,6 +144,24 @@
         },
         "state_reset": {
           "type": "boolean"
+        },
+        "reset_reason": {
+          "enum": [
+            null,
+            "invalid_input",
+            "frame_gap",
+            "timestamp_not_increasing",
+            "image_size_changed"
+          ],
+          "description": "Why mapping state restarted on this frame; null when state_reset is false."
+        },
+        "frame_gap_limit_ms": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "exclusiveMinimum": 0,
+          "description": "Cadence-relative maximum gap between adjacent valid frames; null for legacy geometry."
         }
       }
     },

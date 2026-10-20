@@ -6,7 +6,8 @@ from typing import Any, Dict
 from svh.svh_layout import SVH_9CH_NAMES
 
 MAPPING_CONTRACT_VERSION = "svh9-label-v2-open-release"
-CAMERA_MAPPING_VERSION = "svh9-camera-v3-continuous-release"
+# v4：v3 的几何/连续释放不变，断流阈值改为随源周期放宽；≥25fps 恒定帧率时与 v3 逐帧相同。
+CAMERA_MAPPING_VERSION = "svh9-camera-v4-cadence-gap"
 H2O_LABEL_GESTURE_CONTEXT_POLICY = "stateless_raw_gesture_as_stable_proxy"
 RUNTIME_GESTURE_CONTEXT_POLICY = "consecutive_gesture_stabilizer"
 
@@ -52,6 +53,9 @@ _CAMERA_DEFAULTS = {
     "control_release_pinch_band": 0.10,
     "control_release_hysteresis": 0.01,
     "mapping_max_frame_gap_ms": 100.0,
+    "mapping_frame_gap_period_factor": 2.5,
+    "mapping_frame_gap_period_window": 9,
+    "mapping_frame_gap_ceiling_ms": 1000.0,
     "stable_gesture_min_consecutive": 2,
     "stable_unknown_consecutive": 1,
 }
