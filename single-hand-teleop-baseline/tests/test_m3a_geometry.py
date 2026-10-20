@@ -139,6 +139,26 @@ def test_palm_fallback_and_depth_bone_are_not_false_degeneracies(synthetic_hand_
     assert process(detection)["control_ready"]
 
 
+@pytest.mark.parametrize("dtype", [np.int64, np.int32, np.uint16])
+def test_numpy_integer_image_size_from_device_adapters(synthetic_hand_pose, dtype):
+    d = encoded(synthetic_hand_pose("open")[1])
+    d.image_width, d.image_height = dtype(d.image_width), dtype(d.image_height)
+    output = process(d)  # 连续两帧均有效才能确认 open，且尺寸比较不会误判换尺寸。
+    diagnostics = output["input_diagnostics"]
+    assert output["control_ready"] and output["gesture_stable"] == "open" and not diagnostics["state_reset"]
+    assert (diagnostics["image_width"], diagnostics["image_height"]) == (1920, 1080)
+    assert type(diagnostics["image_width"]) is int and type(diagnostics["image_height"]) is int
+    assert validate_frame_payload(output) == []
+    json.dumps(output, allow_nan=False)
+
+
+@pytest.mark.parametrize("width", [True, np.bool_(True), 1920.0, np.float64(1920), np.int64(0), np.int64(-1920)])
+def test_bool_float_and_nonpositive_image_size_still_rejected(synthetic_hand_pose, width):
+    d = encoded(synthetic_hand_pose("open")[1])
+    d.image_width = width
+    assert prepare_geometry(d, load_config("configs/ai_m3a.yaml"))["reason"] == "missing_or_invalid_image_size"
+
+
 def test_image_metadata_mismatch_and_injected_frame_size(synthetic_hand_pose):
     cfg = load_config("configs/ai_m3a.yaml")
     d = encoded(synthetic_hand_pose("open")[1])
