@@ -7,6 +7,11 @@ control_open_release_mode: continuous_v1
 control_release_curl_half_width: 0.02
 control_release_pinch_band: 0.10
 control_release_hysteresis: 0.01
+# 相邻有效帧间隔超过 min(上限, max(下限, 倍数×最近 N 个源间隔中位数)) 才算真实断流；
+# 坏帧仍立即重置。中位周期 ≤40ms（如 ≥25fps 恒定帧率）时即 100ms；13fps 实时相机约 195ms。
 mapping_max_frame_gap_ms: 100.0
+mapping_frame_gap_period_factor: 2.5
+mapping_frame_gap_period_window: 9
+mapping_frame_gap_ceiling_ms: 1000.0
 prediction_shadow_enabled: false
 output_json_path: outputs/latest_ai_m3a_frame.json

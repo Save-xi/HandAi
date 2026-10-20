@@ -706,9 +706,13 @@ def _validate_prediction_diagnostics(
                 errors.append(f"predicted 状态必须包含 prediction_diagnostics.{field}")
 
 
+INPUT_RESET_REASONS = ("invalid_input", "frame_gap", "timestamp_not_increasing", "image_size_changed")
+"""映射状态重置原因：输入失效，或有效帧遇到真实断流/时间倒序/换尺寸。"""
+
+
 def _validate_input_diagnostics(payload: dict, diagnostics: Any, errors: List[str]) -> None:
     fields = {"task_id", "image_width", "image_height", "input_valid", "reason", "geometry_landmarks",
-              "mapping_version", "release_weight", "state_reset"}
+              "mapping_version", "release_weight", "state_reset", "reset_reason", "frame_gap_limit_ms"}
     if not isinstance(diagnostics, dict) or set(diagnostics) != fields:
         errors.append("input_diagnostics 必须包含完整且无多余字段的输入诊断")
         return
@@ -738,6 +742,16 @@ def _validate_input_diagnostics(payload: dict, diagnostics: Any, errors: List[st
     weight = diagnostics["release_weight"]
     if weight is not None and (not _is_number(weight) or not 0 <= weight <= 1):
         errors.append("input_diagnostics.release_weight 必须位于 [0, 1] 或为旧映射的 null")
+    reset_reason = diagnostics["reset_reason"]
+    if reset_reason is not None and reset_reason not in INPUT_RESET_REASONS:
+        errors.append("input_diagnostics.reset_reason 无效")
+    elif bool(diagnostics["state_reset"]) != (reset_reason is not None):
+        errors.append("input_diagnostics.state_reset 必须与 reset_reason 是否为空一致")
+    elif bool(diagnostics["input_valid"]) == (reset_reason == "invalid_input"):
+        errors.append("input_diagnostics 失效输入必须以 invalid_input 重置，有效帧不能使用该原因")
+    limit = diagnostics["frame_gap_limit_ms"]
+    if limit is not None and (not _is_number(limit) or limit <= 0):
+        errors.append("input_diagnostics.frame_gap_limit_ms 必须为正数或旧几何的 null")
 
 
 def validate_frame_payload(

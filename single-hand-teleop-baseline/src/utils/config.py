@@ -62,6 +62,21 @@ def _require_probability(cfg: Dict[str, Any], key: str, errors: list[str]) -> No
         errors.append(f"{key} 必须位于 [0, 1]")
 
 
+def _validate_frame_gap(cfg: Dict[str, Any], errors: list[str]) -> None:
+    """断流阈值 = min(上限, max(下限, 倍数×近期中位周期))；上限不得压过下限。"""
+    _require_positive_int(cfg, "mapping_frame_gap_period_window", errors)
+    _require_positive_number(cfg, "mapping_frame_gap_ceiling_ms", errors)
+    if "mapping_frame_gap_period_factor" in cfg:
+        factor = cfg["mapping_frame_gap_period_factor"]
+        if isinstance(factor, bool) or not isinstance(factor, (int, float)) or not math.isfinite(factor) or factor < 1:
+            errors.append("mapping_frame_gap_period_factor 必须是不小于 1 的有限数")
+    floor = cfg.get("mapping_max_frame_gap_ms", 100.0)
+    ceiling = cfg.get("mapping_frame_gap_ceiling_ms", 1000.0)
+    numbers = all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in (floor, ceiling))
+    if numbers and ceiling < floor:
+        errors.append("mapping_frame_gap_ceiling_ms 不能小于 mapping_max_frame_gap_ms")
+
+
 def validate_config(cfg: Dict[str, Any]) -> None:
     """对会影响运行安全和 contract 的配置做启动前硬校验。"""
 
@@ -95,6 +110,7 @@ def validate_config(cfg: Dict[str, Any]) -> None:
         "control_release_hysteresis",
     ):
         _require_probability(cfg, key, errors)
+    _validate_frame_gap(cfg, errors)
 
     source_type = str(cfg.get("input_source_type", "webcam")).strip().lower()
     if cfg.get("geometry_mode", "legacy_image_xyz") not in {"legacy_image_xyz", "image_width_xyz_v1"}:

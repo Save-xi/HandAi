@@ -34,9 +34,13 @@
 
 下游收到 `control_ready=false` 或 `svh_preview.valid=false` 时，该帧没有有效的可消费目标。字段会保留稳定形状；下游自行处理设备相关策略。
 
-新增可选 `input_diagnostics` 包含 `task_id`、图像宽高、`input_valid`、`reason`、`geometry_landmarks`、`mapping_version`、`release_weight` 和 `state_reset`。原始 `landmarks_2d/landmarks_3d` 的含义不变。结构/数值/尺度失效时不输出坏坐标；仅越界时保留已核验的有限坐标。`release_weight` 是新连续候选的状态，旧映射为 null。输入有效不等于已分类；有效 `unknown` 可输出连续表示，失效输入则立即清空状态。
+新增可选 `input_diagnostics` 包含 `task_id`、图像宽高、`input_valid`、`reason`、`geometry_landmarks`、`mapping_version`、`release_weight`、`state_reset`、`reset_reason` 和 `frame_gap_limit_ms`。原始 `landmarks_2d/landmarks_3d` 的含义不变。结构/数值/尺度失效时不输出坏坐标；仅越界时保留已核验的有限坐标。`release_weight` 是新连续候选的状态，旧映射为 null。输入有效不等于已分类；有效 `unknown` 可输出连续表示，失效输入则立即清空状态。
 
-`reset()` 用于显式换流。新配置在时间倒序、间隔超过 100ms 或图像尺寸改变时重启映射状态。`fork_mapping()` 复制手势候选、计数、释放权重、上次时间和图像尺寸，副本不携带检测器；复制不推进状态。M3-B 的 `query_detections()` 在副本上查询，既不多确认一次手势，也不更新释放权重。现有预测旁路遇到无效预览会清空历史；外部消费者也必须处理每次断流信号。
+`state_reset=true` 时 `reset_reason` 说明原因：`invalid_input`（当前输入失效，细节见 `reason`）、`frame_gap`（与上一有效帧的间隔超过 `frame_gap_limit_ms`）、`timestamp_not_increasing`（时间倒序或重复）、`image_size_changed`；未重置为 null。`frame_gap_limit_ms` 是本帧采用的断流阈值，旧几何为 null。
+
+新配置在时间倒序、真实断流或图像尺寸改变时重启映射状态。断流阈值为 min(`mapping_frame_gap_ceiling_ms`, max(`mapping_max_frame_gap_ms`, `mapping_frame_gap_period_factor` × 最近 `mapping_frame_gap_period_window` 个源间隔的中位数))，`ai_m3a.yaml` 为 min(1000ms, max(100ms, 2.5×中位周期))、窗口 9：中位周期不超过 40ms（如 ≥25fps 恒定帧率）时即 100ms，约 13fps 的实时相机约 195ms。每个源帧（含失效帧）都计入间隔，当前帧只用之前的间隔；尚无间隔时用 100ms 下限，因此低于 10fps 的流启动时仍会重启一次。坏帧不受该阈值影响，当帧立即重置。理由与实测见 [M3-A 断流修订](m3a_camera_foundation.md#实时慢帧断流修订2026-10-20)。
+
+`reset()` 用于明确中断，只清映射状态；源节奏估计属于该输入流，不随 `reset()` 清空，换流应新建 `HandPipeline` 实例。`fork_mapping()` 复制手势候选、计数、释放权重、上次时间、图像尺寸和源节奏，副本不携带检测器；复制不推进状态。M3-B 的 `query_detections()` 在副本上查询，既不多确认一次手势，也不更新释放权重或源节奏。现有预测旁路遇到无效预览会清空历史；外部消费者也必须处理每次断流信号。
 
 主 CLI 新增 `source_timing`：视频使用 `media_pts_ms` 和记录来源的 PTS/FPS 回退；实时摄像头使用 `monotonic_ms`，起点为 `source.read` 返回，不能称为曝光时间。字段为 `source_time_ms`、`timebase`、`timestamp_source`、`read_return_monotonic_ms`、`nominal_fps`。这些时间送入流水线用于状态推进；主 CLI 的顶层 `timestamp` 在输出时保留读回时刻的 Unix 秒数，兼容旧影子日志，M3 不使用它作为媒体锚点。检测完成时刻单独记录，不再从 `timestamp` 推断。
 
@@ -48,7 +52,7 @@
 
 模型配置指定历史长度、采样率和预测时间距。加载时比较可读参数、模型维度与通道顺序；无效输入、断帧和推理异常仍会产生明确诊断。
 
-M3-A 新映射版本为 `svh9-camera-v3-continuous-release`，旧 `svh9-label-v2-open-release` 模型加载时会因版本不符拒绝接入新配置。当前主 CLI 默认关闭旧神经预测；M3-B 通过独立实验入口提供同域简单基线，不复用 H2O checkpoint。
+当前摄像头映射版本为 `svh9-camera-v4-cadence-gap`（M3-A 交付时为 `svh9-camera-v3-continuous-release`，v4 只改断流阈值）；旧 `svh9-label-v2-open-release` 模型加载时会因版本不符拒绝接入新配置。当前主 CLI 默认关闭旧神经预测；M3-B 通过独立实验入口提供同域简单基线，不复用 H2O checkpoint。
 
 ## 摄像头简单预测（M3-B）
 
