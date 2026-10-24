@@ -8,6 +8,9 @@ from svh.svh_layout import SVH_9CH_NAMES
 MAPPING_CONTRACT_VERSION = "svh9-label-v2-open-release"
 # v4：v3 的几何/连续释放不变，断流阈值改为随源周期放宽；≥25fps 恒定帧率时与 v3 逐帧相同。
 CAMERA_MAPPING_VERSION = "svh9-camera-v4-cadence-gap"
+CAMERA_REPAIR_VERSIONS = {5: "svh9-camera-v5-per-finger-curl", 6: "svh9-camera-v6-local-finger-control",
+                        7: "svh9-camera-v7-pinch-depth-guard", 8: "svh9-camera-v8-continuous-route",
+                        9: "svh9-camera-v9-long-finger-range", 10: "svh9-camera-v10-low-lag-thumb"}
 H2O_LABEL_GESTURE_CONTEXT_POLICY = "stateless_raw_gesture_as_stable_proxy"
 RUNTIME_GESTURE_CONTEXT_POLICY = "consecutive_gesture_stabilizer"
 
@@ -67,8 +70,27 @@ def mapping_contract_payload(cfg: Dict[str, Any]) -> Dict[str, Any]:
 
     camera = cfg.get("geometry_mode", "legacy_image_xyz") != "legacy_image_xyz" or cfg.get("control_open_release_mode", "legacy") != "legacy"
     defaults = {**_MAPPING_DEFAULTS, **_CAMERA_DEFAULTS} if camera else _MAPPING_DEFAULTS
+    stage = cfg.get("camera_mapping_stage", 4)
+    if stage >= 5:
+        # 新参数仅进入显式选择的新版本；v2/v4 合同不增加默认字段。
+        defaults = {**defaults, **{key: cfg[key] for key in (
+            "camera_mapping_stage", "feature_curl_mode", "finger_tip_open_refs", "finger_tip_closed_refs")}}
+    if stage >= 7:
+        defaults = {**defaults, "pinch_distance_mode": cfg["pinch_distance_mode"]}
+    if stage >= 8:
+        defaults = {**defaults, **{key: cfg[key] for key in (
+            "svh_mapping_transition_mode", "svh_pinch_blend_start", "svh_pinch_blend_full")}}
+    if stage >= 9:
+        defaults = {**defaults, **{key: cfg[key] for key in (
+            "control_finger_range_mode", "control_finger_open_refs", "control_finger_closed_refs", "control_grasp_flex_weight",
+            "control_flex_filter_mode", "control_flex_filter_min_cutoff_hz", "control_flex_filter_beta",
+            "control_flex_filter_derivative_cutoff_hz")}}
+    if stage >= 10:
+        defaults = {**defaults, **{key: cfg[key] for key in (
+            "thumb_tip_proximity_weight", "svh_thumb_control_mode", "svh_thumb_grasp_open_ref",
+            "svh_thumb_grasp_closed_ref", "svh_thumb_grasp_guide_weight")}}
     return {
-        "version": CAMERA_MAPPING_VERSION if camera else MAPPING_CONTRACT_VERSION,
+        "version": CAMERA_REPAIR_VERSIONS[stage] if stage >= 5 else CAMERA_MAPPING_VERSION if camera else MAPPING_CONTRACT_VERSION,
         "single_right_hand": True,
         "channel_order": list(SVH_9CH_NAMES),
         "parameters": {

@@ -1,0 +1,18 @@
+# 仅用于复现 2026-10-24 首轮 M1/v5；当前入口为 ai_camera_v10.yaml。
+# 参数来自历史开发片段，不是个人或真机标定。
+extends: ai_m3a.yaml
+camera_mapping_stage: 5
+feature_curl_mode: per_finger_tip_v1
+finger_tip_open_refs:
+  thumb: 1.02
+  index: 1.17
+  middle: 1.22
+  ring: 1.16
+  little: 1.05
+finger_tip_closed_refs:
+  thumb: 0.866
+  index: 0.77
+  middle: 0.72
+  ring: 0.58
+  little: 0.42
+output_json_path: outputs/latest_mapping_m1_frame.json

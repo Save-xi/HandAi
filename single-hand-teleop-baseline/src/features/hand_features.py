@@ -115,6 +115,8 @@ def _tip_to_palm_curl(
     tip: int,
     palm_center: Tuple[float, float],
     palm_size: float,
+    open_ref: float = 1.45,
+    closed_ref: float = 0.70,
 ) -> float:
     """用指尖靠近掌心的程度补充 curl 判断。
 
@@ -124,8 +126,6 @@ def _tip_to_palm_curl(
 
     tip_distance = euclidean(landmarks_2d[tip], palm_center)
     ratio = _safe_ratio(tip_distance, palm_size, default=10.0)
-    open_ref = 1.45
-    closed_ref = 0.70
     return clamp01((open_ref - ratio) / (open_ref - closed_ref))
 
 
@@ -170,6 +170,7 @@ def extract_hand_features(
     landmarks_xyz: List[Tuple[float, float, float]] | None = None,
     *,
     geometry_xyz: List[Tuple[float, float, float]] | None = None,
+    feature_cfg: Dict | None = None,
 ) -> Dict:
     """提取单只手的 baseline 特征。
 
@@ -195,6 +196,11 @@ def extract_hand_features(
     palm_center = _mean_point([landmarks_2d[idx] for idx in PALM_CENTER_POINTS])
     # pinch_distance_norm 是后续 pinch 判断和捏合控制最重要的视觉线索。
     pinch_distance_raw = euclidean(landmarks_2d[THUMB_TIP], landmarks_2d[INDEX_TIP])
+    if feature_cfg and feature_cfg.get("pinch_distance_mode") == "max_2d_geometry3d_v1":
+        if geometry_xyz is None:
+            raise ValueError("三维捏合排除规则必须显式提供 M3-A 同尺度几何")
+        # 相对深度只用来排除投影重叠；仍不是公制距离或接触证明。
+        pinch_distance_raw = max(pinch_distance_raw, euclidean(landmarks_xyz[THUMB_TIP], landmarks_xyz[INDEX_TIP]))
     pinch_distance_norm = _safe_ratio(pinch_distance_raw, palm_size, default=1.0)
 
     # hand_open_ratio 取的是指尖到掌心中心的平均距离，
@@ -212,16 +218,22 @@ def extract_hand_features(
         default=0.0,
     )
 
-    tip_palm_curl = {
-        "thumb": _tip_to_palm_curl(landmarks_2d, tip=THUMB_TIP, palm_center=palm_center, palm_size=palm_size),
-        "index": _tip_to_palm_curl(landmarks_2d, tip=INDEX_TIP, palm_center=palm_center, palm_size=palm_size),
-        "middle": _tip_to_palm_curl(landmarks_2d, tip=MIDDLE_TIP, palm_center=palm_center, palm_size=palm_size),
-        "ring": _tip_to_palm_curl(landmarks_2d, tip=RING_TIP, palm_center=palm_center, palm_size=palm_size),
-        "little": _tip_to_palm_curl(landmarks_2d, tip=LITTLE_TIP, palm_center=palm_center, palm_size=palm_size),
-    }
+    # 新配置只校正既有逐指代理的端点，不新增 MCP/外展/对掌角测量。
+    # 默认不传配置时保持 H2O v2；旧摄像头配置仍逐项使用 1.45/0.70。
+    feature_cfg = feature_cfg or {}
+    tip_palm_curl = {}
+    for name, tip in (("thumb", THUMB_TIP), ("index", INDEX_TIP), ("middle", MIDDLE_TIP),
+                      ("ring", RING_TIP), ("little", LITTLE_TIP)):
+        references = ({"open_ref": float(feature_cfg["finger_tip_open_refs"][name]),
+                       "closed_ref": float(feature_cfg["finger_tip_closed_refs"][name])}
+                      if feature_cfg.get("feature_curl_mode") == "per_finger_tip_v1" else {})
+        tip_palm_curl[name] = _tip_to_palm_curl(
+            landmarks_2d, tip=tip, palm_center=palm_center, palm_size=palm_size, **references)
 
     finger_curl = {
-        "thumb": _merge_curl_with_tip_proximity(_thumb_curl(landmarks_xyz), tip_palm_curl["thumb"], proximity_weight=0.70),
+        "thumb": _merge_curl_with_tip_proximity(
+            _thumb_curl(landmarks_xyz), tip_palm_curl["thumb"],
+            proximity_weight=float(feature_cfg.get("thumb_tip_proximity_weight", 0.70))),
         "index": _merge_curl_with_tip_proximity(
             _long_finger_curl(landmarks_xyz, mcp=INDEX_MCP, pip=INDEX_PIP, dip=INDEX_DIP, tip=INDEX_TIP),
             tip_palm_curl["index"],

@@ -1,0 +1,27 @@
+# 仅用于复现 2026-10-24 首轮 M8/v9；当前入口为 ai_camera_v10.yaml。
+# 首轮慢滤波与窄拇指参考均保留供对照；本文件不再作为现场当前入口。
+extends: ai_mapping_m6.yaml
+camera_mapping_stage: 9
+control_finger_range_mode: long_finger_v1
+control_finger_open_refs:
+  index: 0.02
+  middle: 0.02
+  ring: 0.02
+  little: 0.02
+control_finger_closed_refs:
+  index: 0.78
+  middle: 0.80
+  ring: 0.80
+  little: 0.80
+# 握紧度也按归一后的四指值域定义，不再由二维整手比例拖低/扰动闭合端点。
+control_grasp_flex_weight: 1.0
+control_grasp_closed_ref: 0.90
+# 行程扩大后所需的逐指自适应滤波；首帧直通，断流清空，滞后见验收材料。
+control_flex_filter_mode: one_euro_v1
+control_flex_filter_min_cutoff_hz: 2.0
+control_flex_filter_beta: 0.1
+control_flex_filter_derivative_cutoff_hz: 1.0
+# 两个拇指参数保持原值；抓握端点额外确保不越过这两个限制。
+svh_thumb_grasp_scale: 0.85
+svh_thumb_opposition_scale: 0.75
+output_json_path: outputs/latest_mapping_m8_frame.json
