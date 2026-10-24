@@ -46,6 +46,30 @@ def test_mapping_layout_count_and_open_release_thresholds_are_consistent():
         validate_config(bad_release)
 
 
+def test_open_release_ratios_accept_hand_open_ratio_above_one():
+    # hand_open_ratio 不是概率：V1 有效帧 40% 大于 1.0（p90 约 1.14），M3-C 需能把 full 调到 1 以上。
+    cfg = load_config("configs/ai_m3a.yaml")
+    cfg["control_open_release_full_ratio"] = 1.05
+    validate_config(cfg)
+    cfg["control_open_release_start_ratio"] = 1.02
+    cfg["control_open_release_full_ratio"] = 1.14
+    validate_config(cfg)
+
+    cfg["control_open_release_start_ratio"] = 1.10
+    cfg["control_open_release_full_ratio"] = 1.05
+    with pytest.raises(ValueError, match="start_ratio 必须小于 full_ratio"):
+        validate_config(cfg)
+
+
+@pytest.mark.parametrize("key", ["control_open_release_start_ratio", "control_open_release_full_ratio"])
+@pytest.mark.parametrize("value", [0, -0.1, float("nan"), float("inf"), True, "1.05"])
+def test_open_release_ratios_must_be_finite_positive_numbers(key, value):
+    cfg = load_config("configs/ai_m3a.yaml")
+    cfg[key] = value
+    with pytest.raises(ValueError, match=f"{key} 必须是正数"):
+        validate_config(cfg)
+
+
 def test_runtime_output_cannot_overwrite_frozen_examples():
     cfg = load_config("configs/default.yaml")
     cfg["output_json_path"] = str(

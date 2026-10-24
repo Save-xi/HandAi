@@ -1,0 +1,8 @@
+# M6：0.20–0.60 强度内当帧平滑混合，原二帧手势确认不再切换公式。
+# 仅用于复现 2026-10-24 首轮 M6/v8；当前入口为 ai_camera_v10.yaml。
+extends: ai_mapping_m7.yaml
+camera_mapping_stage: 8
+svh_mapping_transition_mode: continuous_blend_v1
+svh_pinch_blend_start: 0.20
+svh_pinch_blend_full: 0.60
+output_json_path: outputs/latest_mapping_m6_frame.json

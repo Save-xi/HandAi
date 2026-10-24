@@ -1,0 +1,6 @@
+# M7：同一尺度下取投影/相对三维距离较大值，仅排除假捏合。
+# 仅用于复现 2026-10-24 首轮 M7/v7；当前入口为 ai_camera_v10.yaml。
+extends: ai_mapping_m2.yaml
+camera_mapping_stage: 7
+pinch_distance_mode: max_2d_geometry3d_v1
+output_json_path: outputs/latest_mapping_m7_frame.json

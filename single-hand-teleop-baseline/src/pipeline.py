@@ -9,6 +9,8 @@ import math
 import time
 from typing import Any, Dict
 
+from capture.timeline import SourceCadence
+from control.adaptive_flex import AdaptiveFlexState
 from control.control_representation import build_control_representation, empty_control_representation
 from control.open_release import OpenReleaseState
 from features.hand_features import empty_features, extract_hand_features
@@ -96,6 +98,7 @@ def _build_baseline_payload(
             ts,
             landmarks_xyz=raw_xyz,
             geometry_xyz=(diagnostics["geometry_landmarks"] if cfg.get("geometry_mode") == "image_width_xyz_v1" else None),
+            feature_cfg=cfg,
         )
     elif diagnostics["reason"] == "out_of_bounds":
         # 数组已经检查过；保留图像观察，但不计算无效帧的控制特征。
@@ -148,6 +151,7 @@ def _apply_extension_chain(
     *,
     logger,
     release_state: OpenReleaseState | None = None,
+    flex_state: AdaptiveFlexState | None = None,
     advance_state: bool = True,
 ) -> ExtensionDiagnostics:
     """依次运行可选扩展层，并在失败时退回规范占位对象。
@@ -162,7 +166,7 @@ def _apply_extension_chain(
     if runtime.control_extension_enabled:
         try:
             control_representation = build_control_representation(payload, cfg, release_state=release_state,
-                                                                 advance_release=advance_state)
+                                                                 advance_release=advance_state, flex_state=flex_state)
         except Exception as exc:
             _record_extension_failure(
                 diagnostics,
@@ -229,28 +233,45 @@ class HandPipeline:
             unknown_confirm_frames=int(cfg.get("stable_unknown_consecutive", 1)),
         )
         self.release_state = OpenReleaseState()
+        self.flex_state = AdaptiveFlexState()
         self._last_timestamp: float | None = None
         self._last_image_size: tuple | None = None
+        # 源节奏属于这条输入流本身，reset() 不清空；换流应新建实例。
+        self.cadence = SourceCadence.from_config(self.cfg)
         self._mapping_version = mapping_contract_payload(self.cfg)["version"]
 
     def reset(self) -> None:
-        """换流或明确中断时丢弃全部映射历史；预测器历史由调用方同步重置。"""
+        """明确中断时丢弃全部映射历史；预测器历史由调用方同步重置。
+
+        源节奏估计保留：同一流里的坏帧或已知缺帧不改变相机周期。
+        """
         self.stabilizer.reset()
         self.release_state.reset()
+        self.flex_state.reset()
         self._last_timestamp = None
         self._last_image_size = None
 
     def fork_mapping(self) -> HandPipeline:
         """复制全部映射状态用于独立姿态分支；复制本身不推进任何计数。
 
+        只复制可变状态：cfg 在构造时已校验并深拷贝，之后只读，故与 runtime、
+        映射版本一起共享，不再重复校验/深拷贝（M3-B 每次预测约复制 9 次）。
         不复制检测器。未来查询须在副本上按源采样网格推进；M3-B 的
         分数时刻插值/查询调度尚不属于此接口。
         """
-        fork = HandPipeline(self.cfg, logger=self.logger)
+        fork = object.__new__(HandPipeline)
+        fork.cfg = self.cfg
+        fork.runtime = self.runtime
+        fork._mapping_version = self._mapping_version
+        fork.detector = None
+        fork.logger = self.logger
+        fork.last_stage_timing = {}
         fork.stabilizer = deepcopy(self.stabilizer)
         fork.release_state = deepcopy(self.release_state)
+        fork.flex_state = deepcopy(self.flex_state)
         fork._last_timestamp = self._last_timestamp
         fork._last_image_size = self._last_image_size
+        fork.cadence = deepcopy(self.cadence)
         return fork
 
     def _process(self, frame, detector, *, frame_index, timestamp, fps, draw_landmarks, advance_state=True):
@@ -268,13 +289,24 @@ class HandPipeline:
         )
         diagnostics = payload["input_diagnostics"]
         image_size = (diagnostics["image_width"], diagnostics["image_height"])
-        # 旧标签不加入新的时序策略；新流遇到断帧/倒序/换尺寸即重启状态。
-        discontinuity = advance_state and self.cfg.get("geometry_mode") == "image_width_xyz_v1" and (
-            (self._last_timestamp is not None and not 0 < payload["timestamp"] - self._last_timestamp
-             <= float(self.cfg.get("mapping_max_frame_gap_ms", 100.0)) / 1000.0)
-            or (self._last_image_size is not None and image_size != self._last_image_size)
-        )
-        reset = not diagnostics["input_valid"] or discontinuity
+        # 旧标签不加入新的时序策略；新流遇到真实断流/倒序/换尺寸即重启状态。
+        # 断流阈值随该流近期周期放宽（下限 mapping_max_frame_gap_ms），慢而连续的相机不算断流。
+        corrected = self.cfg.get("geometry_mode") == "image_width_xyz_v1"
+        gap_limit_s = self.cadence.gap_limit_s() if corrected else None
+        reset_reason = None
+        if not diagnostics["input_valid"]:
+            reset_reason = "invalid_input"
+        elif advance_state and corrected and self._last_timestamp is not None:
+            interval = payload["timestamp"] - self._last_timestamp
+            if image_size != self._last_image_size:
+                reset_reason = "image_size_changed"
+            elif interval <= 0:
+                reset_reason = "timestamp_not_increasing"
+            elif interval > gap_limit_s:
+                reset_reason = "frame_gap"
+        if advance_state:
+            self.cadence.observe(payload["timestamp"])
+        reset = reset_reason is not None
         if reset:
             self.reset()
         if diagnostics["input_valid"]:
@@ -287,10 +319,11 @@ class HandPipeline:
             payload["gesture_stable"] = "unknown"
         baseline_end = time.time() * 1000.0
         _apply_extension_chain(payload, self.cfg, self.runtime, logger=self.logger,
-                               release_state=self.release_state, advance_state=advance_state)
+                               release_state=self.release_state, flex_state=self.flex_state, advance_state=advance_state)
         diagnostics.update(mapping_version=self._mapping_version,
-                           release_weight=self.release_state.weight if self.cfg.get("control_open_release_mode") == "continuous_v1" else None,
-                           state_reset=bool(reset))
+                           release_weight=self.release_state.weight if self.cfg.get("control_open_release_mode") in {"continuous_v1", "none"} else None,
+                           state_reset=bool(reset), reset_reason=reset_reason,
+                           frame_gap_limit_ms=None if gap_limit_s is None else gap_limit_s * 1000.0)
         self.last_stage_timing = {
             "detection_end_unix_ms": detection_end_unix_ms,
             "detection_ms": (detection_end - started) * 1000.0,

@@ -10,7 +10,7 @@ import time
 import cv2
 import numpy as np
 
-from capture.timeline import resolve_media_timestamp_ms
+from capture.timeline import SourceCadence, resolve_media_timestamp_ms
 from perception.geometry import GEOMETRY_TASK
 from perception.hand_filter import select_right_hand
 from perception.mediapipe_hand import MediaPipeHandDetector
@@ -73,6 +73,8 @@ def read_config(path: Path) -> tuple[dict, dict]:
 def validate_sequence(frames: list[dict], cfg: dict) -> None:
     """缓存也保留必要的坐标、时序、数值检查；不检查文件身份。"""
     previous, seen_segments, active_segment = None, set(), None
+    # 提取时 HandPipeline 对每个源帧推进一次源节奏；这里按同一顺序复算断流阈值。
+    cadence = SourceCadence.from_config(cfg)
     for index, row in enumerate(frames):
         if row["frame_id"] != index or row.get("task_id") != GEOMETRY_TASK or row.get("timebase") != "media_pts_ms":
             raise ValueError("观测必须保留全部连续源帧和摄像头坐标/时间声明")
@@ -81,6 +83,8 @@ def validate_sequence(frames: list[dict], cfg: dict) -> None:
                 raise ValueError(f"观测 {key} 必须有限非负")
         if previous and row["source_time_ms"] <= previous["source_time_ms"]:
             raise ValueError("源时间必须严格递增")
+        gap_limit_s = cadence.gap_limit_s()
+        cadence.observe(row["source_time_ms"] / 1000)
         if not all(isinstance(row[key], int) and not isinstance(row[key], bool) and row[key] > 0 for key in ("image_width", "image_height")):
             raise ValueError("观测宽高必须为正整数")
         if not isinstance(row["input_valid"], bool):
@@ -96,7 +100,8 @@ def validate_sequence(frames: list[dict], cfg: dict) -> None:
                 raise ValueError("缓存几何与声明的宽高转换不一致")
             if not isinstance(row["segment_id"], int) or row["segment_id"] < 0:
                 raise ValueError("有效段号必须为非负整数")
-            if previous and (row["source_time_ms"] - previous["source_time_ms"] > cfg.get("mapping_max_frame_gap_ms", 100)
+            # 与流水线相同用秒比较，避免毫秒/秒换算在阈值边界上产生不同判定。
+            if previous and (row["source_time_ms"] / 1000 - previous["source_time_ms"] / 1000 > gap_limit_s
                 or (row["image_width"], row["image_height"]) != (previous["image_width"], previous["image_height"])):
                 active_segment = None
             if row["segment_id"] != active_segment:

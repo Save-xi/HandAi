@@ -2,7 +2,7 @@
 
 ## 输入
 
-`src/pipeline.py` 的 `HandPipeline` 负责一次单手输入流。每个流使用一个实例，内部保留手势去抖、释放权重和连续性状态。新摄像头开发使用 `configs/ai_m3a.yaml`。
+`src/pipeline.py` 的 `HandPipeline` 负责一次单手输入流。每个流使用一个实例，内部保留手势去抖、释放权重、连续性和可选逐指滤波状态。当前摄像头映射入口为 `configs/ai_camera_v10.yaml`，该入口关闭控制 flex 的时间滤波；`configs/ai_m3a.yaml` 保留 v4 兼容重放。
 
 - `process_frame(bgr_frame, frame_index=..., timestamp=..., fps=...)`：处理图像，构造实例时注入检测器。
 - `process_detections(detections, frame_index=..., timestamp=..., fps=...)`：直接处理设备或其他模型给出的关键点，无需初始化 MediaPipe。
@@ -13,7 +13,7 @@
 |---|---|
 | `landmarks_2d` | 21×2 图像归一化坐标，顺序为 wrist、thumb、index、middle、ring、little |
 | `landmarks_xyz` | MediaPipe 原始 21×3 x/y/z；XY 分别按宽高归一化，z 是相对深度；保持原值输出 |
-| `image_width` / `image_height` | 原图正整数宽高；M3-A 外部关键点入口必须提供，图像入口可从实际帧取得并核对 |
+| `image_width` / `image_height` | 原图正整数宽高（Python 或 numpy 整数，bool/浮点不接受；诊断中统一输出 Python int）；M3-A 外部关键点入口必须提供，图像入口可从实际帧取得并核对 |
 | `coordinate_space` | M3-A 必须明确为 `mediapipe_image_xyz`；缺失或其他坐标域产生失效帧 |
 | `handedness` | 已校正镜像含义的真实 Right/Left 标签 |
 | `confidence` | [0,1] 的置信度；不同模型置信度含义在适配器内说明 |
@@ -34,9 +34,13 @@
 
 下游收到 `control_ready=false` 或 `svh_preview.valid=false` 时，该帧没有有效的可消费目标。字段会保留稳定形状；下游自行处理设备相关策略。
 
-新增可选 `input_diagnostics` 包含 `task_id`、图像宽高、`input_valid`、`reason`、`geometry_landmarks`、`mapping_version`、`release_weight` 和 `state_reset`。原始 `landmarks_2d/landmarks_3d` 的含义不变。结构/数值/尺度失效时不输出坏坐标；仅越界时保留已核验的有限坐标。`release_weight` 是新连续候选的状态，旧映射为 null。输入有效不等于已分类；有效 `unknown` 可输出连续表示，失效输入则立即清空状态。
+新增可选 `input_diagnostics` 包含 `task_id`、图像宽高、`input_valid`、`reason`、`geometry_landmarks`、`mapping_version`、`release_weight`、`state_reset`、`reset_reason` 和 `frame_gap_limit_ms`。原始 `landmarks_2d/landmarks_3d` 的含义不变。结构/数值/尺度失效时不输出坏坐标；仅越界时保留已核验的有限坐标。`release_weight` 在 v2 为 null、v4/v5 为连续释放状态，关闭全局释放的 v6–v9 为 0。输入有效不等于已分类；有效 `unknown` 可输出连续表示，失效输入则立即清空状态。
 
-`reset()` 用于显式换流。新配置在时间倒序、间隔超过 100ms 或图像尺寸改变时重启映射状态。`fork_mapping()` 复制手势候选、计数、释放权重、上次时间和图像尺寸，副本不携带检测器；复制不推进状态。M3-B 的 `query_detections()` 在副本上查询，既不多确认一次手势，也不更新释放权重。现有预测旁路遇到无效预览会清空历史；外部消费者也必须处理每次断流信号。
+`state_reset=true` 时 `reset_reason` 说明原因：`invalid_input`（当前输入失效，细节见 `reason`）、`frame_gap`（与上一有效帧的间隔超过 `frame_gap_limit_ms`）、`timestamp_not_increasing`（时间倒序或重复）、`image_size_changed`；未重置为 null。`frame_gap_limit_ms` 是本帧采用的断流阈值，旧几何为 null。
+
+新配置在时间倒序、真实断流或图像尺寸改变时重启映射状态。断流阈值为 min(`mapping_frame_gap_ceiling_ms`, max(`mapping_max_frame_gap_ms`, `mapping_frame_gap_period_factor` × 最近 `mapping_frame_gap_period_window` 个源间隔的中位数))，`ai_m3a.yaml` 为 min(1000ms, max(100ms, 2.5×中位周期))、窗口 9：中位周期不超过 40ms（如 ≥25fps 恒定帧率）时即 100ms，约 13fps 的实时相机约 195ms。每个源帧（含失效帧）都计入间隔，当前帧只用之前的间隔；尚无间隔时用 100ms 下限，因此低于 10fps 的流启动时仍会重启一次。坏帧不受该阈值影响，当帧立即重置。理由与实测见 [M3-A 断流修订](m3a_camera_foundation.md#实时慢帧断流修订2026-10-20)。
+
+`reset()` 用于明确中断，只清映射状态；源节奏估计属于该输入流，不随 `reset()` 清空，换流应新建 `HandPipeline` 实例。`fork_mapping()` 复制手势候选、计数、释放权重、可选逐指滤波状态、上次时间、图像尺寸和源节奏，副本不携带检测器；复制不推进状态。M3-B 的 `query_detections()` 在副本上查询，既不多确认一次手势，也不更新释放权重或源节奏。v9 查询可计算该时刻的假想滤波输出，不写回活跃流状态。现有预测旁路遇到无效预览会清空历史；外部消费者也必须处理每次断流信号。
 
 主 CLI 新增 `source_timing`：视频使用 `media_pts_ms` 和记录来源的 PTS/FPS 回退；实时摄像头使用 `monotonic_ms`，起点为 `source.read` 返回，不能称为曝光时间。字段为 `source_time_ms`、`timebase`、`timestamp_source`、`read_return_monotonic_ms`、`nominal_fps`。这些时间送入流水线用于状态推进；主 CLI 的顶层 `timestamp` 在输出时保留读回时刻的 Unix 秒数，兼容旧影子日志，M3 不使用它作为媒体锚点。检测完成时刻单独记录，不再从 `timestamp` 推断。
 
@@ -48,7 +52,45 @@
 
 模型配置指定历史长度、采样率和预测时间距。加载时比较可读参数、模型维度与通道顺序；无效输入、断帧和推理异常仍会产生明确诊断。
 
-M3-A 新映射版本为 `svh9-camera-v3-continuous-release`，旧 `svh9-label-v2-open-release` 模型加载时会因版本不符拒绝接入新配置。当前主 CLI 默认关闭旧神经预测；M3-B 通过独立实验入口提供同域简单基线，不复用 H2O checkpoint。
+`ai_m3a.yaml` 的摄像头映射版本仍为 `svh9-camera-v4-cadence-gap`（M3-A 交付时为 `svh9-camera-v3-continuous-release`，v4 只改断流阈值）；旧 `svh9-label-v2-open-release` 模型加载时会因版本不符拒绝接入新配置。当前主 CLI 默认关闭旧神经预测；M3-B 通过独立实验入口提供同域简单基线，不复用 H2O checkpoint。
+
+## 2026-10-24 复审后的当前映射 v10
+
+当前入口是 [ai_camera_v10.yaml](../configs/ai_camera_v10.yaml)，版本 `svh9-camera-v10-low-lag-thumb`，完整结果见 [R1/R2、S1/S4 修订记录](mapping_review_revision_20261024.md)。该文件包含全部 112 个有效配置键，不继承下面的五个首轮中间配置。旧模型与缓存按新版本和明文参数拒绝混用。
+
+v10 的 `control_flex_filter_mode=none`：控制层不再添加时间平滑，`finger_flex` 为当帧范围归一化后的值，拇指保留原始 curl；`release_weight=0`。无滤波的 30/13 fps 阶跃首帧响应均为 100%，两段录像九通道相对同配置不滤波均为 0 帧滞后。检测器、队列、网络与机械运动的总延迟没有因此归零。设备侧限速和限位仍由 DS 按设备能力实现。
+
+R2 把拇指指尖参考改为开端 0.98、闭端 0.60，区间从 0.154 放宽到 0.38，指尖项权重从 0.70 降至 0.25。为了降低既有抓握引导的噪声并保留握拳行程，拇指抓握引导另用 `grasp_close` 的 0.10/0.65 作为开闭端点，屈曲混合权重为引导 0.95、自身 flex 0.05。它仅影响抓握端点的 ch0/ch1，不改四指或 ch8，不测直接对掌角，也不使用时序平均。
+
+抓握拇指限制仍为 0.85/0.75；捏合端点及向捏合的连续混合不套抓握上限。`preferred_mapping` 仍只描述上下文，消费者直接读九通道 `target_positions`。不滤波的 ch0/ch1 抖动最高为旧 v4 的 1.212 倍，B 张手基准 ch1 为 0.026，两个主要录像的握拳拇指中位数约为 0.812/0.75 和 0.817/0.75。它们是代理指标，不是实体精度或人工 GT。
+
+## 首轮 v5–v9 历史复现
+
+完整实现、开发数据分母、逐项前后输出及检查见 [映射修复记录](mapping_repairs_20261024.md)。这些问题编号 M1/M2 等与路线图的科研里程碑不同。
+
+| 配置 | 版本 | 对下游有影响的差异 |
+|---|---|---|
+| `ai_mapping_m1.yaml` | `svh9-camera-v5-per-finger-curl` | 原始 curl 改用逐指指尖-掌心参考；仍是代理量 |
+| `ai_mapping_m2.yaml` | `svh9-camera-v6-local-finger-control` | 不再用一个释放权重缩放全部手指 |
+| `ai_mapping_m7.yaml` | `svh9-camera-v7-pinch-depth-guard` | 捏合距离取同尺度 2D/3D 距离较大者，只作投影重叠排除 |
+| `ai_mapping_m6.yaml` | `svh9-camera-v8-continuous-route` | 抓握/捏合公式按强度 0.20–0.60 连续混合；标签不直接切公式 |
+| `ai_mapping_m8.yaml` | `svh9-camera-v9-long-finger-range` | 四指范围归一化，握紧度按四指计算，控制 flex 使用逐指 One Euro 自适应滤波 |
+
+配置按上述顺序累积继承。语义参数（含滤波参数）全部进入映射契约，旧模型/缓存不兼容时重新提取，不覆盖旧工件。所有版本仍输出原顺序的九个 [0,1] 代理通道，未实现直接外展、直接对掌或 MCP/远端分别测量。
+
+v8/v9 的 `preferred_mapping` 是描述性字段。实际通道按 `smoothstep((effective_pinch_strength−0.20)/0.40)` 混合两组端点，消费方应直接读 `target_positions`，不能按 `preferred_mapping` 再硬切一次。v9 抓握端点拇指屈曲/对掌分别限制到 0.85/0.75；捏合端点不受此限制，混合后的值可能随捏合权重超过抓握上限。这不是已确认的实体机械限位。
+
+v9 的原始 `finger_curl` 不经时间滤波；`control_representation.finger_flex` 是范围重定后经过自适应滤波的控制量。滤波参数为最小截止频率 2 Hz、速度系数 0.1、导数截止频率 1 Hz。没有固定窗口平均，仍有跟随滞后：受控动作从首个改变输入帧到 90% 响应在 30 fps 时约 167–200 ms、13 fps 时约 231 ms。启动、无效帧及断流恢复时不使用旧值缓慢追赶，首个有效帧直接初始化滤波；该行为不代替设备侧限速。直接调用控制层时需要显式传入该流的 `AdaptiveFlexState`，常规调用应通过 `HandPipeline` 统一管理。
+
+开发录像的两段主要计数合计由 10 降到 4，但 V5 单段由 2 增至 3，张手转换后也存在滤波残留；详见修复记录。没有人工 GT 或真实捏合召回结论，没有真机流畅度验收。
+
+## 外部 Unity 接口差异（X1–X3，只记录）
+
+2026-10-24 对 `D:\SVH\RoboticArm` 仅作只读核对，本轮没有修改 C#。
+
+- **X1：增益与角度上限。** `RobotControlScript.cs` 的九通道增益为 `[1,1,1,1,1.12,1.12,1.18,1.20,1]`，乘完后再截到 1；虚拟手还按自身角度上限展开。例：拇指屈曲约 0.90 rad，食指/中指远端约 1.30 rad，食指近端约 0.75 rad；旧驱动对应量程约 0.97/1.33/0.80 rad。Python `target_positions` 不包含这些 Unity 增益。直接用于实体适配时会与 Unity 看到的姿态不同，增益归属与限位应由协作方统一确认。
+- **X2：旧 payload 的 fallback。** Unity 对缺少 `svh_preview` 的 payload 使用另一套映射，张手时 ch8 约为 1，而当前 Python 抓握代理为 0.25。当前 Python 总会提供 `svh_preview`（失效时为空目标且 `valid=false`），正常接入应按有效性处理，不能通过删除此对象转到旧映射。
+- **X3：ticks 仅为参考。** `target_ticks_preview` 的拇指对掌闭合参考为 −150000；旧驱动同处先赋“保守值”−105000，随后又以“全量程”−150000 覆盖。两个数都不能当作这台设备已标定的限位。接实体前按现场 SDK、方向、零位、机械范围重新确认；ch8 实际方向也由 DS 记录。
 
 ## 摄像头简单预测（M3-B）
 

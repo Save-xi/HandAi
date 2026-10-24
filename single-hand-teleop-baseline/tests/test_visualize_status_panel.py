@@ -1,7 +1,9 @@
 import numpy as np
 
 from output.frame_payload_contract import normalize_frame_payload
-from visualize.status_panel import build_status_panel
+from pipeline import HandPipeline
+from utils.config import load_config
+from visualize.status_panel import build_status_panel, build_status_rows
 
 
 def _landmarks_2d() -> list[list[float]]:
@@ -73,3 +75,22 @@ def test_build_status_panel_renders_non_empty_panel():
     assert panel.shape == (480, 420, 3)
     assert panel.dtype == np.uint8
     assert int(panel.sum()) > 0
+
+
+def test_status_rows_show_input_reason_and_release_weight_or_none():
+    payload = _sample_payload()
+    rows = build_status_rows(payload)
+    assert "输入: 无" in rows and "释放权重: 无" in rows
+    payload["input_diagnostics"] = {"reason": "out_of_bounds", "release_weight": 0.25}
+    rows = build_status_rows(payload)
+    assert "输入: out_of_bounds" in rows and "释放权重: 0.250" in rows
+
+
+def test_pipeline_failure_reason_fits_on_720_high_panel():
+    payload = HandPipeline(load_config("configs/ai_m3a.yaml")).process_detections([], frame_index=0, timestamp=1.0)
+    rows = build_status_rows(payload)
+    assert "输入: no_right_hand" in rows and "释放权重: 0.000" in rows
+    # 首行 y=18、行距 30px；最后一行须整行落在 720 高画面内并实际绘出。
+    assert 18 + len(rows) * 30 <= 720
+    panel = build_status_panel(720, 426, payload)
+    assert panel[18 + (len(rows) - 1) * 30:].any()

@@ -62,10 +62,112 @@ def _require_probability(cfg: Dict[str, Any], key: str, errors: list[str]) -> No
         errors.append(f"{key} 必须位于 [0, 1]")
 
 
+def _validate_frame_gap(cfg: Dict[str, Any], errors: list[str]) -> None:
+    """断流阈值 = min(上限, max(下限, 倍数×近期中位周期))；上限不得压过下限。"""
+    _require_positive_int(cfg, "mapping_frame_gap_period_window", errors)
+    _require_positive_number(cfg, "mapping_frame_gap_ceiling_ms", errors)
+    if "mapping_frame_gap_period_factor" in cfg:
+        factor = cfg["mapping_frame_gap_period_factor"]
+        if isinstance(factor, bool) or not isinstance(factor, (int, float)) or not math.isfinite(factor) or factor < 1:
+            errors.append("mapping_frame_gap_period_factor 必须是不小于 1 的有限数")
+    floor = cfg.get("mapping_max_frame_gap_ms", 100.0)
+    ceiling = cfg.get("mapping_frame_gap_ceiling_ms", 1000.0)
+    numbers = all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in (floor, ceiling))
+    if numbers and ceiling < floor:
+        errors.append("mapping_frame_gap_ceiling_ms 不能小于 mapping_max_frame_gap_ms")
+
+
 def validate_config(cfg: Dict[str, Any]) -> None:
     """对会影响运行安全和 contract 的配置做启动前硬校验。"""
 
     errors: list[str] = []
+    stage = cfg.get("camera_mapping_stage", 4)
+    if type(stage) is not int or stage not in (4, 5, 6, 7, 8, 9, 10):
+        errors.append("camera_mapping_stage 当前只支持 4/5/6/7/8/9/10")
+    elif stage >= 5:
+        if cfg.get("geometry_mode") != "image_width_xyz_v1" or cfg.get("svh_preview_layout") != "svh_9ch":
+            errors.append("新映射只接受 M3-A 几何与 svh_9ch 布局")
+        if cfg.get("feature_curl_mode") != "per_finger_tip_v1":
+            errors.append("新映射必须显式选择 feature_curl_mode=per_finger_tip_v1")
+        fingers = {"thumb", "index", "middle", "ring", "little"}
+        opened, closed = cfg.get("finger_tip_open_refs"), cfg.get("finger_tip_closed_refs")
+        if not all(isinstance(values, dict) and set(values) == fingers for values in (opened, closed)):
+            errors.append("逐指参考必须明确 finger_tip_open_refs/finger_tip_closed_refs 的五根手指")
+        else:
+            for finger in fingers:
+                a, b = opened[finger], closed[finger]
+                if not all(type(v) in (int, float) and math.isfinite(v) and v > 0 for v in (a, b)) or not b < a:
+                    errors.append(f"{finger} 的逐指参考须满足有限正数 closed < open")
+    elif cfg.get("feature_curl_mode", "legacy") != "legacy":
+        errors.append("feature_curl_mode 的新语义必须选择新的 camera_mapping_stage")
+    if type(stage) is int and stage >= 6:
+        if cfg.get("control_open_release_mode") != "none" or cfg.get("control_open_release_enabled", False):
+            errors.append("M2 新版本须显式关闭全局释放并选择 control_open_release_mode=none")
+    elif cfg.get("control_open_release_mode") == "none":
+        errors.append("关闭全局释放的新语义须选择 camera_mapping_stage>=6")
+    if type(stage) is int and stage >= 7:
+        if cfg.get("pinch_distance_mode") != "max_2d_geometry3d_v1":
+            errors.append("M7 新版本必须显式选择 max_2d_geometry3d_v1 捏合距离")
+    elif cfg.get("pinch_distance_mode", "image_2d") != "image_2d":
+        errors.append("三维捏合排除规则必须选择 camera_mapping_stage>=7")
+    if type(stage) is int and stage >= 8:
+        if cfg.get("svh_mapping_transition_mode") != "continuous_blend_v1":
+            errors.append("M6 新版本必须显式选择 continuous_blend_v1")
+        start, full = cfg.get("svh_pinch_blend_start"), cfg.get("svh_pinch_blend_full")
+        if (not all(type(v) in (int, float) and math.isfinite(v) and 0 <= v <= 1 for v in (start, full))
+                or full - start < 0.4 - 1e-9):
+            errors.append("捏合混合区间须在 [0,1] 内且宽度至少 0.4，以限制扫描单步变化")
+    elif cfg.get("svh_mapping_transition_mode", "discrete") != "discrete":
+        errors.append("连续混合规则必须选择 camera_mapping_stage>=8")
+    if type(stage) is int and stage >= 9:
+        if cfg.get("control_finger_range_mode") != "long_finger_v1":
+            errors.append("M8 新版本必须显式选择 long_finger_v1")
+        weight = cfg.get("control_grasp_flex_weight")
+        if type(weight) not in (int, float) or not math.isfinite(weight) or not 0 <= weight <= 1:
+            errors.append("control_grasp_flex_weight 必须位于 [0,1]")
+        fingers = {"index", "middle", "ring", "little"}
+        opened, closed = cfg.get("control_finger_open_refs"), cfg.get("control_finger_closed_refs")
+        if not all(isinstance(v, dict) and set(v) == fingers for v in (opened, closed)):
+            errors.append("四指控制端点必须明确 control_finger_open_refs/control_finger_closed_refs")
+        else:
+            for name in fingers:
+                a, b = opened[name], closed[name]
+                if not all(type(v) in (int, float) and math.isfinite(v) for v in (a, b)) or not 0 <= a < b <= 1:
+                    errors.append(f"{name} 的控制端点须满足 0 <= open < closed <= 1")
+    elif cfg.get("control_finger_range_mode", "legacy") != "legacy":
+        errors.append("四指新端点必须选择 camera_mapping_stage>=9")
+    elif "control_grasp_flex_weight" in cfg:
+        errors.append("新握紧度配比必须选择 camera_mapping_stage>=9")
+    filter_mode = cfg.get("control_flex_filter_mode", "none")
+    if filter_mode not in {"none", "one_euro_v1"}:
+        errors.append("control_flex_filter_mode 只能是 none 或 one_euro_v1")
+    if filter_mode == "one_euro_v1":
+        if type(stage) is not int or stage < 9:
+            errors.append("自适应 flex 滤波须显式选择 camera_mapping_stage>=9")
+    if type(stage) is int and stage >= 9:
+        if cfg.get("control_flex_filter_mode") not in {"none", "one_euro_v1"}:
+            errors.append("M8 必须明确 control_flex_filter_mode，不能依赖隐式缺省")
+        for key in ("control_flex_filter_min_cutoff_hz", "control_flex_filter_derivative_cutoff_hz"):
+            value = cfg.get(key)
+            if type(value) not in (int, float) or not math.isfinite(value) or value <= 0:
+                errors.append(f"{key} 必须是有限正数")
+        beta = cfg.get("control_flex_filter_beta")
+        if type(beta) not in (int, float) or not math.isfinite(beta) or beta < 0:
+            errors.append("control_flex_filter_beta 必须是有限非负数")
+    thumb_keys = ("thumb_tip_proximity_weight", "svh_thumb_control_mode", "svh_thumb_grasp_open_ref",
+                  "svh_thumb_grasp_closed_ref", "svh_thumb_grasp_guide_weight")
+    if type(stage) is int and stage >= 10:
+        if cfg.get("svh_thumb_control_mode") != "calibrated_grasp_v1":
+            errors.append("v10 必须显式选择 svh_thumb_control_mode=calibrated_grasp_v1")
+        for key in ("thumb_tip_proximity_weight", "svh_thumb_grasp_guide_weight"):
+            value = cfg.get(key)
+            if type(value) not in (int, float) or not math.isfinite(value) or not 0 <= value <= 1:
+                errors.append(f"{key} 必须位于 [0,1]")
+        a, b = cfg.get("svh_thumb_grasp_open_ref"), cfg.get("svh_thumb_grasp_closed_ref")
+        if not all(type(v) in (int, float) and math.isfinite(v) for v in (a, b)) or not 0 <= a < b <= 1:
+            errors.append("拇指抓握引导端点须满足 0 <= open < closed <= 1")
+    elif any(key in cfg for key in thumb_keys):
+        errors.append("拇指新参考/配比语义必须选择 camera_mapping_stage>=10")
     for key in (
         "display_width",
         "display_height",
@@ -83,23 +185,25 @@ def validate_config(cfg: Dict[str, Any]) -> None:
         "control_release_curl_half_width",
         "control_release_pinch_band",
         "mapping_max_frame_gap_ms",
+        # hand_open_ratio 不是概率，真实张开手常大于 1；释放阈值只要求有限正数。
+        "control_open_release_start_ratio",
+        "control_open_release_full_ratio",
     ):
         _require_positive_number(cfg, key, errors)
     for key in (
         "min_detection_confidence",
         "min_tracking_confidence",
         "control_ready_min_in_bounds_ratio",
-        "control_open_release_start_ratio",
-        "control_open_release_full_ratio",
         "control_release_hysteresis",
     ):
         _require_probability(cfg, key, errors)
+    _validate_frame_gap(cfg, errors)
 
     source_type = str(cfg.get("input_source_type", "webcam")).strip().lower()
     if cfg.get("geometry_mode", "legacy_image_xyz") not in {"legacy_image_xyz", "image_width_xyz_v1"}:
         errors.append("geometry_mode 必须是 legacy_image_xyz 或 image_width_xyz_v1")
-    if cfg.get("control_open_release_mode", "legacy") not in {"legacy", "continuous_v1"}:
-        errors.append("control_open_release_mode 必须是 legacy 或 continuous_v1")
+    if cfg.get("control_open_release_mode", "legacy") not in {"legacy", "continuous_v1", "none"}:
+        errors.append("control_open_release_mode 必须是 legacy、continuous_v1 或 none")
     if source_type not in {"webcam", "video_file"}:
         errors.append("input_source_type 只能是 webcam 或 video_file")
 

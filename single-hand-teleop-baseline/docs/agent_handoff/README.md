@@ -1,6 +1,6 @@
 # AI 交接：已核实状态与整改依据
 
-更新：2026-09-23。已合并 Claude、本机二审及 `HandAi_AI_Review_20260921.md` 路线建议。M0/M1/M2、[M3-A 摄像头基础整改](../m3a_camera_foundation.md)与 [M3-B 简单预测/成本重放](../m3b_camera_prediction.md)已完成。V1–V7 共 2100 帧只有历史开发身份，未证明独立泛化或真实精度；H2O 神经模型扩展继续暂停。下一步 M3-C 补人员/会话及人工标签，见 [AI 路线图](../ai_roadmap.md)。
+更新：2026-09-27。已合并 Claude、本机二审及 `HandAi_AI_Review_20260921.md` 路线建议。M0/M1/M2、[M3-A 摄像头基础整改](../m3a_camera_foundation.md)与 [M3-B 简单预测/成本重放](../m3b_camera_prediction.md)已完成。[M3-C 工具](../m3c_real_label_evaluation.md)已实现，P01 开发、P02/P03 留出的新视频及人工标签尚未取得。V1–V7 共 2100 帧只有历史开发身份，未证明独立泛化或真实精度；H2O 神经模型扩展继续暂停。
 
 日常运行以 [项目指令](../../AGENTS.md) 和 [README](../../README.md) 为准。阶段规划、交接或证据复核时参考本文，不把这份快照作为每次普通修改前的检查关卡。已有数据、权重和历史报告继续保留。
 
@@ -40,7 +40,7 @@
 | H2O 原生 21 点未来预测 | M1 已实现训练、基线、评测与加载；小样本常速度优于 GRU | [M1 交付](../m1_keypoint_prediction.md) |
 | H2O 预测姿态后判手势/映射 | M2 已实现因果状态和共同参考；C 优于 A/B，但未通过继续条件 | [M2 对照](../m2_representation_comparison.md) |
 | 摄像头简单姿态预测与计算就绪时间 | M3-B 已实现三个基线、独立候选输出及有界队列成本重放；不是墙钟实时/设备测试 | [M3-B](../m3b_camera_prediction.md) |
-| 新人员/会话与人工关键点/手势评测 | 尚未实现 | M3-C |
+| 新人员/会话与人工关键点/手势评测 | 导入、标注、评分工具可运行；真实数据/人工 GT 未完成 | [M3-C](../m3c_real_label_evaluation.md) |
 | MMPose 对照、InterHand2.6M 适配、自训练检测网络 | 尚未实现 | 后续路线 |
 | ONNX/量化、边缘端运行 | 尚未实现 | 后续路线 |
 
