@@ -14,7 +14,7 @@ from __future__ import annotations
 from typing import Dict, List
 
 from control.control_representation import build_control_representation
-from features.geometry_utils import clamp01
+from features.geometry_utils import clamp01, normalize_between
 from output.frame_payload_contract import get_stable_gesture
 from svh.svh_command import SvhCommandPreview
 from svh.svh_layout import SVH_9CH_LAYOUT, SVH_9CH_NAMES, get_svh_9ch_tick_refs
@@ -325,6 +325,18 @@ def _build_svh9_grasp_preview(control_representation: Dict, cfg: Dict) -> Dict:
 
     thumb_close = clamp01(0.75 * (grasp_close * thumb_grasp_scale) + 0.25 * thumb_flex)
     thumb_opp = clamp01(max(thumb_flex, grasp_close * thumb_opposition_scale))
+    if cfg.get("svh_thumb_control_mode") == "calibrated_grasp_v1":
+        # 宽参考/低权重抑制拇指输入噪声；抓握引导单独重定端点，避免缩短握拳行程。
+        # 仍是当帧配比代理，不新增对掌角测量或时间滤波，也不改变四指输出。
+        thumb_guide = normalize_between(grasp_close, float(cfg["svh_thumb_grasp_open_ref"]),
+                                        float(cfg["svh_thumb_grasp_closed_ref"]))
+        guide_weight = float(cfg["svh_thumb_grasp_guide_weight"])
+        thumb_close = clamp01(guide_weight * thumb_guide * thumb_grasp_scale + (1.0 - guide_weight) * thumb_flex)
+        thumb_opp = clamp01(max(thumb_flex, thumb_guide * thumb_opposition_scale))
+    if cfg.get("control_finger_range_mode") == "long_finger_v1":
+        # 四指满量程不顺便放开拇指；限制只作用抓握端点，捏合端点保持原公式。
+        thumb_close = min(thumb_close, thumb_grasp_scale)
+        thumb_opp = min(thumb_opp, thumb_opposition_scale)
     spread_alpha = clamp01((1.0 - grasp_close) * open_spread_scale + grasp_close * grasp_spread_scale)
     index_assist = _finger_gated_grasp_assist(index_flex, grasp_close)
     middle_assist = _finger_gated_grasp_assist(middle_flex, grasp_close)
@@ -508,6 +520,17 @@ def build_svh_command_preview(payload: Dict, cfg: Dict) -> Dict:
     enable_gesture_fallback = bool(cfg.get("svh_enable_gesture_fallback", False))
 
     if command_ready:
+        if (cfg.get("svh_mapping_transition_mode") == "continuous_blend_v1"
+                and _layout(cfg) == SVH_9CH_LAYOUT and preferred_mapping in {"grasp", "pinch"}):
+            grasp = _build_svh9_grasp_preview(control_representation, cfg)
+            pinch = _build_svh9_pinch_preview(control_representation, cfg)
+            strength = clamp01(float(control_representation["effective_pinch_strength"]))
+            start, full = float(cfg["svh_pinch_blend_start"]), float(cfg["svh_pinch_blend_full"])
+            phase = clamp01((strength - start) / (full - start))
+            weight = phase * phase * (3.0 - 2.0 * phase)
+            # 同一帧的两个代理端点连续混合；标签不切换公式，不增加历史状态。
+            positions = [_lerp(a, b, weight) for a, b in zip(grasp["target_positions"], pinch["target_positions"])]
+            return {**grasp, "target_positions": positions, "target_ticks_preview": _target_ticks_preview(positions, cfg)}
         if preferred_mapping == "grasp":
             return _build_grasp_preview(control_representation, cfg)
         if preferred_mapping == "pinch":

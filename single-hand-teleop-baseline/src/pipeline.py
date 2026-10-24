@@ -10,6 +10,7 @@ import time
 from typing import Any, Dict
 
 from capture.timeline import SourceCadence
+from control.adaptive_flex import AdaptiveFlexState
 from control.control_representation import build_control_representation, empty_control_representation
 from control.open_release import OpenReleaseState
 from features.hand_features import empty_features, extract_hand_features
@@ -97,6 +98,7 @@ def _build_baseline_payload(
             ts,
             landmarks_xyz=raw_xyz,
             geometry_xyz=(diagnostics["geometry_landmarks"] if cfg.get("geometry_mode") == "image_width_xyz_v1" else None),
+            feature_cfg=cfg,
         )
     elif diagnostics["reason"] == "out_of_bounds":
         # 数组已经检查过；保留图像观察，但不计算无效帧的控制特征。
@@ -149,6 +151,7 @@ def _apply_extension_chain(
     *,
     logger,
     release_state: OpenReleaseState | None = None,
+    flex_state: AdaptiveFlexState | None = None,
     advance_state: bool = True,
 ) -> ExtensionDiagnostics:
     """依次运行可选扩展层，并在失败时退回规范占位对象。
@@ -163,7 +166,7 @@ def _apply_extension_chain(
     if runtime.control_extension_enabled:
         try:
             control_representation = build_control_representation(payload, cfg, release_state=release_state,
-                                                                 advance_release=advance_state)
+                                                                 advance_release=advance_state, flex_state=flex_state)
         except Exception as exc:
             _record_extension_failure(
                 diagnostics,
@@ -230,6 +233,7 @@ class HandPipeline:
             unknown_confirm_frames=int(cfg.get("stable_unknown_consecutive", 1)),
         )
         self.release_state = OpenReleaseState()
+        self.flex_state = AdaptiveFlexState()
         self._last_timestamp: float | None = None
         self._last_image_size: tuple | None = None
         # 源节奏属于这条输入流本身，reset() 不清空；换流应新建实例。
@@ -243,6 +247,7 @@ class HandPipeline:
         """
         self.stabilizer.reset()
         self.release_state.reset()
+        self.flex_state.reset()
         self._last_timestamp = None
         self._last_image_size = None
 
@@ -263,6 +268,7 @@ class HandPipeline:
         fork.last_stage_timing = {}
         fork.stabilizer = deepcopy(self.stabilizer)
         fork.release_state = deepcopy(self.release_state)
+        fork.flex_state = deepcopy(self.flex_state)
         fork._last_timestamp = self._last_timestamp
         fork._last_image_size = self._last_image_size
         fork.cadence = deepcopy(self.cadence)
@@ -313,9 +319,9 @@ class HandPipeline:
             payload["gesture_stable"] = "unknown"
         baseline_end = time.time() * 1000.0
         _apply_extension_chain(payload, self.cfg, self.runtime, logger=self.logger,
-                               release_state=self.release_state, advance_state=advance_state)
+                               release_state=self.release_state, flex_state=self.flex_state, advance_state=advance_state)
         diagnostics.update(mapping_version=self._mapping_version,
-                           release_weight=self.release_state.weight if self.cfg.get("control_open_release_mode") == "continuous_v1" else None,
+                           release_weight=self.release_state.weight if self.cfg.get("control_open_release_mode") in {"continuous_v1", "none"} else None,
                            state_reset=bool(reset), reset_reason=reset_reason,
                            frame_gap_limit_ms=None if gap_limit_s is None else gap_limit_s * 1000.0)
         self.last_stage_timing = {

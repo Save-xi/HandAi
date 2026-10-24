@@ -12,6 +12,7 @@ control_representation 输出的是“下游控制可以怎么理解这些量”
 
 from typing import Dict, Iterable
 
+from control.adaptive_flex import AdaptiveFlexState
 from control.open_release import OpenReleaseState
 
 from features.geometry_utils import clamp01, normalize_between
@@ -107,7 +108,7 @@ def empty_control_representation() -> Dict:
 
 
 def build_control_representation(payload: Dict, cfg: Dict, *, release_state: OpenReleaseState | None = None,
-                                 advance_release: bool = True) -> Dict:
+                                 advance_release: bool = True, flex_state: AdaptiveFlexState | None = None) -> Dict:
     """把逐帧感知结果转换成面向控制的连续向量。
 
     这一层刻意保持与硬件无关。它保留手势标签作为上下文，
@@ -131,12 +132,20 @@ def build_control_representation(payload: Dict, cfg: Dict, *, release_state: Ope
     ):
         if release_state is not None:
             release_state.reset()
+        if flex_state is not None:
+            flex_state.reset()
         return empty_control_representation()
 
     # finger_flex 先继承视觉侧 curl 并夹到 [0, 1]；预览配置可在明确张手时
     # 启用连续释放校正，但原始 finger_curl 始终保留，便于诊断和回放。
     finger_flex = {name: clamp01(float(finger_curl[name])) for name in CONTROL_FINGERS}
-    if cfg.get("control_open_release_mode", "legacy") == "continuous_v1":
+    release_mode = cfg.get("control_open_release_mode", "legacy")
+    if release_mode == "none":
+        # M1 已消除伸直偏置；新版本不再用整手状态缩放所有手指。
+        # 释放步骤逐帧直通；M8 如需滤波，会在范围归一化后显式逐指处理。
+        if release_state is not None:
+            release_state.reset()
+    elif release_mode == "continuous_v1":
         if release_state is None:
             raise ValueError("continuous_v1 需要该输入流独立的 OpenReleaseState")
         weight = release_state.update(payload, cfg) if advance_release else release_state.weight
@@ -146,11 +155,20 @@ def build_control_representation(payload: Dict, cfg: Dict, *, release_state: Ope
         finger_flex = _apply_open_release(
             finger_flex, gesture=gesture, hand_open_ratio=float(payload["hand_open_ratio"]), cfg=cfg,
         )
+    if cfg.get("control_finger_range_mode") == "long_finger_v1":
+        # M8 只重定四根长手指的代理端点，原始 finger_curl 与拇指输入不变。
+        for name in NON_THUMB_FINGERS:
+            finger_flex[name] = normalize_between(
+                finger_flex[name], float(cfg["control_finger_open_refs"][name]),
+                float(cfg["control_finger_closed_refs"][name]))
+    if cfg.get("control_flex_filter_mode") == "one_euro_v1":
+        if flex_state is None:
+            raise ValueError("自适应 flex 滤波需要该输入流独立的 AdaptiveFlexState")
+        finger_flex = flex_state.update(finger_flex, float(payload["timestamp"]), cfg, advance=advance_release)
     mean_non_thumb_flex = _mean(finger_flex[name] for name in NON_THUMB_FINGERS)
     support_flex = _mean(finger_flex[name] for name in SUPPORT_FINGERS)
 
-    # grasp_close 同时看“长手指 curl”和“指尖离掌心距离”。
-    # 这样比只用某一个指标更不容易受视角或单个手指抖动影响。
+    # 历史 grasp_close 混合四指 curl 与整手张开比例；M8 显式改用校准后的四指范围。
     grasp_from_flex = normalize_between(
         mean_non_thumb_flex,
         float(cfg.get("control_grasp_open_ref", cfg.get("svh_grasp_open_ref", 0.02))),
@@ -161,7 +179,8 @@ def build_control_representation(payload: Dict, cfg: Dict, *, release_state: Ope
         float(cfg.get("control_hand_open_ratio_open_ref", cfg.get("svh_hand_open_ratio_open_ref", 0.95))),
         float(cfg.get("control_hand_open_ratio_closed_ref", cfg.get("svh_hand_open_ratio_closed_ref", 0.25))),
     )
-    grasp_close = clamp01(0.60 * grasp_from_flex + 0.40 * grasp_from_open_ratio)
+    flex_weight = float(cfg.get("control_grasp_flex_weight", 0.60))
+    grasp_close = clamp01(flex_weight * grasp_from_flex + (1.0 - flex_weight) * grasp_from_open_ratio)
 
     # pinch 强度先由距离主导，再用食指弯曲补充。这样能区分“伸直靠近”和“食指参与捏合”。
     pinch_from_distance = normalize_between(
@@ -181,7 +200,10 @@ def build_control_representation(payload: Dict, cfg: Dict, *, release_state: Ope
         grasp_close,
     )
 
-    if gesture == "pinch" or effective_pinch_strength >= 0.35:
+    if cfg.get("svh_mapping_transition_mode") == "continuous_blend_v1":
+        # 新预览按连续强度混合，推荐族仅作描述，不再由标签跳变切换公式。
+        preferred_mapping = "pinch" if effective_pinch_strength >= 0.35 else "grasp"
+    elif gesture == "pinch" or effective_pinch_strength >= 0.35:
         preferred_mapping = "pinch"
     else:
         preferred_mapping = "grasp"

@@ -1,0 +1,7 @@
+# M2：原始逐指 curl 已经可用，取消全局释放；不增加时间滤波。
+# 仅用于复现 2026-10-24 首轮 M2/v6；当前入口为 ai_camera_v10.yaml。
+extends: ai_mapping_m1.yaml
+camera_mapping_stage: 6
+control_open_release_mode: none
+control_open_release_enabled: false
+output_json_path: outputs/latest_mapping_m2_frame.json

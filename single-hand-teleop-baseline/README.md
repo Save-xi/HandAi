@@ -29,8 +29,10 @@
 ```bat
 conda activate handai-intent-prediction
 cd /d D:\VR\HandAi\single-hand-teleop-baseline
-python -X utf8 src\main.py --config configs\ai_m3a.yaml --camera-index 0 --save-jsonl
+python -X utf8 src\main.py --config configs\ai_camera_v10.yaml --camera-index 0 --save-jsonl
 ```
+
+当前摄像头映射入口是完整展平的 `configs/ai_camera_v10.yaml`，见 [复审修订与验收](docs/mapping_review_revision_20261024.md)。v10 关闭 AI 控制 flex 的时间滤波，设备限速由 DS 适配层处理；拇指使用更宽的参考区间、更低的指尖项权重和单独的当帧抓握引导端点。两段录像九通道相对不滤波的滞后均为 0 帧；这不代表检测器或设备总延迟为零。原 `ai.yaml` v2、`ai_m3a.yaml` v4 保留兼容重放；五个 `ai_mapping_m*.yaml` 仅用于 [首轮 v5–v9 证据复现](docs/mapping_repairs_20261024.md)，新配置不能混用旧模型或缓存。
 
 重放旧配置及现有预测模型（旧模型不能接新几何/释放语义）：
 
@@ -68,7 +70,8 @@ python -X utf8 experiments\intent_prediction\scripts\run_camera_m3b.py
 |---|---|
 | [configs/default.yaml](configs/default.yaml) | 采集、感知、手势和映射的通用参数 |
 | [configs/ai.yaml](configs/ai.yaml) | 历史几何/释放、M2 与旧模型兼容配置 |
-| [configs/ai_m3a.yaml](configs/ai_m3a.yaml) | 新摄像头开发入口；明确几何、释放与断帧参数 |
+| [configs/ai_camera_v10.yaml](configs/ai_camera_v10.yaml) | 当前单右手摄像头映射；展平配置，关闭慢滤波并校准拇指代理 |
+| [configs/ai_m3a.yaml](configs/ai_m3a.yaml) | 摄像头 v4 兼容重放入口；保留原几何、释放与断帧参数 |
 | [models/residual_motion4.json](models/residual_motion4.json) | 权重路径、采样率、预测时间距、映射参数及门控 |
 | [src/pipeline.py](src/pipeline.py) | 不依赖设备和网络的单帧 AI 处理 |
 | [src/perception/base.py](src/perception/base.py) | 姿态模型/外部 21 点的公共数据结构 |
